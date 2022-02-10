@@ -17,6 +17,7 @@ scripting/basevotes.sp
 scripting/basevotes/
 scripting/clientprefs.sp
 scripting/compile.exe
+scripting/compiled/
 scripting/funcommands.sp
 scripting/funcommands/
 scripting/funvotes.sp
@@ -106,3 +107,5 @@ scripting/spcomp64.exe
 scripting/sql-admin-manager.sp
 scripting/tests/
 scripting/testsuite/
+scripting/compile.dat
+scripting/colors.inc

@@ -6,7 +6,6 @@
 #include <sdktools>
 #include <smlib>
 #include <sourcemod>
-#include <colors>
 #define DEBUG
 #include <vector>
 
@@ -174,13 +173,13 @@ float g_LastGrenadeOrigin[MAXPLAYERS + 1][3];
 float g_LastGrenadeVelocity[MAXPLAYERS + 1][3];
 float g_LastGrenadeDetonationOrigin[MAXPLAYERS + 1][3];
 float g_ClientReplayGrenadeThrowTime[MAX_SIM_REPLAY_NADES];
-float g_TiempoRecorrido[MAX_SIM_REPLAY_NADES] = 0.0;
-Handle ExplodeNadeTimer[MAX_SIM_REPLAY_NADES] = INVALID_HANDLE;
+float g_TiempoRecorrido[MAX_SIM_REPLAY_NADES] = {0.0, ...};
+Handle ExplodeNadeTimer[MAX_SIM_REPLAY_NADES] = {INVALID_HANDLE, ...};
 #define GRENADE_DETONATE_FLASH_TIME 1.658
 #define GRENADE_DETONATE_MOLOTOV_TIME 1.96
 float g_ReplayGrenadeLastPausedTime = -1.0;
-float g_ReplayGrenadeLastResumedTime[MAX_SIM_REPLAY_NADES] = -1.0;
-float g_ReplayGrenadeLastLastResumedTime[MAX_SIM_REPLAY_NADES] = -1.0;
+float g_ReplayGrenadeLastResumedTime[MAX_SIM_REPLAY_NADES] = {-1.0, ...};
+float g_ReplayGrenadeLastLastResumedTime[MAX_SIM_REPLAY_NADES] ={ -1.0, ...};
 int g_LastGrenadeEntity[MAXPLAYERS + 1];
 
 
@@ -1305,6 +1304,7 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
   if (g_AllowNoclipCvar.IntValue != 0 && StrEqual(text, ".noclip") && IsPlayer(client)) {
     PerformNoclipAction(client);
   }
+  return Plugin_Continue;
 }
 
 public void PerformNoclipAction(int client) {
@@ -1573,11 +1573,11 @@ public void OnEntityCreated(int entity, const char[] className) {
 // We artifically delay the work here in OnEntitySpawned because the csutils
 // plugin will spawn grenades and set the owner on spawn, and we want to be sure
 // the owner is set by the time practicemode gets to the grenade.
-public int OnEntitySpawned(int entity) {
+public void OnEntitySpawned(int entity) {
   RequestFrame(DelayedOnEntitySpawned, entity);
 }
 
-public int DelayedOnEntitySpawned(int entity) {
+public void DelayedOnEntitySpawned(int entity) {
   if (!IsValidEdict(entity)) {
     return;
   }
@@ -1589,15 +1589,15 @@ public int DelayedOnEntitySpawned(int entity) {
     // Get the cl_color value for the client that threw this grenade.
     int client = Entity_GetOwner(entity);
     if (IsPlayer(client) && g_InPracticeMode &&
-        GrenadeFromProjectileName(className) == GrenadeType_Smoke) {
+    GrenadeFromProjectileName(className) == GrenadeType_Smoke) {
       int index = g_ClientGrenadeThrowTimes[client].Push(EntIndexToEntRef(entity));
       g_ClientGrenadeThrowTimes[client].Set(index, view_as<int>(GetEngineTime()), 1);
     }
     if (IsReplayBot(client) && g_InPracticeMode &&
-        (GrenadeFromProjectileName(className) != GrenadeType_None || GrenadeFromProjectileName(className) != GrenadeType_Smoke)) {
-        g_currentReplayGrenade++;
-        SetEntProp(entity, Prop_Data, "m_iTeamNum", g_currentReplayGrenade);
-        g_ClientReplayGrenadeThrowTime[g_currentReplayGrenade] = GetEngineTime();
+    (GrenadeFromProjectileName(className) != GrenadeType_None || GrenadeFromProjectileName(className) != GrenadeType_Smoke)) {
+      g_currentReplayGrenade++;
+      SetEntProp(entity, Prop_Data, "m_iTeamNum", g_currentReplayGrenade);
+      g_ClientReplayGrenadeThrowTime[g_currentReplayGrenade] = GetEngineTime();
     }
 
     if (IsValidEntity(entity)) {
@@ -1642,7 +1642,6 @@ public int DelayedOnEntitySpawned(int entity) {
         if (delay <= 0.0) {
           delay = 0.1;
         }
-
         CreateTimer(delay, Timer_TeleportClient, GetClientSerial(client));
       }
     }
@@ -1660,6 +1659,7 @@ public Action Timer_TeleportClient(Handle timer, int serial) {
     TeleportEntity(client, g_TestingFlashOrigins[client], g_TestingFlashAngles[client], velocity);
     SetEntityMoveType(client, MOVETYPE_NONE);
   }
+  return Plugin_Handled;
 }
 
 public Action Timer_FakeGrenadeBack(Handle timer, int serial) {
@@ -1667,11 +1667,12 @@ public Action Timer_FakeGrenadeBack(Handle timer, int serial) {
   if (g_InPracticeMode && IsPlayer(client)) {
     FakeClientCommand(client, "sm_lastgrenade");
   }
+  return Plugin_Handled;
 }
 
 public Action Event_WeaponFired(Event event, const char[] name, bool dontBroadcast) {
   if (!g_InPracticeMode) {
-    return;
+    return Plugin_Continue;
   }
 
   int userid = event.GetInt("userid");
@@ -1682,13 +1683,15 @@ public Action Event_WeaponFired(Event event, const char[] name, bool dontBroadca
   if (IsGrenadeWeapon(weapon) && IsPlayer(client)) {
     AddGrenadeToHistory(client);
   }
+  return Plugin_Continue;
 }
 
 public Action Event_SmokeDetonate(Event event, const char[] name, bool dontBroadcast) {
   if (!g_InPracticeMode) {
-    return;
+    return Plugin_Continue;
   }
   GrenadeDetonateTimerHelper(event, "smoke grenade");
+  return Plugin_Continue;
 }
 
 public void GrenadeDetonateTimerHelper(Event event, const char[] grenadeName) {
@@ -1739,7 +1742,7 @@ stock void ForceGlow(int entity) {
 
 public Action Event_FlashDetonate(Event event, const char[] name, bool dontBroadcast) {
   if (!g_InPracticeMode) {
-    return;
+    return Plugin_Continue;
   }
 
   int userid = event.GetInt("userid");
@@ -1750,6 +1753,7 @@ public Action Event_FlashDetonate(Event event, const char[] name, bool dontBroad
     RequestFrame(GetTestingFlashInfo, GetClientSerial(client));
   }
   g_LastFlashDetonateTime[client] = GetGameTime();
+  return Plugin_Continue;
 }
 
 public void GetTestingFlashInfo(int serial) {
@@ -1875,27 +1879,27 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 }
 
 public void ShowHelpInfo(int client) {
-    CPrintToChat(client, "\x0E.map: \x04Carga el menú de cambio de mapa");
-    CPrintToChat(client, "\x0E.help: \x04Muestra esta página");
-    CPrintToChat(client, "\x0E.grenadeshelp: \x04Muestra los comandos e instrucciones de las granadas");
-    CPrintToChat(client, "\x0E.bots: \x04Muestra el menu de los bots");
-    CPrintToChat(client, "\x0E.extrahelp: \x04Muestra otros comandos");
-    CPrintToChat(client, "\x04Mantenga \x0E(E) \x04mientras equipa una granada para mostrar su trayectoria");
-    CPrintToChat(client, "\x04Mantenga \x0E(F) \x04mientras equipa una granada para mostrar su trayectoria de jumpthrow");
-    CPrintToChat(client, "\x04Mantenga \x0E(R) \x04mientras una granada está en el aire para seguir su trayectoria");
-    CPrintToChat(client, "\x04Mantenga \x0E(R)+ (E) \x04o \x0E(F) \x04para ver donde caerá la granada");
-    CPrintToChat(client, "\x04Mantenga \x0E(R) \x04y suelte \x0E(F) \x04o \x0E(E) \x04mientras lanza un granada para hacer zoom donde caerá la granada"); 
+    // CPrintToChat(client, "\x0E.map: \x04Carga el menú de cambio de mapa");
+    // CPrintToChat(client, "\x0E.help: \x04Muestra esta página");
+    // CPrintToChat(client, "\x0E.grenadeshelp: \x04Muestra los comandos e instrucciones de las granadas");
+    // CPrintToChat(client, "\x0E.bots: \x04Muestra el menu de los bots");
+    // CPrintToChat(client, "\x0E.extrahelp: \x04Muestra otros comandos");
+    // CPrintToChat(client, "\x04Mantenga \x0E(E) \x04mientras equipa una granada para mostrar su trayectoria");
+    // CPrintToChat(client, "\x04Mantenga \x0E(F) \x04mientras equipa una granada para mostrar su trayectoria de jumpthrow");
+    // CPrintToChat(client, "\x04Mantenga \x0E(R) \x04mientras una granada está en el aire para seguir su trayectoria");
+    // CPrintToChat(client, "\x04Mantenga \x0E(R)+ (E) \x04o \x0E(F) \x04para ver donde caerá la granada");
+    // CPrintToChat(client, "\x04Mantenga \x0E(R) \x04y suelte \x0E(F) \x04o \x0E(E) \x04mientras lanza un granada para hacer zoom donde caerá la granada"); 
 }
 
 public void ShowExtraHelpInfo(int client) {
-    CPrintToChat(client, " \x0E.save nombre: \x04Guarda tu posición actual y la granada con el nombre dado");
-    CPrintToChat(client, " \x0E.copy: \x04Copia la última granada de otro jugador");
-    CPrintToChat(client, " \x0E.last: \x04Te teletransporta a tu última granada");
-    CPrintToChat(client, " \x0E.flash: \x04Guarda tu posición y te teletransporta cada que flasheas, .stop para cancelar");
-    CPrintToChat(client, " \x0E.noflash: \x04Activa/Desactiva el modo NoFlash");
-    CPrintToChat(client, " \x0E.timer: \x04Cronómetro desde que empiezas a moverte hasta que paras.");
-    CPrintToChat(client, " \x0E.timer2: \x04Cronómetro que empieza automaticamente y termina cuando escribes .timer2 de nuevo");
-    CPrintToChat(client, " \x0E.god: \x04Activa God Mode");
+    // CPrintToChat(client, " \x0E.save nombre: \x04Guarda tu posición actual y la granada con el nombre dado");
+    // CPrintToChat(client, " \x0E.copy: \x04Copia la última granada de otro jugador");
+    // CPrintToChat(client, " \x0E.last: \x04Te teletransporta a tu última granada");
+    // CPrintToChat(client, " \x0E.flash: \x04Guarda tu posición y te teletransporta cada que flasheas, .stop para cancelar");
+    // CPrintToChat(client, " \x0E.noflash: \x04Activa/Desactiva el modo NoFlash");
+    // CPrintToChat(client, " \x0E.timer: \x04Cronómetro desde que empiezas a moverte hasta que paras.");
+    // CPrintToChat(client, " \x0E.timer2: \x04Cronómetro que empieza automaticamente y termina cuando escribes .timer2 de nuevo");
+    // CPrintToChat(client, " \x0E.god: \x04Activa God Mode");
 }
 
 bool CanStartPracticeMode(int client) {

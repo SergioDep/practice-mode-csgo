@@ -28,7 +28,7 @@ char g_SpawnName[MAX_MAP_SPAWNPOINTS][MAX_SPAWN_NAME];
 ////////////////prefire
 bool g_PFBotInit = false;
 bool g_InBotPrefireMode = false;
-bool IsClientSelected[MAXPLAYERS+1] = false;
+bool IsClientSelected[MAXPLAYERS+1] = {false, ...};
 
 int g_PlayerStartingHealth = 200;
 int g_PFBotClientFrom[MAX__BOTS_PER_ZONE + 1];
@@ -61,8 +61,8 @@ int g_currentPointID[MAXPLAYERS + 1];
 
 char g_CurrentZoneName[MAXPLAYERS + 1][MAX_POINT_NAME];
 
-bool g_WaitingForNameZone[MAXPLAYERS + 1] = false;
-bool g_PointIsSelected[MAXPLAYERS + 1] = false;
+bool g_WaitingForNameZone[MAXPLAYERS + 1] = {false, ...};
+bool g_PointIsSelected[MAXPLAYERS + 1] = {false, ...};
 
 ArrayList g_PointZoneData[MAXPLAYERS + 1];
 
@@ -644,6 +644,7 @@ public void DestroyPFBot(int client) {
 public Action Timer_RespawnBot(Handle timer, int serial){
     int client = GetClientFromSerial(serial);
     CS_RespawnPlayer(client);
+    return Plugin_Handled;
 }
 
 public int GetLargestBotUserId() {
@@ -682,7 +683,7 @@ public bool IsPossiblePrefireBot(int client) {
   return IsFakeClient(client); //&& !g_IsPMBot[client] si es bot fake no dispara practicemode retorna 0, para compatibilidad
 }
 
-public void AddZonePoint(int client, int pointID, const float[3] personOrigin, const float[3] personAngles) {
+public void AddZonePoint(int client, int pointID, const float personOrigin[3], const float personAngles[3]) {
   int index = g_PointZoneData[client].Push(pointID);
   g_PointZoneData[client].Set(index, view_as<int>(personOrigin[0]), 1);
   g_PointZoneData[client].Set(index, view_as<int>(personOrigin[1]), 2);
@@ -743,6 +744,7 @@ public int ZoneMenuHandler(Menu menu, MenuAction action, int param1, int param2)
     } else if (action == MenuAction_End) {
         delete menu;
     }
+    return 0;
 }
 
 stock void GivePointsMenu(int client, int pos = 0) {
@@ -1071,6 +1073,7 @@ public Action Timer_RemoveRagdoll(Handle timer, int ref) {
     int ragdoll = EntRefToEntIndex(ref);
     if(ragdoll != INVALID_ENT_REFERENCE)
         AcceptEntityInput(ragdoll, "Kill");
+    return Plugin_Handled;
 }
 
 stock void FreezePF(int client, bool IsPlayer = false) {
@@ -1116,6 +1119,7 @@ public Action Timer_CountDown(Handle timer) {
 public Action Timer_Unfreeze(Handle timer, int serial) {
     int client = GetClientFromSerial(serial);
     SetEntityMoveType(client, MOVETYPE_WALK);
+    return Plugin_Handled;
 }
 
 public Action ChangeTeam(int client, const char[] command, int args)
@@ -1161,7 +1165,7 @@ stock void CleanNameTag(char[] nameTag, int size)
     StripQuotes(nameTag);
 }
 
-stock void AddMenuInt(Menu menu, int value, const char[] display, any:...) {
+stock void AddMenuInt(Menu menu, int value, const char[] display, any ...) {
     char formattedDisplay[128];
     VFormat(formattedDisplay, sizeof(formattedDisplay), display, 4);
     char buffer[32];

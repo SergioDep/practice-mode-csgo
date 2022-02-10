@@ -1,5 +1,4 @@
 {
-    "sourcepawn.MainPath": "C:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\practicemode.sp",
     "sourcepawn.SourcemodHome": "C:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\include",
     "sourcepawn.SpcompPath": "C:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\spcomp.exe",
     "files.exclude": {
@@ -169,6 +168,13 @@
         "**/scripting/funcommands/": true,
         "**/scripting/funvotes/": true,
         "**/scripting/playercommands/": true,
-        "**/scripting/testsuite/": true
-    }
+        "**/scripting/testsuite/": true,
+        "scripting/include/smlib.inc": true,
+        "**/scripting/include/smlib/": true,
+        "**/scripting/tests/": true
+    },
+    "sourcepawn.GithubName": "sergioDep",
+    "sourcepawn.MainPath": "c:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\practicemode.sp",
+    "sourcepawn.MainPathCompilation": false,
+    "sourcepawn.outputDirectoryPath": "D:\\csgoserver\\csgo\\addons\\sourcemod\\plugins\\"
 }

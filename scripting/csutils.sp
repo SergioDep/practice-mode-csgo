@@ -10,7 +10,7 @@
 #include "include/csutils.inc"
 #include "include/logdebug.inc"
 
-#include "practicemode/util.sp"
+// #include "practicemode/util.sp"
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -25,6 +25,7 @@ ArrayList g_NadeList;
 ArrayList g_SmokeList;
 
 #define SMOKE_EMIT_SOUND "weapons/smokegrenade/smoke_emit.wav"
+#define PLUGIN_VERSION "1.3.5-dev"
 
 // clang-format off
 public Plugin myinfo = {
@@ -71,7 +72,7 @@ public void OnMapStart() {
   g_SmokeList = new ArrayList();
 }
 
-public void AddNade(int entRef, GrenadeType type, const float[3] origin, const float[3] velocity) {
+public void AddNade(int entRef, GrenadeType type, const float origin[3], const float velocity[3]) {
   int index = g_NadeList.Push(entRef);
   g_NadeList.Set(index, type, 1);
   for (int i = 0; i < 3; i++) {
@@ -151,6 +152,10 @@ public int Native_ThrowGrenade(Handle plugin, int numParams) {
   return entity;
 }
 
+stock bool IsValidClient(int client) {
+  return client > 0 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client);
+}
+
 public void OnGameFrame() {
   for (int i = 0; i < g_SmokeList.Length; i++) {
     int ref = g_SmokeList.Get(i);
@@ -220,6 +225,7 @@ public Action KillNade(Handle timer, int ref) {
   if (ent != INVALID_ENT_REFERENCE) {
     AcceptEntityInput(ent, "kill");
   }
+  return Plugin_Handled;
 }
 
 public void OnEntityCreated(int entity, const char[] className) {
@@ -300,6 +306,7 @@ public Action OnTouch(int entity, int other) {
     SetEntPropEnt(entity, Prop_Data, "m_hThrower", other);
     SetEntProp(entity, Prop_Send, "m_iTeamNum", GetClientTeam(other));
   }
+  return Plugin_Continue;
 }
 
 public void OnGrenadeProjectileSpawned(int entity) {
@@ -363,7 +370,7 @@ public Action Event_SmokeDetonate(Event event, const char[] name, bool dontBroad
   origin[2] = event.GetFloat("z");
 
   if (!IsValidEntity(entity)) {
-    return;
+    return Plugin_Continue;
   }
 
   int unused;
@@ -377,4 +384,5 @@ public Action Event_SmokeDetonate(Event event, const char[] name, bool dontBroad
   Call_PushCell(GrenadeType_Smoke);
   Call_PushArray(origin, 3);
   Call_Finish();
+  return Plugin_Continue;
 }

@@ -29,8 +29,8 @@ Handle sm_test_mode;
 char nadelist[128] = "weapon_hegrenade weapon_smokegrenade weapon_flashbang weapon_incgrenade weapon_tagrenade weapon_molotov weapon_decoy";
 bool g_InNadrMode = false;
 
-float ClientThrowStrength[MAXPLAYERS + 1] = Mouse1_Strength;
-float ClientThrowVel[MAXPLAYERS + 1] = 675.0;
+float ClientThrowStrength[MAXPLAYERS + 1] = {Mouse1_Strength, ...};
+float ClientThrowVel[MAXPLAYERS + 1] = {675.0, ...};
 float ClientVectorConst[MAXPLAYERS + 1][3];
 
 CSWeaponID ClientSavedWeapons[MAXPLAYERS + 1][10]; //each player, 10 max weapons
@@ -86,7 +86,7 @@ public void OnEntityCreated(int entity, const char[] className) {
 }
 
 
-public int OnEntitySpawned(int entity) {
+public void OnEntitySpawned(int entity) {
   char className[128];
   GetEdictClassname(entity, className, sizeof(className));
   if (IsGrenadeProjectile(className)) {
@@ -659,10 +659,4 @@ public Action EnableNadr(Handle timer) {
 
 stock bool IsValidClient(int client) {
   return client > 0 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client) && !IsFakeClient(client) && !IsClientSourceTV(client);
-}
-
-public float Clamp(float x, const float min, const float max) {
-  if (x < min) x = min;
-  if (x > max) x = max;
-  return x;
 }
