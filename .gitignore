@@ -77,6 +77,8 @@ scripting/include/sdktools_tempents_stocks.inc
 scripting/include/sdktools_trace.inc
 scripting/include/sdktools_variant_t.inc
 scripting/include/sdktools_voice.inc
+scripting/include/smlib.inc
+scripting/include/smlib/
 scripting/include/sorting.inc
 scripting/include/sourcemod.inc
 scripting/include/string.inc
@@ -102,4 +104,5 @@ scripting/sounds.sp
 scripting/spcomp.exe
 scripting/spcomp64.exe
 scripting/sql-admin-manager.sp
+scripting/tests/
 scripting/testsuite/
