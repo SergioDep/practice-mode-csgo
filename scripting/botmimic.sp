@@ -83,7 +83,7 @@ enum BookmarkWhileMimicing {
     BWM_index // The index into the FH_bookmarks array in the fileheader for the corresponding bookmark (to get the name)
 };
 
-bool replayMode;
+bool versusMode;
 bool pauseMode = false;
 bool g_hBotMimicShouldStop[MAXPLAYERS+1] = {false, ...};
 int DelayBeforeShooting[MAXPLAYERS+1] = {0, ...};
@@ -232,7 +232,7 @@ public void OnPluginStart()
 }
 
 public Action CommandToggleReplayMode(int client, int args) {
-    replayMode = !replayMode;
+    versusMode = !versusMode;
     return Plugin_Handled;
 }
 public Action CommandTogglePauseMode(int client, int args) {
@@ -481,10 +481,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // Is this a valid living bot?
     if(!IsPlayerAlive(client) || GetClientTeam(client) < CS_TEAM_T)
         return Plugin_Continue;
-    
+
     if(g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client])
     {
-        if(replayMode)
+        if(!versusMode)
         {
             //watch
             g_iBotMimicTick[client] = 0; //setting default values
@@ -510,9 +510,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         StrContains(weaponName, "knife", false) >= 0 // knife too so it doesnt look bad
     );
 
-    int target = (replayMode) ? -1 : GetClosestClient(client);
+    int target = (!versusMode) ? -1 : GetClosestClient(client);
 
-    if(holdingGrenade || replayMode)
+    if(holdingGrenade || !versusMode)
     {
         //normal replay
         buttons = iFrame.playerButtons;
@@ -529,7 +529,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
     impulse = iFrame.playerImpulse;
     Array_Copy(iFrame.predictedVelocity, vel, 3);
-    if ((holdingGrenade || replayMode) || target == -1)
+    if ((holdingGrenade || !versusMode) || target == -1)
         Array_Copy(iFrame.predictedAngles, angles, 2);
     subtype = iFrame.playerSubtype;
     seed = iFrame.playerSeed;
@@ -560,7 +560,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         // Only pass the arguments, if they were set..
         if(iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ORIGIN)
         {
-            if((iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ANGLES) && ((holdingGrenade || replayMode) || target == -1))
+            if((iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ANGLES) && ((holdingGrenade || !versusMode) || target == -1))
             {
                 if(iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_VELOCITY) {
                     TeleportEntity(client, fOrigin, fAngles, fVelocity);
@@ -581,7 +581,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         }
         else
         {
-            if((iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ANGLES) && ((holdingGrenade || replayMode) || target < 0))
+            if((iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ANGLES) && ((holdingGrenade || !versusMode) || target < 0))
             {
                 if(iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_VELOCITY) {
                     TeleportEntity(client, NULL_VECTOR, fAngles, fVelocity);
@@ -614,7 +614,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         Call_Finish();
     } else { //replay running
         g_bValidTeleportCall[client] = true;
-        if((holdingGrenade || replayMode)) {
+        if((holdingGrenade || !versusMode)) {
             TeleportEntity(client, NULL_VECTOR, angles, fActualVelocity);
         } else {
             //tiene un arma normal
@@ -629,7 +629,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
                 TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, view_as<float>({0.0,0.0,0.0}));
             }
         }
-        
     }
     
     if(iFrame.newWeapon != CSWeapon_NONE)
@@ -729,7 +728,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         //goes to next tick
         g_iBotMimicTick[client]++;
     }
-    
     return Plugin_Changed;
 }
 
@@ -749,7 +747,7 @@ public void LookAtClient(int client, int target) {
 }
 
 public int GetClosestClient(int client) {
-    if(replayMode)
+    if(!versusMode)
         return -1;
     float ClientOrigin[3], TargetOrigin[3];
     
@@ -862,7 +860,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
     else if(g_hBotMimicsRecord[client] != null)
     {
         // Respawn the bot after death!
-        if(replayMode) {
+        if(!versusMode) {
             // g_iBotMimicTick[client] = 0;
             g_iCurrentAdditionalTeleportIndex[client] = 0;
             if(g_hCVRespawnOnDeath.BoolValue && GetClientTeam(client) >= CS_TEAM_T)

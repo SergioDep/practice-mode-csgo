@@ -173,7 +173,7 @@ stock bool IsReplayPlaying(int role = -1) {
     }
 
     int bot = g_ReplayBotClients[i];
-    if ((IsValidClient(bot) && BotMimic_IsPlayerMimicing(bot)) || (!replayMode && IsPlayerAlive(bot))) {
+    if ((IsValidClient(bot) && BotMimic_IsPlayerMimicing(bot)) || (versusMode && IsPlayerAlive(bot))) {
       return true;
     }
   }

@@ -357,7 +357,7 @@ public void BotMimic_OnPlayerMimicLoops(int client) {
   }
 
   if (g_StopBotSignal[client]) {
-    if(replayMode){
+    if(!versusMode){
       BotMimic_ResetPlayback(client);
       BotMimic_StopPlayerMimic(client);
       RequestFrame(Timer_DelayKillBot, GetClientSerial(client));
@@ -375,7 +375,7 @@ public Action Timer_CleanupLivingBots(Handle timer) {
   if (g_InBotReplayMode) {
     for (int i = 1; i <= MaxClients; i++) {
       //if (IsReplayBot(i) && !BotMimic_IsPlayerMimicing(i)) {
-      if (IsReplayBot(i) && !BotMimic_IsPlayerMimicing(i)&& replayMode) {
+      if (IsReplayBot(i) && !BotMimic_IsPlayerMimicing(i)&& !versusMode) {
         KillBot(i);
       }
     }

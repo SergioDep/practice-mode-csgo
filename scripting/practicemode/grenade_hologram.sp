@@ -1,5 +1,6 @@
 #define ASSET_SMOKEMODEL "models/weapons/w_eq_smokegrenade_dropped.mdl"
-#define ASSET_MOLOTOVMODEL "models/weapons/w_eq_incendiarygrenade_dropped.mdl" //models/weapons/w_eq_molotov_dropped.mdl too big
+#define ASSET_MOLOTOVMODEL "models/weapons/w_eq_molotov_dropped.mdl"
+#define ASSET_INCENDIARYMODEL "models/weapons/w_eq_incendiarygrenade_dropped.mdl"
 #define ASSET_HEMODEL "models/weapons/w_eq_fraggrenade_dropped.mdl"
 #define ASSET_FLASHMODEL "models/weapons/w_eq_flashbang_dropped.mdl"
 //*height is 64, crouch is 46: https://developer.valvesoftware.com/wiki/Dimensions#Eyelevel
@@ -95,7 +96,7 @@ public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, floa
     g_HoloNadeClientInUse[client] = true;
     float eyeOrigin[3], eyeForward[3];
     GetClientEyePosition(client, eyeOrigin);
-    GetClientEyeAngles(client, eyeForward); //
+    GetClientEyeAngles(client, eyeForward);
     GetAngleVectors(eyeForward, eyeForward, NULL_VECTOR, NULL_VECTOR);
     NormalizeVector(eyeForward, eyeForward);
     ScaleVector(eyeForward, MAX_NADE_INTERACT_DISTANCE);
@@ -107,7 +108,7 @@ public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, floa
       GiveNadeGroupMenu(client, ents);
       return Plugin_Handled;
     }
-    if (g_HoloSpawns) {
+    if (GetCvarIntSafe("sm_holo_spawns") == 1) {
       ScaleVector(eyeForward, 3.0);
       AddVectors(eyeOrigin, eyeForward, eyeEnd);
       float entAngles[3];
@@ -117,7 +118,7 @@ public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, floa
         TeleportEntity(client, entOrigin, entAngles, view_as<float>({0.0,0.0,0.0}));
         g_Spawns.GetArray(spawnEntsIndex, spawnEnts, sizeof(spawnEnts));
         SetGlowColor(spawnEnts[1], "0 255 0");
-        CreateTimer(1.1, Timer_SpawnsRedGlow, spawnEnts[1]);
+        CreateTimer(2.0, Timer_SpawnsRedGlow, spawnEnts[1]);
       }
     }
   }
@@ -162,19 +163,10 @@ public void InitHoloNadeEntities() {
   }
 }
 
-// check
-// do i need timer ?
 public void UpdateHoloNadeEntities() {
   RemoveHoloNadeEntities();
-  CreateTimer(0.1, Timer_UpdateHoloNades);
-}
-
-// check
-// do i need timer ?
-public Action Timer_UpdateHoloNades(Handle timer){
-    IterateGrenades(_UpdateHoloNadeEntities_Iterator);
-    SetupHoloNadeEntitiesHooks();
-    return Plugin_Handled;
+  IterateGrenades(_UpdateHoloNadeEntities_Iterator);
+  SetupHoloNadeEntitiesHooks();
 }
 
 stock void SendToGround(float origin[3]) {
@@ -182,7 +174,7 @@ stock void SendToGround(float origin[3]) {
         return;
     }
     float ground[3];
-    Handle hTrace = TR_TraceRayEx(origin, view_as<float>({90.0,0.0,0.0}), MASK_SOLID, RayType_Infinite);
+    Handle hTrace = TR_TraceRayEx(origin, view_as<float>({90.0,0.0,0.0}), CONTENTS_SOLID, RayType_Infinite);
     if (TR_DidHit(hTrace)) {
         TR_GetEndPosition(ground, hTrace);
         origin[2] = ground[2] + GRENADEMODEL_HEIGHT;
@@ -190,20 +182,24 @@ stock void SendToGround(float origin[3]) {
 }
 
 public Action _UpdateHoloNadeEntities_Iterator(
-  const char[] ownerName, 
-  const char[] ownerAuth, 
-  const char[] name, 
-  const char[] execution, 
+  const char[] ownerName,
+  const char[] ownerAuth,
+  const char[] name,
+  const char[] execution,
   ArrayList categories,
-  char[] grenadeId, 
-  const float origin[3], 
-  const float angles[3], 
-  const char[] grenadeType, 
+  char[] grenadeId,
+  const float origin[3],
+  const float angles[3],
+  const char[] grenadeType,
   const float grenadeOrigin[3],
-  const float grenadeVelocity[3], 
-  const float grenadeDetonationOrigin[3], 
+  const float grenadeVelocity[3],
+  const float grenadeDetonationOrigin[3],
   any data
 ) {
+  if (g_EnabledHoloNadeAuth.FindString(ownerAuth) == -1) {
+    return Plugin_Continue;
+  }
+  //if auth enabled
   GrenadeType type = GrenadeTypeFromString(grenadeType);
 
   float projectedOrigin[3];
@@ -215,7 +211,7 @@ public Action _UpdateHoloNadeEntities_Iterator(
     projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
 
   CreateHoloNadeGroup(projectedOrigin, angles, type, grenadeId);
-  return Plugin_Handled;
+  return Plugin_Continue;
 }
 
 public int CreateHoloNadeEnt(
@@ -243,6 +239,8 @@ public int CreateHoloNadeEnt(
       return -1;
     }
     SetEntPropFloat(ent, Prop_Send, "m_flModelScale", GRENADEMODEL_SCALE);
+    if (type == GrenadeType_Molotov)
+      SetEntPropFloat(ent, Prop_Send, "m_flModelScale", 3.1);
     TeleportEntity(ent, origin, NULL_VECTOR, NULL_VECTOR);
     // Hack: reuse this prop for storing grenade ID.
     SetEntProp(ent, Prop_Send, "m_iTeamNum", StringToInt(grenadeID, 10));
@@ -250,15 +248,6 @@ public int CreateHoloNadeEnt(
     SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
     SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 2500.0);
     SetGlowColor(ent, color);
-    //Use the shields VPhysics for collisions
-    SetEntProp( ent, Prop_Data, "m_nSolidType", 6 );
-    SetEntProp( ent, Prop_Send, "m_nSolidType", 6 );
-    
-    //Only detect bullet/damage collisions
-    SetEntProp(ent, Prop_Data, "m_CollisionGroup", 2);
-    SetEntProp(ent, Prop_Send, "m_CollisionGroup", 2);
-    AcceptEntityInput( ent, "DisableCollision" );
-    AcceptEntityInput( ent, "EnableCollision" );
     return ent;
   }
   return -1;
@@ -330,27 +319,31 @@ public Action HoloNadeHook_OnTransmit(int entity, int client) {
 }
 
 public Action GiveNadeGroupMenu(int client, int HoloNadeIndex) {
-    char name[64], auth[AUTH_LENGTH], NadeIdStr[16];
-    GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
-    Menu menu = new Menu(NadeGroupMenuHandler);
-    char title[64];
-    GetEntPropString(client, Prop_Send, "m_szLastPlaceName", title, sizeof(title));
-    Format(title, sizeof(title), "Lugar: [%s]", strlen(title) ? title : "-");
-    menu.SetTitle(title);
-    int NadeIds[MAX_GRENADES_IN_GROUP];
-    g_HoloNadeEntities.GetArray(HoloNadeIndex, NadeIds, sizeof(NadeIds));
-    for (int i = 1; i < MAX_GRENADES_IN_GROUP; i++) {
-      if (NadeIds[i] >= 0) {
-        GetClientGrenadeData(NadeIds[i], "name", name, sizeof(name));
-        IntToString(NadeIds[i], NadeIdStr, sizeof(NadeIdStr));
-        menu.AddItem(NadeIdStr, name);
-      }
-    }
-    g_CurrentNadeGroupControl[client] = HoloNadeIndex;
-    menu.ExitButton = true;
-    menu.Display(client, MENU_TIME_FOREVER);
-
+  if (HoloNadeIndex < 0) {
     return Plugin_Handled;
+  }
+  g_ClientLastMenuType[client] = GrenadeMenuType_NadeGroup;
+  char name[64], auth[AUTH_LENGTH], NadeIdStr[16];
+  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
+  Menu menu = new Menu(NadeGroupMenuHandler);
+  char title[64];
+  GetEntPropString(client, Prop_Send, "m_szLastPlaceName", title, sizeof(title));
+  Format(title, sizeof(title), "Lugar: [%s]", strlen(title) ? title : "-");
+  menu.SetTitle(title);
+  int NadeIds[MAX_GRENADES_IN_GROUP];
+  g_HoloNadeEntities.GetArray(HoloNadeIndex, NadeIds, sizeof(NadeIds));
+  for (int i = 1; i < MAX_GRENADES_IN_GROUP; i++) {
+    if (NadeIds[i] >= 0) {
+      GetClientGrenadeData(NadeIds[i], "name", name, sizeof(name));
+      IntToString(NadeIds[i], NadeIdStr, sizeof(NadeIdStr));
+      menu.AddItem(NadeIdStr, name);
+    }
+  }
+  g_CurrentNadeGroupControl[client] = HoloNadeIndex;
+  menu.ExitButton = true;
+  menu.Display(client, MENU_TIME_FOREVER);
+
+  return Plugin_Handled;
 }
 
 public int NadeGroupMenuHandler(Menu menu, MenuAction action, int client, int param2) {
@@ -373,7 +366,11 @@ public Action GiveNadeMenu(int client, int NadeId) {
     Format(name, sizeof(name), "Granada: %s", name);
     menu.SetTitle(name);
     menu.AddItem("goto", "Teletransportar\n ");
-    menu.AddItem("delete", "Eliminar\n ");
+    
+    menu.AddItem("delete", "Eliminar\n "
+    , (CanEditGrenade(client, NadeId))
+    ? ITEMDRAW_DEFAULT
+    : ITEMDRAW_DISABLED);
 
     char grenadeType[64];
     GetClientGrenadeData(NadeId, "grenadeType", grenadeType, sizeof(grenadeType));
@@ -414,9 +411,13 @@ public int NadeMenuHandler(Menu menu, MenuAction action, int client, int param2)
         //     PM_Message(client, "Lanzando granada %s.", NadeIdStr);
         // }
     } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
+      if (g_ClientLastMenuType[client] == GrenadeMenuType_NadeGroup) {
         GiveNadeGroupMenu(client, g_CurrentNadeGroupControl[client]);
+      } else if (g_ClientLastMenuType[client] == GrenadeMenuType_TypeFilter) {
+        GiveNadeFilterMenu(client, g_ClientLastMenuGrenadeTypeFilter[client]);
+      }
     } else if (action == MenuAction_End) {
-        delete menu;
+      delete menu;
     }
     return 0;
 }
@@ -439,8 +440,6 @@ public Action GiveNadeDeleteConfirmationMenu(int client) {
   menu.AddItem("no", "No, cancelar");
   menu.AddItem("yes", "Si, eliminar");
   menu.Display(client, MENU_TIME_FOREVER);
-
-  
 
   return Plugin_Handled;
 }
@@ -488,7 +487,7 @@ public int GetGrenadeModelFromType(const GrenadeType type, char[] bufferz) {
     case GrenadeType_Molotov:
       return strcopy(bufferz, 50, ASSET_MOLOTOVMODEL);
     case GrenadeType_Incendiary:
-      return strcopy(bufferz, 50, ASSET_MOLOTOVMODEL);
+      return strcopy(bufferz, 50, ASSET_INCENDIARYMODEL);
     case GrenadeType_Smoke:
       return strcopy(bufferz, 50, ASSET_SMOKEMODEL);
     case GrenadeType_Flash:

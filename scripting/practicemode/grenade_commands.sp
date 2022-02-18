@@ -167,50 +167,50 @@ public Action Command_GotoNade(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_Grenades(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
+// public Action Command_Grenades(int client, int args) {
+//   if (!g_InPracticeMode) {
+//     return Plugin_Handled;
+//   }
 
-  char arg[MAX_NAME_LENGTH];
-  if (args >= 1 && GetCmdArgString(arg, sizeof(arg))) {
-    ArrayList ids = new ArrayList(GRENADE_ID_LENGTH);
-    char data[256];
-    GrenadeMenuType type = FindGrenades(arg, ids, data, sizeof(data));
-    if (type != GrenadeMenuType_Invalid) {
-      GiveGrenadeMenu(client, type, 0, data, ids);
-    } else {
-      PM_Message(client, "No se encontraron coincidencias.");
-    }
-    delete ids;
+//   char arg[MAX_NAME_LENGTH];
+//   if (args >= 1 && GetCmdArgString(arg, sizeof(arg))) {
+//     ArrayList ids = new ArrayList(GRENADE_ID_LENGTH);
+//     char data[256];
+//     GrenadeMenuType type = FindGrenades(arg, ids, data, sizeof(data));
+//     if (type != GrenadeMenuType_Invalid) {
+//       GiveGrenadeMenu(client, type, 0, data, ids);
+//     } else {
+//       PM_Message(client, "No se encontraron coincidencias.");
+//     }
+//     delete ids;
 
-  } else {
-    bool categoriesOnly = (g_SharedAllNadesCvar.IntValue != 0);
-    if (categoriesOnly) {
-      GiveGrenadeMenu(client, GrenadeMenuType_Categories);
-    } else {
-      GiveGrenadeMenu(client, GrenadeMenuType_PlayersAndCategories);
-    }
-  }
+//   } else {
+//     bool categoriesOnly = (g_SharedAllNadesCvar.IntValue != 0);
+//     if (categoriesOnly) {
+//       GiveGrenadeMenu(client, GrenadeMenuType_Categories);
+//     } else {
+//       GiveGrenadeMenu(client, GrenadeMenuType_PlayersAndCategories);
+//     }
+//   }
 
-  return Plugin_Handled;
-}
+//   return Plugin_Handled;
+// }
 
-public Action Command_Find(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
+// public Action Command_Find(int client, int args) {
+//   if (!g_InPracticeMode) {
+//     return Plugin_Handled;
+//   }
 
-  char arg[MAX_NAME_LENGTH];
-  if (args >= 1 && GetCmdArgString(arg, sizeof(arg))) {
-    GiveGrenadeMenu(client, GrenadeMenuType_MatchingName, 0, arg, null,
-                    GrenadeMenuType_MatchingName);
-  } else {
-    PM_Message(client, "Uso: .find <cualquiera>");
-  }
+//   char arg[MAX_NAME_LENGTH];
+//   if (args >= 1 && GetCmdArgString(arg, sizeof(arg))) {
+//     GiveGrenadeMenu(client, GrenadeMenuType_MatchingName, 0, arg, null,
+//                     GrenadeMenuType_MatchingName);
+//   } else {
+//     PM_Message(client, "Uso: .find <cualquiera>");
+//   }
 
-  return Plugin_Handled;
-}
+//   return Plugin_Handled;
+// }
 
 // public Action Command_GrenadeDescription(int client, int args) {
 //   if (!g_InPracticeMode) {
@@ -286,80 +286,11 @@ public Action Command_SaveGrenade(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
-
   char name[GRENADE_NAME_LENGTH];
   GetCmdArgString(name, sizeof(name));
   TrimString(name);
-
-  if (StrEqual(name, "")) {
-    PM_Message(client, "Uso: .save <nombre>");
-    return Plugin_Handled;
-  }
-
-  char auth[AUTH_LENGTH];
-  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
-  char grenadeId[GRENADE_ID_LENGTH];
-  if (FindGrenadeByName(auth, name, grenadeId)) {
-    PM_Message(client, "Ya has usado ese nombre.");
-    return Plugin_Handled;
-  }
-
-  int max_saved_grenades = MAX_GRENADE_SAVES_PLAYER;
-  if (max_saved_grenades > 0 && CountGrenadesForPlayer(auth) >= max_saved_grenades) {
-    PM_Message(client, "Alcanzaste el maximo numero de granadas que puedes guardar (%d).",
-               max_saved_grenades);
-    return Plugin_Handled;
-  }
-
-  float origin[3], angles[3];
-  origin = g_LastGrenadePinPulledOrigin[client];
-  angles = g_LastGrenadePinPulledAngles[client];
-
-  int grenadeEntity = g_LastGrenadeEntity[client];
-  GrenadeType grenadeType = g_LastGrenadeType[client];
-  float grenadeOrigin[3];
-  float grenadeVelocity[3];
-  float grenadeDetonationOrigin[3];
-  grenadeOrigin = g_LastGrenadeOrigin[client];
-  grenadeVelocity = g_LastGrenadeVelocity[client];
-  grenadeDetonationOrigin = g_LastGrenadeDetonationOrigin[client];
-
-  char execution[64];
-  GetGrenadeExecutionType(g_ClientPulledPinButtons[client], execution);
-
-  Action ret = Plugin_Continue;
-  Call_StartForward(g_OnGrenadeSaved);
-  Call_PushCell(client);
-  Call_PushArray(origin, sizeof(origin));
-  Call_PushArray(angles, sizeof(angles));
-  Call_PushString(name);
-  Call_Finish(ret);
-
-  if (ret < Plugin_Handled) {
-    if (g_CSUtilsLoaded) {
-      if (!IsGrenade(g_LastGrenadeType[client])) {
-        PM_Message(client, "{DARK_RED}Error. Guarda una granada válida");
-        return Plugin_Handled;
-      } else {
-        int nadeId = SaveGrenadeToKv(
-          client, 
-          origin, 
-          angles, 
-          grenadeOrigin, 
-          grenadeVelocity, 
-          grenadeType, 
-          grenadeEntity, 
-          grenadeDetonationOrigin, 
-          name,
-          execution
-        );
-        g_CurrentSavedGrenadeId[client] = nadeId;
-        PM_Message(client, "{YELLOW}Granada {PURPLE}%s {YELLOW}guardada.", name);
-        OnGrenadeKvMutate();
-      }
-    }
-  }
-  g_LastGrenadeType[client] = GrenadeType_None;
+  
+  SaveClientGrenade(client, name);
   return Plugin_Handled;
 }
 
@@ -550,80 +481,80 @@ static void ClientThrowGrenade(int client, const char[] id, float delay = 0.0) {
   }
 }
 
-public Action Command_Throw(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
+// public Action Command_Throw(int client, int args) {
+//   if (!g_InPracticeMode) {
+//     return Plugin_Handled;
+//   }
 
-  if (!g_CSUtilsLoaded) {
-    PM_Message(client, "You need the csutils plugin installed to use that command.");
-    return Plugin_Handled;
-  }
+//   if (!g_CSUtilsLoaded) {
+//     PM_Message(client, "You need the csutils plugin installed to use that command.");
+//     return Plugin_Handled;
+//   }
 
-  char argString[256];
-  GetCmdArgString(argString, sizeof(argString));
-  if (args >= 1) {
-    char data[128];
-    ArrayList ids = new ArrayList(GRENADE_CATEGORY_LENGTH);
+//   char argString[256];
+//   GetCmdArgString(argString, sizeof(argString));
+//   if (args >= 1) {
+//     char data[128];
+//     ArrayList ids = new ArrayList(GRENADE_CATEGORY_LENGTH);
 
-    GrenadeMenuType filterType;
-    if (StrEqual(argString, "current", false)) {
-      filterType = FindGrenades(g_ClientLastMenuData[client], ids, data, sizeof(data));
-    } else {
-      filterType = FindGrenades(argString, ids, data, sizeof(data));
-    }
+//     GrenadeMenuType filterType;
+//     if (StrEqual(argString, "current", false)) {
+//       filterType = FindGrenades(g_ClientLastMenuData[client], ids, data, sizeof(data));
+//     } else {
+//       filterType = FindGrenades(argString, ids, data, sizeof(data));
+//     }
 
-    // Print what's about to be thrown.
-    if (filterType == GrenadeMenuType_OneCategory) {
-      PM_Message(client, "Lanzando granadas de categoria: %s", data);
+//     // Print what's about to be thrown.
+//     if (filterType == GrenadeMenuType_OneCategory) {
+//       PM_Message(client, "Lanzando granadas de categoria: %s", data);
 
-    } else {
-      char idString[256];
-      for (int i = 0; i < ids.Length; i++) {
-        char id[GRENADE_ID_LENGTH];
-        ids.GetString(i, id, sizeof(id));
-        StrCat(idString, sizeof(idString), id);
-        if (i + 1 != ids.Length) {
-          StrCat(idString, sizeof(idString), ", ");
-        }
-      }
-      if (ids.Length == 1) {
-        PM_Message(client, "Lanzando granada %s", idString);
-      } else if (ids.Length > 1) {
-        PM_Message(client, "Lanzando granada %s", idString);
-      }
-    }
+//     } else {
+//       char idString[256];
+//       for (int i = 0; i < ids.Length; i++) {
+//         char id[GRENADE_ID_LENGTH];
+//         ids.GetString(i, id, sizeof(id));
+//         StrCat(idString, sizeof(idString), id);
+//         if (i + 1 != ids.Length) {
+//           StrCat(idString, sizeof(idString), ", ");
+//         }
+//       }
+//       if (ids.Length == 1) {
+//         PM_Message(client, "Lanzando granada %s", idString);
+//       } else if (ids.Length > 1) {
+//         PM_Message(client, "Lanzando granada %s", idString);
+//       }
+//     }
 
-    // Actually do the throwing.
-    for (int i = 0; i < ids.Length; i++) {
-      char id[GRENADE_ID_LENGTH];
-      ids.GetString(i, id, sizeof(id));
-      float delay = 0.0;
-      // Only support delays when throwing a category.
-      // if (filterType == GrenadeMenuType_OneCategory) {
-      //   delay = GetClientGrenadeFloat(StringToInt(id), "delay");
-      // }
-      delay = GetClientGrenadeFloat(StringToInt(id), "delay");
-      ClientThrowGrenade(client, id, delay);
-    }
-    if (ids.Length == 0) {
-      PM_Message(client, "No se encontraron coincidencias para %s", argString);
-    }
-    delete ids;
+//     // Actually do the throwing.
+//     for (int i = 0; i < ids.Length; i++) {
+//       char id[GRENADE_ID_LENGTH];
+//       ids.GetString(i, id, sizeof(id));
+//       float delay = 0.0;
+//       // Only support delays when throwing a category.
+//       // if (filterType == GrenadeMenuType_OneCategory) {
+//       //   delay = GetClientGrenadeFloat(StringToInt(id), "delay");
+//       // }
+//       delay = GetClientGrenadeFloat(StringToInt(id), "delay");
+//       ClientThrowGrenade(client, id, delay);
+//     }
+//     if (ids.Length == 0) {
+//       PM_Message(client, "No se encontraron coincidencias para %s", argString);
+//     }
+//     delete ids;
 
-  } else {
-    // No arg, throw last nade.
-    if (IsGrenade(g_LastGrenadeType[client])) {
-      PM_Message(client, "Lanzando tu ultima granada.");
-      CSU_ThrowGrenade(client, g_LastGrenadeType[client], g_LastGrenadeOrigin[client],
-                       g_LastGrenadeVelocity[client]);
-    } else {
-      PM_Message(client, "No se pudo lanzar tu ultima granada, no tiraste ninguna!");
-    }
-  }
+//   } else {
+//     // No arg, throw last nade.
+//     if (IsGrenade(g_LastGrenadeType[client])) {
+//       PM_Message(client, "Lanzando tu ultima granada.");
+//       CSU_ThrowGrenade(client, g_LastGrenadeType[client], g_LastGrenadeOrigin[client],
+//                        g_LastGrenadeVelocity[client]);
+//     } else {
+//       PM_Message(client, "No se pudo lanzar tu ultima granada, no tiraste ninguna!");
+//     }
+//   }
 
-  return Plugin_Handled;
-}
+//   return Plugin_Handled;
+// }
 
 public Action Command_TestFlash(int client, int args) {
   if (!g_InPracticeMode) {
@@ -647,14 +578,6 @@ public Action Command_StopFlash(int client, int args) {
 
   g_TestingFlash[client] = false;
   PM_Message(client, "Prueba de flash finalizada.");
-  return Plugin_Handled;
-}
-
-public Action Command_Categories(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-  GiveGrenadeMenu(client, GrenadeMenuType_Categories);
   return Plugin_Handled;
 }
 

@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "D:\\csgoserver\\csgo\\addons\\sourcemod\\configs"
+		}
+	],
+	"settings": {
+		"sourcepawn.GithubName": "sergioDep"
+	}
+}

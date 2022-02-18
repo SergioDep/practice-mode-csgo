@@ -280,7 +280,8 @@ public Action OnPlayerRunCmd(int client, int& buttons) {
       ClientViewing_RotatingCamera[client] = false;
       //deactivate rotating camera
       RestoreAllInventory(client);
-      TeleportEntity(client, ClientLastAbsPosition[client], ClientLastEyeAngles[client], NULL_VECTOR);
+      TeleportEntity(client, ClientLastAbsPosition[client], ClientLastEyeAngles[client]
+      ,view_as<float>({0.0,0.0,0.0}));
     }
     if (ClientViewing_StaticCamera[client]) {
       SetClientViewEntity(client, client); //quick fix

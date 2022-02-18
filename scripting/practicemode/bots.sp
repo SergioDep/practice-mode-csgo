@@ -30,7 +30,6 @@ stock void CreateBot(int client) {
   //actually create bot
   ServerCommand("bot_quota_mode normal");
   ServerCommand("bot_add");
-  PrintToChatAll("bot añadido");
   DataPack botPack;
   
   CreateDataTimer(0.2, Timer_GetPMBot, botPack);
@@ -95,8 +94,17 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
   if (IsPMBot(victim)) {
     g_BotDeathTime[victim] = GetGameTime();
     RemoveSkin(victim);
+    int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
+    CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
   }
   return Plugin_Continue;
+}
+
+public Action Timer_RemoveRagdoll(Handle timer, int ref) {
+    int ragdoll = EntRefToEntIndex(ref);
+    if(ragdoll != INVALID_ENT_REFERENCE)
+        AcceptEntityInput(ragdoll, "Kill");
+    return Plugin_Handled;
 }
 
 // move to Event_PlayerDeath ?
@@ -175,7 +183,9 @@ public void KickAllClientBots(int client) {
   for (int i = 0; i < g_ClientBots[client].Length; i++) {
     int bot = g_ClientBots[client].Get(i);
     if (IsPMBot(bot)) {
-      KickClient(bot);
+      ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
+      g_IsPMBot[bot] = false;
+      g_BotMindControlOwner[bot] = -1;
     }
   }
   g_ClientBots[client].Clear();
@@ -196,7 +206,9 @@ public void KickAllBotsInServer() {
     for (int j = 0; j < g_ClientBots[client].Length; j++) {
       int bot = g_ClientBots[client].Get(j);
       if (IsPMBot(bot)) {
-        KickClient(bot);
+        g_IsPMBot[bot] = false;
+        g_BotMindControlOwner[bot] = -1;
+        ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
       }
     }
     g_ClientBots[client].Clear();
@@ -271,7 +283,7 @@ public Action Event_PlayerBlind(Event event, const char[] name, bool dontBroadca
   }
 
   // TODO: move this into another place (has nothing to do with bots!)
-  if (g_ClientNoFlash[client]) {
+  if (g_ClientAntiFlash[client]) {
     RequestFrame(KillFlashEffect, GetClientSerial(client));
   }
   return Plugin_Handled;

@@ -140,7 +140,7 @@ public void LearnLaunch(const int client) {
   );
   PM_Message(
     client, 
-    " Hay {YELLOW}%i granadas{NORMAL} en este mapa."
+    " Hay {ORANGE}%i granadas{NORMAL} en este mapa."
       ..." Granadas con la categoria \"%s\" no incluidos.",
     g_LearnQueue[client].Length,
     LEARN_BLACKLIST_CATEGORY
@@ -320,7 +320,7 @@ public void LearnMovePlayerToGrenade(const int client, const int id) {
 public void LearnPrintGrenade(const int client, const int id) {
   char name[GRENADE_NAME_LENGTH];
   GetClientGrenadeData(id, "name", name, sizeof(name));
-  PM_Message(client, "Lanza {YELLOW}\%s{NORMAL}.", name);
+  PM_Message(client, "Lanza {ORANGE}\%s{NORMAL}.", name);
 }
 
 public void LearnPlayResultSound(const int client, const GrenadeAccuracyScore score) {

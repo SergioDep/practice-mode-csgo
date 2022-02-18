@@ -1,4 +1,4 @@
-#define MESSAGE_PREFIX "[\x05PracticeMode\x01]"
+#define MESSAGE_PREFIX "[\x05Prac\x01]"
 
 /**
  * Natives.

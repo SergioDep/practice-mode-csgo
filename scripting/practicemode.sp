@@ -52,28 +52,6 @@ ArrayList g_MapList;
 ArrayList g_ChatAliases;
 ArrayList g_ChatAliasesCommands;
 
-/* CONVARS */
-ConVar g_htm_cvar_holdtime;
-
-ConVar g_htm_cvar_red;
-ConVar g_htm_cvar_green;
-ConVar g_htm_cvar_blue;
-ConVar g_htm_cvar_transparency;
-
-ConVar g_htm_cvar_x;
-ConVar g_htm_cvar_y;
-
-ConVar g_htm_cvar_effecttype;
-
-ConVar g_htm_cvar_effectduration;
-ConVar g_htm_cvar_fadeinduration;
-ConVar g_htm_cvar_fadeoutduration;
-
-float htm_holdtime;
-
-/* CONVARS */
-
-/* HANDLES */
 Handle HTM;
 // Plugin cvars
 ConVar g_AlphabetizeNadeMenusCvar;
@@ -99,6 +77,7 @@ ConVar g_RandomGrenadeTrajectoryCvar;
 
 ConVar g_AllowNoclipCvar;
 ConVar g_GlowPMBotsCvar;
+ConVar g_HoloSpawnsCvar;
 ConVar g_GrenadeTrajectoryCvar;
 ConVar g_GrenadeThicknessCvar;
 ConVar g_GrenadeTimeCvar;
@@ -122,6 +101,7 @@ ConVar g_VersionCvar;
 #define AUTH_LENGTH 64
 #define AUTH_METHOD AuthId_Steam2
 
+bool g_WaitingForSaveNade[MAXPLAYERS + 1] = {false, ...};
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
 KeyValues
     g_GrenadeLocationsKv;  // Inside any global function, we expect this to be at the root level.
@@ -132,7 +112,9 @@ int g_currentReplayGrenade = -1;
 
 // Grenade Holograms
 ArrayList g_HoloNadeEntities;
-int g_HoloNadeClientTargetGrenadeIDs[MAXPLAYERS + 1]; 
+ArrayList g_EnabledHoloNadeAuth = null;
+bool g_HoloNadeLoadDefault = false;
+int g_HoloNadeClientTargetGrenadeIDs[MAXPLAYERS + 1];
 bool g_HoloNadeClientInUse[MAXPLAYERS + 1] = {false, ...};
 bool g_HoloNadeClientEnabled[MAXPLAYERS + 1];
 bool g_HoloNadeClientAllowed[MAXPLAYERS + 1];
@@ -152,7 +134,7 @@ bool g_TestingFlash[MAXPLAYERS + 1];
 float g_TestingFlashOrigins[MAXPLAYERS + 1][3];
 float g_TestingFlashAngles[MAXPLAYERS + 1][3];
 
-bool g_ClientNoFlash[MAXPLAYERS + 1];
+bool g_ClientAntiFlash[MAXPLAYERS + 1];
 float g_LastFlashDetonateTime[MAXPLAYERS + 1];
 
 bool g_RunningRepeatedCommand[MAXPLAYERS + 1];
@@ -167,6 +149,8 @@ GrenadeType g_LastGrenadeType[MAXPLAYERS + 1];
 int g_ClientPulledPinButtons[MAXPLAYERS + 1];
 bool g_ClientPulledPin[MAXPLAYERS + 1] = {false, ...};
 bool g_prueba[MAXPLAYERS + 1] = {false, ...};
+int g_pruebacontador[MAXPLAYERS + 1] = {0, ...};
+int g_pruebagameframe = 0;
 float g_LastGrenadePinPulledOrigin[MAXPLAYERS + 1][3];
 float g_LastGrenadePinPulledAngles[MAXPLAYERS + 1][3];
 float g_LastGrenadeOrigin[MAXPLAYERS + 1][3];
@@ -218,7 +202,7 @@ bool g_BotReplayInit = false;
 bool g_InBotReplayMode = false;
 KeyValues g_ReplaysKv;
 
-bool replayMode, pauseMode;
+bool versusMode, pauseMode;
 
 #define PLAYER_HEIGHT 72.0
 #define CROUCH_PLAYER_HEIGHT (PLAYER_HEIGHT - 18.0)
@@ -253,31 +237,38 @@ float g_LastTimeCommand[MAXPLAYERS + 1];
 
 MoveType g_PreFastForwardMoveTypes[MAXPLAYERS + 1];
 
+// enum GrenadeMenuType {
+//   GrenadeMenuType_Invalid = -1,
+//   GrenadeMenuType_PlayersAndCategories = 0,
+//   GrenadeMenuType_Categories = 1,
+//   GrenadeMenuType_OnePlayer = 2,
+//   GrenadeMenuType_OneCategory = 3,  // Note: empty category "" = all nades.
+//   GrenadeMenuType_MatchingName = 4,
+//   GrenadeMenuType_MatchingId = 5,
+//   GrenadeMenuType_MultiCategory = 6,
+// };
+
 enum GrenadeMenuType {
-  GrenadeMenuType_Invalid = -1,
-  GrenadeMenuType_PlayersAndCategories = 0,
-  GrenadeMenuType_Categories = 1,
-  GrenadeMenuType_OnePlayer = 2,
-  GrenadeMenuType_OneCategory = 3,  // Note: empty category "" = all nades.
-  GrenadeMenuType_MatchingName = 4,
-  GrenadeMenuType_MatchingId = 5,
-  GrenadeMenuType_MultiCategory = 6,
+  GrenadeMenuType_NadeGroup = 0,
+  GrenadeMenuType_TypeFilter = 1
 };
 
 // All the data we need to call GiveGrenadeMenu for a client to reopen the .nades menu
 // where they left off. The first set are for the 'top' menus where you select a player or category.
 // The second set are for the lower level menus of selecting a single grenade from a
 // player/category menu.
+GrenadeType g_ClientLastMenuGrenadeTypeFilter[MAXPLAYERS + 1] = {GrenadeType_None, ...};
+GrenadeMenuType g_ClientLastMenuType[MAXPLAYERS + 1];
+
+
 GrenadeMenuType g_ClientLastTopMenuType[MAXPLAYERS + 1];
 int g_ClientLastTopMenuPos[MAXPLAYERS + 1];
 char g_ClientLastTopMenuData[MAXPLAYERS + 1][AUTH_LENGTH];
 
-GrenadeMenuType g_ClientLastMenuType[MAXPLAYERS + 1];
 int g_ClientLastMenuPos[MAXPLAYERS + 1];
 char g_ClientLastMenuData[MAXPLAYERS + 1][AUTH_LENGTH];
 
 // Data storing spawn priorities.
-bool g_HoloSpawns = false;
 ArrayList g_Spawns = null;
 
 enum UserSetting {
@@ -344,6 +335,9 @@ public void OnPluginStart() {
   AddCommandListener(Command_TeamJoin, "jointeam");
   AddCommandListener(Command_Noclip, "noclip");
   AddCommandListener(Command_SetPos, "setpos");
+  AddCommandListener(ChatListener, "say");
+  AddCommandListener(ChatListener, "say2");
+  AddCommandListener(ChatListener, "say_team");
 
   // Forwards
   g_OnGrenadeSaved = CreateGlobalForward("PM_OnPracticeModeEnabled", ET_Event, Param_Cell,
@@ -423,33 +417,26 @@ public void OnPluginStart() {
 
     RegConsoleCmd("sm_nextgrenade", Command_NextGrenade);
     PM_AddChatAlias(".next", "sm_nextgrenade");
-    PM_AddChatAlias(".nextid", "sm_nextgrenade");
 
     RegConsoleCmd("sm_clearnades", Command_ClearNades);
     PM_AddChatAlias(".clearnades", "sm_clearnades");
 
-    RegConsoleCmd("sm_savepos", Command_SavePos);
-    PM_AddChatAlias(".savepos", "sm_savepos");
+    // RegConsoleCmd("sm_savepos", Command_SavePos);
+    // PM_AddChatAlias(".savepos", "sm_savepos");
   }
 
-  // Spawn commands
-  {
-    RegConsoleCmd("sm_toggleholospawns", ToggleHoloSpawns);
-    PM_AddChatAlias(".spawns", "sm_toggleholospawns");
-  }
-
-  // csutils powered nade stuff.
-  {
-    RegConsoleCmd("sm_throw", Command_Throw);
-    PM_AddChatAlias(".throw", "sm_throw");
-    PM_AddChatAlias(".rethrow", "sm_throw");
-  }
+  // // csutils powered nade stuff.
+  // {
+  //   RegConsoleCmd("sm_throw", Command_Throw);
+  //   PM_AddChatAlias(".throw", "sm_throw");
+  //   PM_AddChatAlias(".rethrow", "sm_throw");
+  // }
 
   // Bot commands
   {
     
     RegConsoleCmd("sm_removeallbots", Command_RemoveAllBots);
-    PM_AddChatAlias(".kickbots", "sm_removeallbots");
+    PM_AddChatAlias(".nobots", "sm_removeallbots");
 
     RegConsoleCmd("sm_botsmenu", Command_BotsMenu);
     PM_AddChatAlias(".bots", "sm_botsmenu");
@@ -492,24 +479,21 @@ public void OnPluginStart() {
 
   // Saved grenade location commands
   {
-    RegConsoleCmd("sm_grenades", Command_Grenades);
-    PM_AddChatAlias(".nades", "sm_grenades");
-    PM_AddChatAlias(".grenades", "sm_grenades");
+    // RegConsoleCmd("sm_grenades", Command_Grenades);
+    // PM_AddChatAlias(".nades", "sm_grenades");
+    // PM_AddChatAlias(".grenades", "sm_grenades");
 
-    RegConsoleCmd("sm_find", Command_Find);
-    PM_AddChatAlias(".find", "sm_find");
+    // RegConsoleCmd("sm_find", Command_Find);
+    // PM_AddChatAlias(".find", "sm_find");
 
-    RegConsoleCmd("sm_renamegrenade", Command_RenameGrenade);
-    PM_AddChatAlias(".rename", "sm_renamegrenade");
+    // RegConsoleCmd("sm_renamegrenade", Command_RenameGrenade);
+    // PM_AddChatAlias(".rename", "sm_renamegrenade");
 
     RegConsoleCmd("sm_savegrenade", Command_SaveGrenade);
-    PM_AddChatAlias(".addnade", "sm_savegrenade");
-    PM_AddChatAlias(".savenade", "sm_savegrenade");
     PM_AddChatAlias(".save", "sm_savegrenade");
 
-    RegConsoleCmd("sm_savedelay", Command_SetDelay);
-    PM_AddChatAlias(".setdelay", "sm_savedelay");
-    PM_AddChatAlias(".savedelay", "sm_savedelay");
+    // RegConsoleCmd("sm_savedelay", Command_SetDelay);
+    // PM_AddChatAlias(".setdelay", "sm_savedelay");
 
     RegConsoleCmd("sm_copylastplayer", Command_CopyPlayerLastGrenade);
     PM_AddChatAlias(".copy", "sm_copylastplayer");
@@ -552,17 +536,15 @@ public void OnPluginStart() {
   // Other commands
   {
     RegConsoleCmd("sm_testflash", Command_TestFlash);
-
     PM_AddChatAlias(".flash", "sm_testflash");
     PM_AddChatAlias(".testflash", "sm_testflash");
-    PM_AddChatAlias(".startflash", "sm_testflash");
 
     RegConsoleCmd("sm_stopflash", Command_StopFlash);
-    PM_AddChatAlias(".endflash", "sm_stopflash");
+    PM_AddChatAlias(".noflash", "sm_stopflash");
     PM_AddChatAlias(".stopflash", "sm_stopflash");
 
-    RegConsoleCmd("sm_noflash", Command_NoFlash);
-    PM_AddChatAlias(".noflash", "sm_noflash");
+    RegConsoleCmd("sm_antiflash", Command_AntiFlash);
+    PM_AddChatAlias(".antiflash", "sm_antiflash");
 
     // TODO: A timer menu may be more accesible to users, as the number of timer types continues to
     // increase...
@@ -581,34 +563,34 @@ public void OnPluginStart() {
     RegConsoleCmd("sm_clearmap", Command_ClearMap);
     PM_AddChatAlias(".clear", "sm_clearmap");
 
-    RegConsoleCmd("sm_pmsettings", Command_Settings);
-    PM_AddChatAlias(".settings", "sm_pmsettings");
+    // RegConsoleCmd("sm_pmsettings", Command_Settings);
+    // PM_AddChatAlias(".settings", "sm_pmsettings");
 
-    RegConsoleCmd("sm_repeat", Command_Repeat);
-    PM_AddChatAlias(".repeat", "sm_repeat");
+    // RegConsoleCmd("sm_repeat", Command_Repeat);
+    // PM_AddChatAlias(".repeat", "sm_repeat");
 
     RegConsoleCmd("sm_stoprepeat", Command_StopRepeat);
     PM_AddChatAlias(".stoprepeat", "sm_stoprepeat");
 
-    RegConsoleCmd("sm_delay", Command_Delay);
-    PM_AddChatAlias(".delay", "sm_delay");
+    // RegConsoleCmd("sm_delay", Command_Delay);
+    // PM_AddChatAlias(".delay", "sm_delay");
 
     RegConsoleCmd("sm_stopall", Command_StopAll);
     PM_AddChatAlias(".stop", "sm_stopall");
 
-    RegConsoleCmd("sm_roundrepeat", Command_RoundRepeat);
-    PM_AddChatAlias(".roundrepeat", "sm_roundrepeat");
-    PM_AddChatAlias(".rrepeat", "sm_roundrepeat");
+    // RegConsoleCmd("sm_roundrepeat", Command_RoundRepeat);
+    // PM_AddChatAlias(".roundrepeat", "sm_roundrepeat");
+    // PM_AddChatAlias(".rrepeat", "sm_roundrepeat");
 
     RegConsoleCmd("sm_dryrun", Command_DryRun);
     PM_AddChatAlias(".dry", "sm_dryrun");
     PM_AddChatAlias(".dryrun", "sm_dryrun");
 
-    RegConsoleCmd("sm_enablesetting", Command_Enable);
-    PM_AddChatAlias(".enable", "sm_enablesetting");
+    // RegConsoleCmd("sm_enablesetting", Command_Enable);
+    // PM_AddChatAlias(".enable", "sm_enablesetting");
 
-    RegConsoleCmd("sm_disablesetting", Command_Disable);
-    PM_AddChatAlias(".disable", "sm_disablesetting");
+    // RegConsoleCmd("sm_disablesetting", Command_Disable);
+    // PM_AddChatAlias(".disable", "sm_disablesetting");
 
     RegConsoleCmd("sm_god", Command_God);
     PM_AddChatAlias(".god", "sm_god");
@@ -617,33 +599,15 @@ public void OnPluginStart() {
     PM_AddChatAlias(".endround", "sm_endround");
 
     RegConsoleCmd("sm_hologram_toggle", Command_HoloNadeToggle);
-    PM_AddChatAlias(".holograms", "sm_hologram_toggle");
-    PM_AddChatAlias(".hologram", "sm_hologram_toggle");
     PM_AddChatAlias(".holo", "sm_hologram_toggle");
     
     RegConsoleCmd("sm_break", Command_Break);
     PM_AddChatAlias(".break", "sm_break");
 
     RegConsoleCmd("sm_rr", Command_Restart);
-    PM_AddChatAlias(".reiniciar", "sm_rr");
     PM_AddChatAlias(".rr", "sm_rr");
     PM_AddChatAlias(".restart", "sm_rr");
   }
-  g_htm_cvar_x = CreateConVar("sm_htm_x", "-1.0", "Horizontal Position to show the displayed message (To be centered, set as -1.0).", _, true, -1.0, true, 1.0);
-  g_htm_cvar_y = CreateConVar("sm_htm_y", "0.1", "Vertical Position to show the displayed message (To be centered, set as -1.0).", _, true, -1.0, true, 1.0);
-  g_htm_cvar_holdtime = CreateConVar("sm_htm_holdtime", "2.0", "Time that the message is shown.", _, true, 0.0, true, 5.0);
-  g_htm_cvar_red = CreateConVar("sm_htm_r", "255", "RGB Red Color to the displayed message.", _, true, 0.0, true, 255.0);
-  g_htm_cvar_green = CreateConVar("sm_htm_g", "255", "RGB Green Color to the displayed message.", _, true, 0.0, true, 255.0);
-  g_htm_cvar_blue = CreateConVar("sm_htm_b", "255", "RGB Blue Color to the displayed message.", _, true, 0.0, true, 255.0);
-  g_htm_cvar_transparency = CreateConVar("sm_htm_transparency", "100", "Message Transparency Value.");
-  g_htm_cvar_effecttype = CreateConVar("sm_htm_effect", "1.0", "0 - Fade In; 1 - Fade out; 2 - Flash", _, true, 0.0, true, 2.0);
-  g_htm_cvar_effectduration = CreateConVar("sm_htm_effectduration", "0.5", "Duration of the selected effect. Not always aplicable");
-  g_htm_cvar_fadeinduration = CreateConVar("sm_htm_fadeinduration", "0.5", "Duration of the selected effect.");
-  g_htm_cvar_fadeoutduration = CreateConVar("sm_htm_fadeoutduration", "0.5", "Duration of the selected effect.");
-  
-  
-  RegConsoleCmd("sm_hudtext", Command_HTM);
-  RegConsoleCmd("sm_htm", Command_HTM);
       
   HTM = CreateHudSynchronizer();
   
@@ -700,7 +664,11 @@ public void OnPluginStart() {
   g_GlowPMBotsCvar =
       CreateConVar("sm_glow_pmbots", "0",
                    "Whether to glow all PM Bots");
+  g_HoloSpawnsCvar =
+      CreateConVar("sm_holo_spawns", "0",
+                   "Whether to show spawns holos");
   HookConVarChange(g_GlowPMBotsCvar, GlowPMBotsChanged);
+  HookConVarChange(g_HoloSpawnsCvar, HoloSpawnsChanged);
 
   // Patched builtin cvars
   g_GrenadeTrajectoryCvar = GetCvar("sv_grenade_trajectory");
@@ -718,6 +686,7 @@ public void OnPluginStart() {
   }
 
   g_Spawns = new ArrayList(3);
+  g_EnabledHoloNadeAuth = new ArrayList(AUTH_LENGTH);
   g_KnownNadeCategories = new ArrayList(GRENADE_CATEGORY_LENGTH);
   g_GrenadeDetonationSaveQueue = new ArrayList();
   g_ManagedGrenadeDetonationsToFix = new StringMap();
@@ -765,7 +734,9 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 }
 
 public Action FUNCION_PRUEBA(int client, int args) {
-  PrintToChatAll("prueba");
+  g_prueba[client] = !g_prueba[client];
+  PM_Message(client, "runcmd: %d", g_pruebacontador[client]);
+  PM_Message(client, "gameframe: %d", g_pruebagameframe);
   return Plugin_Handled;
 }
 
@@ -782,8 +753,8 @@ public Action CommandToggleReplayMode(int client, int args) {
         return Plugin_Handled;
     }
     ServerCommand("botmimicset_replaymode");
-    replayMode = !replayMode;
-    PM_Message(client, "Se cambio el modo de repetición a: %s", !replayMode ? "versus" : "espectador");
+    versusMode = !versusMode;
+    PM_Message(client, "Se cambio el modo de repetición a: %s", versusMode ? "versus" : "espectador");
     return Plugin_Handled;
 }
 
@@ -799,7 +770,7 @@ public Action CommandTogglePauseMode(int client, int args) {
         PM_Message(client, "Empieza una repetición primero!");
         return Plugin_Handled;
     }
-    if (replayMode) {
+    if (!versusMode) {
         PM_Message(client, "Cambia el modo de repetición a espectador primero!");
         return Plugin_Handled;
     }
@@ -871,13 +842,14 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 }
 
 public void OnClientConnected(int client) {
+  SetClientInfo(client, "cl_use_opens_buy_menu", "0");
   g_CurrentSavedGrenadeId[client] = -1;
   g_GrenadeHistoryIndex[client] = -1;
   ClearArray(g_GrenadeHistoryPositions[client]);
   ClearArray(g_GrenadeHistoryAngles[client]);
   ClearArray(g_ClientGrenadeThrowTimes[client]);
   g_TestingFlash[client] = false;
-  g_ClientNoFlash[client] = false;
+  g_ClientAntiFlash[client] = false;
   g_ClientPulledPin[client] = false;
   g_RunningTimeCommand[client] = false;
   g_RunningLiveTimeCommand[client] = false;
@@ -958,7 +930,6 @@ public void OnMapStart() {
 }
 
 public void OnConfigsExecuted() {
-  htm_holdtime = GetConVarFloat(g_htm_cvar_holdtime);
   // Disable legacy plugin if found.
   char legacyPluginFile[PLATFORM_MAX_PATH];
   BuildPath(Path_SM, legacyPluginFile, sizeof(legacyPluginFile),
@@ -1109,11 +1080,21 @@ public void GetColor(ClientColor c, int array[4]) {
   array[3] = 255;
 }
 
+public void OnGameFrame() {
+  if(g_prueba[1]) {
+    g_pruebagameframe++;
+  }
+}
+
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3],
                       int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed,
                       int mouse[2]) {
   if (!g_InPracticeMode) {
     return Plugin_Continue;
+  }
+
+  if(g_prueba[client]) {
+    g_pruebacontador[client]++;
   }
   
   if (IsPMBot(client)) {
@@ -1214,12 +1195,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
         GetClientEyeAngles(client, g_LastGrenadePinPulledAngles[client]);
         g_ClientPulledPinButtons[client] = 0;
-        g_prueba[client] = false;
+        // g_prueba[client] = false;
       } else {
-        if (g_prueba[client]) {
-          // PrintToChatAll("Grabación empezada.");
-          g_prueba[client] = true;
-        }
+        // if (g_prueba[client]) {
+        //   // PrintToChatAll("Grabación empezada.");
+        //   g_prueba[client] = true;
+        // }
         //PrintToChatAll("...recording...");
         g_ClientPulledPinButtons[client] |= buttons;
       }
@@ -1229,39 +1210,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
   HoloNade_PlayerRunCmd(client, buttons, impulse, vel, angles, weapon);
   //HoloSpawn_PlayerRunCmd(client, buttons, impulse, vel, angles, weapon);
   return Plugin_Continue;
-}
-
-public Action Command_HTM(int client, int args)
-{ 
-    int htm_red = GetConVarInt(g_htm_cvar_red);
-    int htm_green = GetConVarInt(g_htm_cvar_green);
-    int htm_blue = GetConVarInt(g_htm_cvar_blue);
-    int htm_transparency = GetConVarInt(g_htm_cvar_transparency);
-    int htm_effect = GetConVarInt(g_htm_cvar_effecttype);
-    float htm_x = GetConVarFloat(g_htm_cvar_x);
-    float htm_y = GetConVarFloat(g_htm_cvar_y);
-    float htm_effectduration = GetConVarFloat(g_htm_cvar_effectduration);
-    float htm_fadein = GetConVarFloat(g_htm_cvar_fadeinduration);
-    float htm_fadeout = GetConVarFloat(g_htm_cvar_fadeoutduration);
-
-    if (args == 0)
-    {
-        PrintToChat(client, "\x01[\x04SM\x01] \x01Use: \x07!htm \x03<message>");
-        return Plugin_Handled;
-    }
-    
-    char message[512];
-    GetCmdArgString(message, sizeof(message));
-    
-    if(client == 0)
-    {
-        ReplyToCommand(client, "Este comando solo esta disponible en juego.");
-        return Plugin_Handled;
-    }
-    
-    SetHudTextParams(htm_x, htm_y, htm_holdtime, htm_red, htm_green, htm_blue, htm_transparency, htm_effect, htm_effectduration, htm_fadein, htm_fadeout);
-    ShowSyncHudText(client, HTM, message);
-    return Plugin_Handled;
 }
 
 static bool MovingButtons(int buttons) {
@@ -1433,7 +1381,7 @@ public void LaunchPracticeMode() {
   g_InPracticeMode = true;
   ReadPracticeSettings();
   for (int i = 0; i < g_BinaryOptionNames.Length; i++) {
-    ChangeSetting(i, PM_IsSettingEnabled(i), false, true);
+    ChangeSetting(i, PM_IsSettingEnabled(i), true);
   }
 
   HoloNade_LaunchPracticeMode();
@@ -1443,7 +1391,7 @@ public void LaunchPracticeMode() {
   Call_Finish();
 }
 
-stock bool ChangeSetting(int index, bool enabled, bool print = true, bool force_setting = false) {
+stock bool ChangeSetting(int index, bool enabled, bool force_setting = false) {
   bool previousSetting = g_BinaryOptionEnabled.Get(index);
   if (enabled == previousSetting && !force_setting) {
     return false;
@@ -1479,14 +1427,6 @@ stock bool ChangeSetting(int index, bool enabled, bool print = true, bool force_
   g_BinaryOptionIds.GetString(index, id, sizeof(id));
   g_BinaryOptionNames.GetString(index, name, sizeof(name));
 
-  if (print) {
-    char enabledString[32];
-    GetEnabledString(enabledString, sizeof(enabledString), enabled);
-    if (!StrEqual(name, "")) {
-      PM_MessageToAll("%s ahora es %s.", name, enabledString);
-    }
-  }
-
   Call_StartForward(g_OnPracticeModeSettingChanged);
   Call_PushCell(index);
   Call_PushString(id);
@@ -1513,7 +1453,7 @@ public void ExitPracticeMode() {
   }
 
   for (int i = 0; i < g_BinaryOptionNames.Length; i++) {
-    ChangeSetting(i, false, false);
+    ChangeSetting(i, false);
 
     // Restore the cvar values if they haven't already been.
     Handle cvarRestore = g_BinaryOptionCvarRestore.Get(i);
@@ -1785,8 +1725,8 @@ public Action Event_FreezeEnd(Event event, const char[] name, bool dontBroadcast
       continue;
     }
 
-    if (g_ClientNoFlash[i]) {
-      g_ClientNoFlash[i] = false;
+    if (g_ClientAntiFlash[i]) {
+      g_ClientAntiFlash[i] = false;
       PM_Message(i, "Noflash desactivado al inicio de la ronda.");
     }
 
@@ -1799,6 +1739,14 @@ public Action Event_FreezeEnd(Event event, const char[] name, bool dontBroadcast
   }
 
   return Plugin_Handled;
+}
+
+public void HoloSpawnsChanged(Handle convar, const char[] oldValue, const char[] newValue) {
+  if (StringToInt(newValue) == 1) {
+    UpdateHoloSpawnEntities();
+  } else if (StringToInt(newValue) == 0) {
+    RemoveHoloSpawnEntities();
+  }
 }
 
 public void GlowPMBotsChanged(Handle convar, const char[] oldValue, const char[] newValue) {
@@ -1864,42 +1812,121 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
   }
 
   if (!g_PugsetupLoaded) {
-    if (StrEqual(chatCommand, ".setup")) {
-      if (CheckCommandAccess(client, "sm_prac", ADMFLAG_CHANGEMAP)) {
-        GivePracticeMenu(client);
-      } else {
-        PM_Message(client, "No tienes permiso para acceder al modo práctica.");
-      }
-    } else if (StrEqual(chatCommand, ".help")) {
-      ShowHelpInfo(client);
-    } else if (StrEqual(chatCommand, ".extrahelp")) {
-      ShowExtraHelpInfo(client);
+    // if (StrEqual(chatCommand, ".setup")) {
+    //   if (CheckCommandAccess(client, "sm_prac", ADMFLAG_CHANGEMAP)) {
+    //     GivePracticeMenu(client);
+    //   } else {
+    //     PM_Message(client, "No tienes permiso para acceder al modo práctica.");
+    //   }
+    // }
+    if (StrEqual(chatCommand, ".menu")) {
+      GivePracticeMenu(client);
     }
   }
 }
 
-public void ShowHelpInfo(int client) {
-    // CPrintToChat(client, "\x0E.map: \x04Carga el menú de cambio de mapa");
-    // CPrintToChat(client, "\x0E.help: \x04Muestra esta página");
-    // CPrintToChat(client, "\x0E.grenadeshelp: \x04Muestra los comandos e instrucciones de las granadas");
-    // CPrintToChat(client, "\x0E.bots: \x04Muestra el menu de los bots");
-    // CPrintToChat(client, "\x0E.extrahelp: \x04Muestra otros comandos");
-    // CPrintToChat(client, "\x04Mantenga \x0E(E) \x04mientras equipa una granada para mostrar su trayectoria");
-    // CPrintToChat(client, "\x04Mantenga \x0E(F) \x04mientras equipa una granada para mostrar su trayectoria de jumpthrow");
-    // CPrintToChat(client, "\x04Mantenga \x0E(R) \x04mientras una granada está en el aire para seguir su trayectoria");
-    // CPrintToChat(client, "\x04Mantenga \x0E(R)+ (E) \x04o \x0E(F) \x04para ver donde caerá la granada");
-    // CPrintToChat(client, "\x04Mantenga \x0E(R) \x04y suelte \x0E(F) \x04o \x0E(E) \x04mientras lanza un granada para hacer zoom donde caerá la granada"); 
+stock void GivePracticeMenu(int client, int style = ITEMDRAW_DEFAULT) {
+  Menu menu = new Menu(PracticeMenuHandler);
+  menu.SetTitle("Menu de Práctica");
+  menu.AddItem("bots_menu", "Menu de Bots");
+  menu.AddItem("nades_menu", "Menu de Granadas\n ");
+
+  char enabled[32], buffer[128];
+
+  GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(8), client);
+  Format(buffer, sizeof(buffer), "%s: %s", "Mostrar impactos de bala: ", enabled);
+  menu.AddItem("8", buffer);
+
+  GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(3), client);
+  Format(buffer, sizeof(buffer), "%s: %s", "Munición Infinita: ", enabled);
+  menu.AddItem("3", buffer);
+
+  GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(11), client);
+  Format(buffer, sizeof(buffer), "%s: %s", "Bots Wallhack: ", enabled);
+  menu.AddItem("11", buffer);
+
+  GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(5), client);
+  Format(buffer, sizeof(buffer), "%s: %s", "Trayectoria de Granada: ", enabled);
+  menu.AddItem("5", buffer);
+
+  GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(12), client);
+  Format(buffer, sizeof(buffer), "%s: %s\n ", "Mostrar Spawns: ", enabled);
+  menu.AddItem("12", buffer);
+  
+  menu.AddItem("help", "Ayuda");
+
+  menu.Pagination = MENU_NO_PAGINATION;
+  menu.ExitButton = true;
+
+  menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public void ShowExtraHelpInfo(int client) {
-    // CPrintToChat(client, " \x0E.save nombre: \x04Guarda tu posición actual y la granada con el nombre dado");
-    // CPrintToChat(client, " \x0E.copy: \x04Copia la última granada de otro jugador");
-    // CPrintToChat(client, " \x0E.last: \x04Te teletransporta a tu última granada");
-    // CPrintToChat(client, " \x0E.flash: \x04Guarda tu posición y te teletransporta cada que flasheas, .stop para cancelar");
-    // CPrintToChat(client, " \x0E.noflash: \x04Activa/Desactiva el modo NoFlash");
-    // CPrintToChat(client, " \x0E.timer: \x04Cronómetro desde que empiezas a moverte hasta que paras.");
-    // CPrintToChat(client, " \x0E.timer2: \x04Cronómetro que empieza automaticamente y termina cuando escribes .timer2 de nuevo");
-    // CPrintToChat(client, " \x0E.god: \x04Activa God Mode");
+public Action ChatListener(int client, const char[] command, int args) {
+  if(!g_WaitingForSaveNade[client])
+    return Plugin_Continue;
+  // else
+  char msg[GRENADE_NAME_LENGTH];
+  GetCmdArgString(msg, sizeof(msg));
+  if (IsPlayer(client) && !IsChatTrigger()) {
+    g_WaitingForSaveNade[client] = false;
+    CleanMsgString(msg, sizeof(msg));
+    SaveClientGrenade(client, msg);
+  }
+  return Plugin_Continue;
+}
+
+stock void CleanMsgString(char[] msg, int size) {
+  ReplaceString(msg, size, "%", "％");
+  while (StrContains(msg, "  ") > -1) {
+    ReplaceString(msg, size, "  ", " ");
+  }
+  StripQuotes(msg);
+}
+
+public int PracticeMenuHandler(Menu menu, MenuAction action, int client, int param2) {
+  if (action == MenuAction_Select) {
+    char buffer[OPTION_NAME_LENGTH];
+    menu.GetItem(param2, buffer, sizeof(buffer));
+    
+    if (StrEqual(buffer, "bots_menu")) {
+      Command_BotsMenu(client, 0);
+    } else if (StrEqual(buffer, "nades_menu")) {
+      GiveNadesMenu(client);
+    } else {
+      if (StrEqual(buffer, "8")) {
+        ChangeSetting(8, !PM_IsSettingEnabled(8), true);
+      } else if (StrEqual(buffer, "3")) {
+        ChangeSetting(3, !PM_IsSettingEnabled(3), true);
+      } else if (StrEqual(buffer, "11")) {
+        ChangeSetting(11, !PM_IsSettingEnabled(11), true);
+      } else if (StrEqual(buffer, "5")) {
+        ChangeSetting(5, !PM_IsSettingEnabled(5), true);
+      } else if (StrEqual(buffer, "12")) {
+        ChangeSetting(12, !PM_IsSettingEnabled(12), true);
+      } else if (StrEqual(buffer, "help")) {
+        ShowHelpInfo(client);
+      }
+      GivePracticeMenu(client);
+    }
+  } else if (action == MenuAction_End) {
+    delete menu;
+  }
+  return 0;
+}
+
+public void ShowHelpInfo(int client) {
+  PM_Message(client, "{GREEN}.save: {PURPLE}Guarda tu última granada escribiendo {GREEN}.save <nombre>");
+  PM_Message(client, "{GREEN}.copy: {PURPLE}Copia el último lineup de un jugador");
+  PM_Message(client, "{GREEN}.throw: {PURPLE}Tira tu última granada");
+  PM_Message(client, "{GREEN}.flash: {PURPLE}Guarda tu posicion para probar una flashbang");
+  PM_Message(client, "{GREEN}.last: {PURPLE}Ve a tu último lineup");
+  PM_Message(client, "{GREEN}.clear: {PURPLE}Limpia instantáneamente los humos y molos");
+  PM_Message(client, "{GREEN}.map: {PURPLE}Menú de cambio de mapa");
+  PM_Message(client, "{GREEN}.bots: {PURPLE}Muestra el menu de los bots");
+  PM_Message(client, "{GREEN}Mantenga {PURPLE}[E] {GREEN}Para mostrar la trayectoria de la granada.");
+  PM_Message(client, "{GREEN}Mantenga {PURPLE}[F] {GREEN}Para mostrar la trayectoria de la granada.");
+  PM_Message(client,
+  "{GREEN}Mantenga {PURPLE}[R] + [E] {GREEN}o {PURPLE}[F] {GREEN}para hacer zoom en el destino final de la granada");
 }
 
 bool CanStartPracticeMode(int client) {

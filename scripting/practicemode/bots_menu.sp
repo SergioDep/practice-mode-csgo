@@ -4,19 +4,21 @@ public Action Command_BotsMenu(int client, int args) {
   }
 
   Menu menu = new Menu(BotsMenuHandler);
-  menu.SetTitle("Bots Menu");
+  menu.SetTitle("Menu de Bots");
 
   menu.AddItem("add", "Agregar Bot");
   menu.AddItem("control", "Controlar Bot");
   menu.AddItem("swapteam", "Cambiar Equipo de Bot");
+  menu.AddItem("delete", "Eliminar Bot");
+
+  menu.ExitBackButton = true;
 
   menu.Display(client, MENU_TIME_FOREVER);
   return Plugin_Handled;
 }
 
-public int BotsMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
+public int BotsMenuHandler(Menu menu, MenuAction action, int client, int param2) {
   if (action == MenuAction_Select) {
-    int client = param1;
     char buffer[OPTION_NAME_LENGTH];
     menu.GetItem(param2, buffer, sizeof(buffer));
     
@@ -36,9 +38,20 @@ public int BotsMenuHandler(Menu menu, MenuAction action, int param1, int param2)
           ChangeClientTeam(bot, botTeam);
           CS_RespawnPlayer(bot);
         }
+        else if (StrEqual(buffer, "delete")) {
+          int owner = GetBotsOwner(bot);
+          if (owner > 0){
+            g_CurrentBotControl[owner] = -1; // In case another player is using this bot in menu
+            ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
+            FindAndErase(g_ClientBots[client], bot);
+            Command_BotsMenu(client, 0);
+          }
+        }
       }
     }
     Command_BotsMenu(client, 0);
+  } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
+    GivePracticeMenu(client);
   } else if (action == MenuAction_End) {
     delete menu;
   }
@@ -75,9 +88,7 @@ stock void GiveBotEditorMenu(int client) {
     }
     menu.AddItem("boost", "Boost");
     menu.AddItem("jump", "Saltar");
-    menu.AddItem("runboost", "Run Boost\n ");
-    
-    menu.AddItem("delete", "Eliminar Bot");
+    menu.AddItem("runboost", "Run Boost");
 
     menu.ExitBackButton = true;
 
@@ -85,9 +96,8 @@ stock void GiveBotEditorMenu(int client) {
   }
 }
 
-public int BotEditorMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
+public int BotEditorMenuHandler(Menu menu, MenuAction action, int client, int param2) {
   if (action == MenuAction_Select) {
-    int client = param1;
     char buffer[OPTION_NAME_LENGTH];
     menu.GetItem(param2, buffer, sizeof(buffer));
 
@@ -145,21 +155,12 @@ public int BotEditorMenuHandler(Menu menu, MenuAction action, int param1, int pa
       else if (StrEqual(buffer, "togglecrouch")) {
         g_BotCrouch[bot] = !g_BotCrouch[bot];
       }
-      else if (StrEqual(buffer, "delete")) {
-        int owner = GetBotsOwner(bot);
-        if (owner > 0){
-          g_CurrentBotControl[owner] = -1; // In case another player is using this bot in menu
-          ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
-          FindAndErase(g_ClientBots[client], bot);
-          Command_BotsMenu(param1, 0);
-        }
-      }
     }
     
     GiveBotEditorMenu(client);
 
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
-    Command_BotsMenu(param1, 0);
+    Command_BotsMenu(client, 0);
   } else if (action == MenuAction_End) {
     delete menu;
   }

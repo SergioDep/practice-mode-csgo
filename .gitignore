@@ -109,3 +109,5 @@ scripting/tests/
 scripting/testsuite/
 scripting/compile.dat
 scripting/colors.inc
+scripting/include/PTaH.inc
+scripting/sbp.sp

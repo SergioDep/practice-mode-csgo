@@ -129,6 +129,8 @@ stock void GrenadeTypeString(GrenadeType type, char[] buffer, int length) {
       Format(buffer, length, "decoy");
     case GrenadeType_Incendiary:
       Format(buffer, length, "incendiary");
+    case GrenadeType_None:
+      return;
     default:
       LogError("Unknown grenade type: %d", type);
   }

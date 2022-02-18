@@ -634,12 +634,20 @@ public bool FindMatchingCategory(const char[] catinput, char[] output, int lengt
   }
 }
 
-public int CountGrenadesForPlayer(const char[] auth) {
+stock int CountGrenadesForPlayer(const char[] auth, GrenadeType grenadeType = GrenadeType_None) {
   int count = 0;
   if (g_GrenadeLocationsKv.JumpToKey(auth)) {
     if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
       do {
-        count++;
+        if (grenadeType == GrenadeType_None) {
+          count++;
+        } else {
+          char grenadeTypeString[32];
+          g_GrenadeLocationsKv.GetString("grenadeType", grenadeTypeString, sizeof(grenadeTypeString));
+          if (grenadeType == GrenadeTypeFromString(grenadeTypeString)) {
+            count++;
+          }
+        }
       } while (g_GrenadeLocationsKv.GotoNextKey());
 
       g_GrenadeLocationsKv.GoBack();
@@ -1085,4 +1093,76 @@ public int GetGrenadeExecutionType(int btns, char[] buffer) {
   }
   //not moving, not jumping, not ducking
   return strcopy(buffer, 64, "-");
+}
+
+public void SaveClientGrenade(int client, char[] name) {
+  if (StrEqual(name, "")) {
+    PM_Message(client, "Uso: .save <nombre>");
+    return;
+  }
+
+  char auth[AUTH_LENGTH];
+  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
+  char grenadeId[GRENADE_ID_LENGTH];
+  if (FindGrenadeByName(auth, name, grenadeId)) {
+    PM_Message(client, "Ya has usado ese nombre.");
+    return;
+  }
+
+  int max_saved_grenades = MAX_GRENADE_SAVES_PLAYER;
+  if (max_saved_grenades > 0 && CountGrenadesForPlayer(auth) >= max_saved_grenades) {
+    PM_Message(client, "Alcanzaste el maximo numero de granadas que puedes guardar (%d).",
+               max_saved_grenades);
+    return;
+  }
+
+  float origin[3], angles[3];
+  origin = g_LastGrenadePinPulledOrigin[client];
+  angles = g_LastGrenadePinPulledAngles[client];
+
+  int grenadeEntity = g_LastGrenadeEntity[client];
+  GrenadeType grenadeType = g_LastGrenadeType[client];
+  float grenadeOrigin[3];
+  float grenadeVelocity[3];
+  float grenadeDetonationOrigin[3];
+  grenadeOrigin = g_LastGrenadeOrigin[client];
+  grenadeVelocity = g_LastGrenadeVelocity[client];
+  grenadeDetonationOrigin = g_LastGrenadeDetonationOrigin[client];
+
+  char execution[64];
+  GetGrenadeExecutionType(g_ClientPulledPinButtons[client], execution);
+
+  Action ret = Plugin_Continue;
+  Call_StartForward(g_OnGrenadeSaved);
+  Call_PushCell(client);
+  Call_PushArray(origin, sizeof(origin));
+  Call_PushArray(angles, sizeof(angles));
+  Call_PushString(name);
+  Call_Finish(ret);
+
+  if (ret < Plugin_Handled) {
+    if (g_CSUtilsLoaded) {
+      if (!IsGrenade(g_LastGrenadeType[client])) {
+        PM_Message(client, "{DARK_RED}Error. Guarda una granada válida");
+        return;
+      } else {
+        int nadeId = SaveGrenadeToKv(
+          client, 
+          origin, 
+          angles, 
+          grenadeOrigin, 
+          grenadeVelocity, 
+          grenadeType, 
+          grenadeEntity, 
+          grenadeDetonationOrigin, 
+          name,
+          execution
+        );
+        g_CurrentSavedGrenadeId[client] = nadeId;
+        PM_Message(client, "{ORANGE}Granada {PURPLE}%s {ORANGE}guardada.", name);
+        OnGrenadeKvMutate();
+      }
+    }
+  }
+  g_LastGrenadeType[client] = GrenadeType_None;
 }

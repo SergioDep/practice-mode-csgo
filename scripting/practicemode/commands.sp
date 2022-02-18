@@ -23,13 +23,13 @@ public Action Command_ExitPracticeMode(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_NoFlash(int client, int args) {
+public Action Command_AntiFlash(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
 
-  g_ClientNoFlash[client] = !g_ClientNoFlash[client];
-  if (g_ClientNoFlash[client]) {
+  g_ClientAntiFlash[client] = !g_ClientAntiFlash[client];
+  if (g_ClientAntiFlash[client]) {
     PM_Message(client, "Noflash activado. Usa .noflash de nuevo para desactivar.");
     RequestFrame(KillFlashEffect, GetClientSerial(client));
   } else {
@@ -409,7 +409,6 @@ public Action Command_StopRepeat(int client, int args) {
     g_RunningRepeatedCommand[client] = false;
     g_RunningRoundRepeatedCommandArg[client].Clear();
     g_RunningRoundRepeatedCommandDelay[client].Clear();
-    PM_Message(client, "Cancelled repeating command.");
   }
   return Plugin_Handled;
 }
@@ -499,7 +498,7 @@ public void ChangeSettingById(const char[] id, bool setting) {
     char name[OPTION_NAME_LENGTH];
     g_BinaryOptionIds.GetString(i, name, sizeof(name));
     if (StrEqual(name, id, false)) {
-      ChangeSetting(i, setting, true);
+      ChangeSetting(i, setting);
     }
   }
 }
@@ -523,7 +522,7 @@ public Action Command_DryRun(int client, int args) {
     g_TestingFlash[i] = false;
     g_RunningRepeatedCommand[i] = false;
     g_SavedRespawnActive[i] = false;
-    g_ClientNoFlash[client] = false;
+    g_ClientAntiFlash[client] = false;
     if (IsPlayer(i)) {
       SetEntityMoveType(i, MOVETYPE_WALK);
     }
@@ -536,7 +535,7 @@ public Action Command_DryRun(int client, int args) {
 static void ChangeSettingArg(int client, const char[] arg, bool enabled) {
   if (StrEqual(arg, "all", false)) {
     for (int i = 0; i < g_BinaryOptionIds.Length; i++) {
-      ChangeSetting(i, enabled, true);
+      ChangeSetting(i, enabled);
     }
     return;
   }
@@ -553,7 +552,7 @@ static void ChangeSettingArg(int client, const char[] arg, bool enabled) {
   if (indexMatches.Length == 0) {
     PM_Message(client, "No settings matched \"%s\"", arg);
   } else if (indexMatches.Length == 1) {
-    if (!ChangeSetting(indexMatches.Get(0), enabled, true)) {
+    if (!ChangeSetting(indexMatches.Get(0), enabled)) {
       PM_Message(client, "That is already enabled.");
     }
   } else {
@@ -644,7 +643,7 @@ public Action Command_Restart(int client, int args){
     g_TestingFlash[i] = false;
     g_RunningRepeatedCommand[i] = false;
     g_SavedRespawnActive[i] = false;
-    g_ClientNoFlash[client] = false;
+    g_ClientAntiFlash[client] = false;
     if (IsPlayer(i)) {
       SetEntityMoveType(i, MOVETYPE_WALK);
     }

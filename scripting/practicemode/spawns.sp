@@ -6,25 +6,13 @@ public void Spawns_MapStart() {
 
 public void Spawns_MapEnd() {
   RemoveHoloSpawnEntities();
-  g_HoloSpawns = false;
 }
 
 public void Spawns_ExitPracticeMode() {
   RemoveHoloSpawnEntities();
 }
 
-public Action ToggleHoloSpawns(int client, int args) {
-  g_HoloSpawns = !g_HoloSpawns;
-  if (g_HoloSpawns)
-    UpdateHoloSpawnEntities();
-  else
-    RemoveHoloSpawnEntities();
-
-  return Plugin_Handled;
-}
-
 public void UpdateHoloSpawnEntities() {
-  g_HoloSpawns = true;
   RemoveHoloSpawnEntities();
   CreateHoloSpawnEntities();
 }
