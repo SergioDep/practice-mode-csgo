@@ -2,7 +2,7 @@
 
 stock void GiveMainReplaysMenu(int client, int pos = 0) {
   Menu menu = new Menu(ReplaysMenuHandler);
-  menu.SetTitle("Replay list");
+  menu.SetTitle("Lista de Replays");
   menu.AddItem("add_new", "Añadir nueva repetición");
   menu.AddItem("exit", "Salir de modo repetición");
   DeleteReplayIfEmpty(client);

@@ -1,6 +1,6 @@
 public Action Command_LaunchPracticeMode(int client, int args) {
   if (!CanStartPracticeMode(client)) {
-    PM_Message(client, "You cannot start practice mode right now.");
+    // PM_Message(client, "You cannot start practice mode right now.");
     return Plugin_Handled;
   }
 
@@ -23,17 +23,17 @@ public Action Command_ExitPracticeMode(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_AntiFlash(int client, int args) {
+public Action Command_NoFlash(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
 
-  g_ClientAntiFlash[client] = !g_ClientAntiFlash[client];
-  if (g_ClientAntiFlash[client]) {
-    PM_Message(client, "Noflash activado. Usa .noflash de nuevo para desactivar.");
+  g_ClientNoFlash[client] = !g_ClientNoFlash[client];
+  if (g_ClientNoFlash[client]) {
+    // PM_Message(client, "Noflash activado. Usa .noflash de nuevo para desactivar.");
     RequestFrame(KillFlashEffect, GetClientSerial(client));
   } else {
-    PM_Message(client, "Noflash desactivado.");
+    // PM_Message(client, "Noflash desactivado.");
   }
   return Plugin_Handled;
 }
@@ -144,33 +144,6 @@ public Action Timer_DisplayClientTimer(Handle timer, int serial) {
   return Plugin_Stop;
 }
 
-// public Action Command_CopyGrenade(int client, int args) {
-//   if (!g_InPracticeMode) {
-//     return Plugin_Handled;
-//   }
-
-//   if (!IsPlayer(client) || args != 1) {
-//     PM_Message(client, "Usp: .copynade <id>");
-//     return Plugin_Handled;
-//   }
-
-//   char name[MAX_NAME_LENGTH];
-//   char id[GRENADE_ID_LENGTH];
-//   GetCmdArg(1, id, sizeof(id));
-
-//   char targetAuth[AUTH_LENGTH];
-//   if (FindId(id, targetAuth, sizeof(targetAuth))) {
-//     int newid = CopyGrenade(targetAuth, id, client);
-//     if (newid != -1) {
-//       PM_Message(client, "Copied nade to new id %d", newid);
-//     } else {
-//       PM_Message(client, "Could not find grenade %s from %s", newid, name);
-//     }
-//   }
-
-//   return Plugin_Handled;
-// }
-
 public Action Command_Respawn(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -235,7 +208,7 @@ public Action Command_StopAll(int client, int args) {
     Command_StopRespawn(client, 0);
   }
   if (g_TestingFlash[client]) {
-    Command_StopFlash(client, 0);
+    g_TestingFlash[client] = false;
   }
   if (g_RunningTimeCommand[client]) {
     StopClientTimer(client);
@@ -250,9 +223,9 @@ public Action Command_StopAll(int client, int args) {
   if (g_BotMimicLoaded && BotMimic_IsPlayerRecording(client)) {
     BotMimic_StopRecording(client, false /* save */);
   }
-  if (LearnIsActive(client)) {
-    Command_StopLearn(client, 0);
-  }
+  // if (LearnIsActive(client)) {
+  //   Command_StopLearn(client, 0);
+  // }
   return Plugin_Handled;
 }
 
@@ -467,7 +440,7 @@ public Action Command_Map(int client, int args) {
     Menu menu = new Menu(ChangeMapHandler);
     menu.ExitButton = true;
     menu.ExitBackButton = true;
-    menu.SetTitle("Select a map:");
+    menu.SetTitle("Selecciona un mapa:");
     for (int i = 0; i < g_MapList.Length; i++) {
       char map[PLATFORM_MAX_PATH];
       g_MapList.GetString(i, map, sizeof(map));
@@ -522,7 +495,7 @@ public Action Command_DryRun(int client, int args) {
     g_TestingFlash[i] = false;
     g_RunningRepeatedCommand[i] = false;
     g_SavedRespawnActive[i] = false;
-    g_ClientAntiFlash[client] = false;
+    g_ClientNoFlash[client] = false;
     if (IsPlayer(i)) {
       SetEntityMoveType(i, MOVETYPE_WALK);
     }
@@ -643,7 +616,7 @@ public Action Command_Restart(int client, int args){
     g_TestingFlash[i] = false;
     g_RunningRepeatedCommand[i] = false;
     g_SavedRespawnActive[i] = false;
-    g_ClientAntiFlash[client] = false;
+    g_ClientNoFlash[client] = false;
     if (IsPlayer(i)) {
       SetEntityMoveType(i, MOVETYPE_WALK);
     }

@@ -1,14 +1,3 @@
-public Action Timer_GetPMBots(Handle timer) {
-  for (int i = 0; i < 10; i++) {
-    char name[MAX_NAME_LENGTH];
-    Format(name, sizeof(name), "Replay Bot %d", i + 1);
-    if (!IsReplayBot(g_ReplayBotClients[i])) {
-      g_ReplayBotClients[i] = GetLiveBot(name);
-    }
-  }
-  return Plugin_Handled;
-}
-
 stock void CreateBot(int client) {
   if (g_ClientBots[client].Length >= g_MaxPlacedBotsCvar.IntValue) {
     PM_Message(
@@ -32,14 +21,14 @@ stock void CreateBot(int client) {
   ServerCommand("bot_add");
   DataPack botPack;
   
-  CreateDataTimer(0.2, Timer_GetPMBot, botPack);
+  CreateDataTimer(0.2, Timer_GetPMBots, botPack);
 
   botPack.WriteCell(client);
   botPack.WriteCell(botNumberTaken);
   botPack.WriteString(name);
 }
 
-public Action Timer_GetPMBot(Handle timer, DataPack botPack) {
+public Action Timer_GetPMBots(Handle timer, DataPack botPack) {
   botPack.Reset();
   int client = botPack.ReadCell();
   int botNumberTaken = botPack.ReadCell();
@@ -252,47 +241,6 @@ public Action Event_BotDamageDealtEvent(Event event, const char[] name, bool don
   }
 
   return Plugin_Continue;
-}
-
-// TODO: rework this to print the message to the bot owner AND the flash thrower.
-// It probably needs to use the flashbang_detonate event (so piggyback on Event_FlashDetonate).
-public Action Event_PlayerBlind(Event event, const char[] name, bool dontBroadcast) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  int userid = event.GetInt("userid");
-  int client = GetClientOfUserId(userid);
-  if (IsPMBot(client)) {
-    int owner = GetBotsOwner(client);
-    if (IsPlayer(owner)) {
-      char T_Co[8];
-      if(GetFlashDuration(client)>=g_FlashEffectiveThresholdCvar.FloatValue) T_Co="\x04"; else T_Co="\x07";
-      PM_MessageToAll("(%N)---> Flash de %s%.1f \x01segundos para BOT %N", owner, T_Co, GetFlashDuration(client), client);
-    }
-
-    // Did anyone throw a flash recently? If so, they probably care about this bot being blinded.
-    float now = GetGameTime();
-    for (int i = 1; i <= MaxClients; i++) {
-      char T_CB[8];
-      if(GetFlashDuration(client)>=g_FlashEffectiveThresholdCvar.FloatValue) T_CB="\x04"; else T_CB="\x07";
-      if (owner != i && IsPlayer(i) && FloatAbs(now - g_LastFlashDetonateTime[i]) < 0.001) {
-        PM_MessageToAll("(%N)---> Flash de %s%.1f \x01segundos para BOT %N", owner, T_CB, GetFlashDuration(client), client);
-      }
-    }
-  }
-
-  // TODO: move this into another place (has nothing to do with bots!)
-  if (g_ClientAntiFlash[client]) {
-    RequestFrame(KillFlashEffect, GetClientSerial(client));
-  }
-  return Plugin_Handled;
-}
-
-public void KillFlashEffect(int serial) {
-  int client = GetClientFromSerial(serial);
-  // Idea used from SAMURAI16 @ https://forums.alliedmods.net/showthread.php?p=685111
-  SetEntDataFloat(client, FindSendPropInfo("CCSPlayer", "m_flFlashMaxAlpha"), 0.5);
 }
 
 void TemporarilyDisableCollisions(int client1, int client2) {

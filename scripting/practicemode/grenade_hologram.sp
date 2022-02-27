@@ -19,6 +19,12 @@
 #define GRENADE_COLOR_HE "250 7 7"
 #define GRENADE_COLOR_DEFAULT "180 180 180"
 
+ArrayList g_HoloNadeEntities;
+int g_HoloNadeClientTargetGrenadeIDs[MAXPLAYERS + 1];
+bool g_HoloNadeClientInUse[MAXPLAYERS + 1] = {false, ...};
+int g_CurrentNadeControl[MAXPLAYERS + 1] = {-1, ...};
+int g_CurrentNadeGroupControl[MAXPLAYERS + 1] = {-1, ...};
+
 //reset settings and hook
 public void HoloNade_PluginStart() {
   g_HoloNadeEntities = new ArrayList(MAX_GRENADES_IN_GROUP);
@@ -186,7 +192,6 @@ public Action _UpdateHoloNadeEntities_Iterator(
   const char[] ownerAuth,
   const char[] name,
   const char[] execution,
-  ArrayList categories,
   char[] grenadeId,
   const float origin[3],
   const float angles[3],
@@ -365,7 +370,9 @@ public Action GiveNadeMenu(int client, int NadeId) {
     g_CurrentNadeControl[client] = NadeId;
     Format(name, sizeof(name), "Granada: %s", name);
     menu.SetTitle(name);
-    menu.AddItem("goto", "Teletransportar\n ");
+    menu.AddItem("goto", "Ir a Lineup");
+    menu.AddItem("throw", "Lanzar esta granada(a través de un bot)");
+    menu.AddItem("exportcode", "Compartir el Codigo de esta Granada\n ");
     
     menu.AddItem("delete", "Eliminar\n "
     , (CanEditGrenade(client, NadeId))
@@ -382,7 +389,6 @@ public Action GiveNadeMenu(int client, int NadeId) {
     executionType[0] &= ~(1<<5);
     Format(executionType, sizeof(executionType), "Ejecución: %s", executionType);
     menu.AddItem("execution", executionType, ITEMDRAW_DISABLED);
-    //menu.AddItem("throw", "Lanzar esta granada(a través de un bot)");
     menu.ExitButton = true;
     menu.ExitBackButton = true;
     menu.Display(client, MENU_TIME_FOREVER);
@@ -403,13 +409,12 @@ public int NadeMenuHandler(Menu menu, MenuAction action, int client, int param2)
             TeleportToSavedGrenadePosition(client, NadeIdStr);
             GiveNadeMenu(client, NadeId);
         } else if (StrEqual(buffer, "delete")) {
-            //confirm menu?
             GiveNadeDeleteConfirmationMenu(client);
+        } else if (StrEqual(buffer, "exportcode")) {
+            ExportClientNade(client, NadeIdStr);
+        } else if (StrEqual(buffer, "throw")) {
+            ThrowGrenade(client, NadeIdStr);
         }
-        // else if (StrEqual(buffer, "throw")) {
-        //     ThrowGrenade(client, NadeIdStr);
-        //     PM_Message(client, "Lanzando granada %s.", NadeIdStr);
-        // }
     } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
       if (g_ClientLastMenuType[client] == GrenadeMenuType_NadeGroup) {
         GiveNadeGroupMenu(client, g_CurrentNadeGroupControl[client]);

@@ -78,7 +78,7 @@ stock void GiveBotEditorMenu(int client) {
   int bot = g_CurrentBotControl[client];
   if (IsValidEntity(bot)) {
     Menu menu = new Menu(BotEditorMenuHandler);
-    menu.SetTitle("Bots Menu");
+    menu.SetTitle("Menu de Bot");
 
     menu.AddItem("bring", "Mover Bot");
     if (g_BotCrouch[bot]) {

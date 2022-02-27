@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "D:\\csgoserver\\csgo\\addons\\sourcemod\\configs"
+		},
+		{
+			"path": "D:\\csgoserver\\csgo\\cfg\\sourcemod"
 		}
 	],
 	"settings": {

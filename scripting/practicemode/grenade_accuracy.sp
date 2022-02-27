@@ -355,7 +355,6 @@ public Action _FindNearestGrenadeToVector_Iterator(
   const char[] ownerAuth, 
   const char[] name, 
   const char[] execution, 
-  ArrayList categories,
   const char[] grenadeId, 
   const float origin[3], 
   const float angles[3], 

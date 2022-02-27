@@ -24,7 +24,7 @@ enum ThrowType{
   Jumpthrow
 }
 
-int trail;
+int g_trail;
 Handle sm_test_mode;
 char nadelist[128] = "weapon_hegrenade weapon_smokegrenade weapon_flashbang weapon_incgrenade weapon_tagrenade weapon_molotov weapon_decoy";
 bool g_InNadrMode = false;
@@ -159,7 +159,8 @@ public void OnClientPostAdminCheck(int client) {
 
 
 public OnMapStart() {
-  trail = PrecacheModel("sprites/laserbeam.spr");
+  g_trail = PrecacheModel("sprites/laserbeam.spr");
+  // g_trail = PrecacheModel("materials/sprites/white.vmt");
   PrecacheModel(SpectateModel);
 }
 
@@ -597,7 +598,7 @@ stock void ShowTrajectory(
 
     CloseHandle(gRayTrace);
     float width = trail_tickness;
-    TE_SetupBeamPoints(gStart, gEnd, trail, 0, 0, 0, 0.1, width, width, 0, 0.0, { 0, 255, 255, 255 }, 0);
+    TE_SetupBeamPoints(gStart, gEnd, g_trail, 0, 0, 0, 0.1, width, width, 0, 0.0, { 0, 255, 255, 255 }, 0);
     TE_SendToAll(0.0);
     gStart = gEnd;
   }

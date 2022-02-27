@@ -472,6 +472,10 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
     g_iRecordedTicks[client]++;
 }
 
+// int servertickrate = 128;
+// int demotickrate = 64;
+// int currenttickrate = 64; //set start value as demotickrate
+
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
     // Bot is mimicing something
@@ -481,6 +485,17 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // Is this a valid living bot?
     if(!IsPlayerAlive(client) || GetClientTeam(client) < CS_TEAM_T)
         return Plugin_Continue;
+
+    // // Skip 1
+    // if (currenttickrate < servertickrate) {
+    //     currenttickrate += demotickrate;
+    //     //TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+    //     seed = 0;
+    //     return Plugin_Handled;
+    // } else {
+    //     //reset, execute
+    //     currenttickrate = demotickrate;
+    // }
 
     if(g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client])
     {
@@ -531,6 +546,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     Array_Copy(iFrame.predictedVelocity, vel, 3);
     if ((holdingGrenade || !versusMode) || target == -1)
         Array_Copy(iFrame.predictedAngles, angles, 2);
+    //PrintToChatAll("%f %f %f", angles[0], angles[1], angles[2]);
     subtype = iFrame.playerSubtype;
     seed = iFrame.playerSeed;
     weapon = 0;
@@ -541,6 +557,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // We're supposed to teleport stuff?
     if((iFrame.additionalFields & (ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY)) && !g_hBotMimicShouldStop[client])
     {
+        //PrintToChatAll("error");
         AdditionalTeleport iAT;
         ArrayList hAdditionalTeleport;
         char sPath[PLATFORM_MAX_PATH];
@@ -687,7 +704,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
         Bookmarks iBookmark;
         iFileHeader.FH_bookmarks.GetArray(g_iBotMimicNextBookmarkTick[client][BWM_index], iBookmark, sizeof(Bookmarks));
         
-        // Cache the next tick in which we should fire the forward.
+        // Cache the next tick in which we should fire th e forward.
         UpdateNextBookmarkTick(client);
         
         // Call the forward

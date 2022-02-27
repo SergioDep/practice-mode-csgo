@@ -3,7 +3,6 @@ typedef GrenadeIteratorFunction = function Action (
   const char[] ownerAuth, 
   const char[] name, 
   const char[] execution, 
-  ArrayList categories,
   const char[] grenadeId, 
   float origin[3], 
   float angles[3], 
@@ -26,7 +25,6 @@ stock void IterateGrenades(GrenadeIteratorFunction f, any data = 0) {
   char ownerAuth[AUTH_LENGTH];
   char name[GRENADE_NAME_LENGTH];
   char execution[GRENADE_EXECUTION_LENGTH];
-  char categoryString[GRENADE_CATEGORY_LENGTH];
   char grenadeId[GRENADE_ID_LENGTH];
   char grenadeTypeString[32];
   float origin[3];
@@ -47,16 +45,12 @@ stock void IterateGrenades(GrenadeIteratorFunction f, any data = 0) {
           g_GrenadeLocationsKv.GetSectionName(grenadeId, sizeof(grenadeId));
           g_GrenadeLocationsKv.GetString("name", name, sizeof(name));
           g_GrenadeLocationsKv.GetString("execution", execution, sizeof(execution));
-          g_GrenadeLocationsKv.GetString("categories", categoryString, sizeof(categoryString));
           g_GrenadeLocationsKv.GetVector("origin", origin);
           g_GrenadeLocationsKv.GetVector("angles", angles);
           g_GrenadeLocationsKv.GetString("grenadeType", grenadeTypeString, sizeof(grenadeTypeString));
           g_GrenadeLocationsKv.GetVector("grenadeOrigin", grenadeOrigin);
           g_GrenadeLocationsKv.GetVector("grenadeVelocity", grenadeVelocity);
           g_GrenadeLocationsKv.GetVector("grenadeDetonationOrigin", grenadeDetonationOrigin);
-    
-          ArrayList cats = new ArrayList(64);
-          AddCategoriesToList(categoryString, cats);
 
           Action ret = Plugin_Continue;
           Call_StartFunction(INVALID_HANDLE, f);
@@ -64,7 +58,6 @@ stock void IterateGrenades(GrenadeIteratorFunction f, any data = 0) {
           Call_PushString(ownerAuth);
           Call_PushString(name);
           Call_PushString(execution);
-          Call_PushCell(cats); //delete
           Call_PushString(grenadeId);
           Call_PushArrayEx(origin, sizeof(origin), SM_PARAM_COPYBACK);
           Call_PushArrayEx(angles, sizeof(angles), SM_PARAM_COPYBACK);
@@ -80,8 +73,6 @@ stock void IterateGrenades(GrenadeIteratorFunction f, any data = 0) {
           g_GrenadeLocationsKv.SetVector("grenadeOrigin", grenadeOrigin);
           g_GrenadeLocationsKv.SetVector("grenadeVelocity", grenadeVelocity);
           g_GrenadeLocationsKv.SetVector("grenadeDetonationOrigin", grenadeDetonationOrigin);
-
-          delete cats;
 
           if (ret >= Plugin_Handled) {
             g_GrenadeLocationsKv.GoBack();
