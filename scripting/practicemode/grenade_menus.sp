@@ -101,8 +101,8 @@ stock void GiveNadesMenu(int client) {
   , MAX_GRENADE_SAVES_PLAYER)
   menu.AddItem("mynades", buffer);
 
-  menu.AddItem("loadmynades", "Cargar mis granadas");
-  menu.AddItem("disablemynades", "Quitar mis granadas");
+  menu.AddItem("loadmynades", "Mostrar mis granadas");
+  menu.AddItem("disablemynades", "Ocultar mis granadas");
   
   Format(buffer, sizeof(buffer), "Granadas por Defecto: %s"
   , g_HoloNadeLoadDefault ? "Activadas": "Desactivadas");
@@ -155,6 +155,7 @@ public int NadesMenuHandler(Menu menu, MenuAction action, int client, int param2
           g_EnabledHoloNadeAuth.PushString(auth);
           UpdateHoloNadeEntities();
         }
+        PM_MessageToAll("{ORANGE} Granadas Actualizadas para {NORMAL}%N.", client);
       } else if (StrEqual(buffer, "disablemynades")) {
         GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
         int index = g_EnabledHoloNadeAuth.FindString(auth);
@@ -162,6 +163,7 @@ public int NadesMenuHandler(Menu menu, MenuAction action, int client, int param2
           g_EnabledHoloNadeAuth.Erase(index);
           UpdateHoloNadeEntities();
         }
+        PM_Message(client, "{ORANGE} Granadas Ocultadas.");
       }
     }
     GiveNadesMenu(client);

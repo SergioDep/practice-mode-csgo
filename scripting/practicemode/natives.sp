@@ -1,4 +1,4 @@
-#define MESSAGE_PREFIX "[\x05Prac\x01]"
+#define MESSAGE_PREFIX "[\x05Comando\x01]"
 
 /**
  * Natives.

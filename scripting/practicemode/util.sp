@@ -8,6 +8,8 @@
 #define PLUGIN_VERSION "1.3.5-dev"
 #endif
 
+int g_PracticeSetupClient = -2;
+
 enum struct CEffectData {
     float m_vOrigin[3];
     float m_vStart[3];
@@ -57,6 +59,19 @@ stock bool IsValidClient(int client) {
 
 stock bool IsPlayer(int client) {
   return IsValidClient(client) && !IsFakeClient(client) && !IsClientSourceTV(client);
+}
+
+stock bool IsPracticeSetupClient(int client) {
+  if (client != g_PracticeSetupClient) {
+    if (IsPlayer(g_PracticeSetupClient)) {
+      PM_Message(client, "{ORANGE}Cliente con permisos de Administrador: {NORMAL}%N.", g_PracticeSetupClient);
+      return false;
+    } else {
+      LogError("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
+      g_PracticeSetupClient = client;
+    }
+  }
+  return true;
 }
 
 stock bool IsServerEmpty() {

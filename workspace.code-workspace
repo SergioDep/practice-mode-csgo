@@ -11,6 +11,7 @@
 		}
 	],
 	"settings": {
-		"sourcepawn.GithubName": "sergioDep"
+		"sourcepawn.GithubName": "sergioDep",
+		"editor.tabSize": 2
 	}
 }

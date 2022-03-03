@@ -872,7 +872,7 @@ public void ExportClientNade(int client, const char[] idstr) {
   GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
   char code[GRENADE_CODE_LENGTH];
   GetGrenadeData(auth, idstr, "code", code, sizeof(code));
-  PM_Message(client, "{ORANGE}Codigo Exportado! (Chat y Consola)");
+  PM_Message(client, "{ORANGE}Codigo Exportado! (usar .import para guardarlo)");
   PM_Message(client, "{GREEN}%s", code);
   PrintToConsole(client, "======================================================");
   PrintToConsole(client, "Codigo de Granada Exportado : %s", code);

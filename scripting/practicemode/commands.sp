@@ -229,7 +229,7 @@ public Action Command_StopAll(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_ClearMap(int client, int args) {
+public Action Command_ClearNades(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
@@ -239,8 +239,9 @@ public Action Command_ClearMap(int client, int args) {
   DispatchEffect("ParticleEffectStop", smokeData);
   int smokeEnt = -1;
   while ((smokeEnt = FindEntityByClassname(smokeEnt, "smokegrenade_projectile")) != -1) {
-      StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
-      AcceptEntityInput(smokeEnt, "Kill");
+    StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
+    StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/smokegrenade/smoke_emit.wav");
+    AcceptEntityInput(smokeEnt, "Kill");
   }
 
   int infernoEnt = -1;
@@ -249,8 +250,9 @@ public Action Command_ClearMap(int client, int args) {
   infernoData.m_nHitBox = GetParticleSystemIndex("molotov_groundfire_fallback2");
   DispatchEffect("ParticleEffectStop", infernoData);
   while ((infernoEnt = FindEntityByClassname(infernoEnt, "inferno")) != -1) {
-      StopSound(infernoEnt, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
-      AcceptEntityInput(infernoEnt, "Kill");
+    StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
+    StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
+    AcceptEntityInput(infernoEnt, "Kill");
   }
   
   return Plugin_Handled;
@@ -422,6 +424,18 @@ public Action Timer_DelayedComand(Handle timer, int serial) {
 }
 
 public Action Command_Map(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  if (client != g_PracticeSetupClient) {
+    if (IsPlayer(g_PracticeSetupClient)) {
+      PM_Message(client, "{ORANGE}Cliente con permisos de Administrador: {NORMAL}%N.", g_PracticeSetupClient);
+      return Plugin_Handled;
+    } else {
+      LogError("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
+      g_PracticeSetupClient = client;
+    }
+  }
   char arg[PLATFORM_MAX_PATH];
   if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
     // Before trying to change to the arg first, check to see if
