@@ -178,13 +178,14 @@ public Action Timer_WaitForNewGrenade(Handle Timer, int serial) {
 
 stock void CreateTrajectory(
   int client,
-  const char[] cWeapon,
+  const char[] weapon,
   bool jumpthrow = false,
   float endPos[3] = {},
   bool useLastPosition = false,
   bool useLastAngles = false
 ) {
-  float dtime = GetDetonationTime(client, cWeapon);
+  GrenadeType grenadeType = GrenadeTypeFromWeapon(client, weapon);
+  float dtime = GetGrenadeDetonationTime(grenadeType);
   float GrenadeVelocity[3], PlayerVelocity[3], vforward[3];
   float gStart[3], gEnd[3], angThrow[3];
 
@@ -209,13 +210,8 @@ stock void CreateTrajectory(
   NormalizeVector(vforward, vforward);
 
   gStart[2] += (jumpthrow) ? 27.90365600585937 : 0.0;
-
-  // PrintToChatAll("BEFORE PREDICT: %.20f %.20f %.20f", gStart[0], gStart[1], gStart[2]);
-  // PrintToChatAll("FORWARD PREDICT: %.20f %.20f %.20f", vforward[0], vforward[1], vforward[2]);
   for (int i = 0; i < 3; i++)
     gStart[i] += vforward[i] * 16.0000142601273616094204044;
-  
-  // PrintToChatAll("AFTER PREDICT: %.20f %.20f %.20f", gStart[0], gStart[1], gStart[2]);
 
   if (jumpthrow) PlayerVelocity[2] = 211.3683776855468;
   ScaleVector(PlayerVelocity, 1.25);
@@ -279,33 +275,111 @@ stock void CreateTrajectory(
         } else {
           // fixVelFraction(GrenadeVelocity, trFraction, false);
         }
-        if (StrEqual(cWeapon, "weapon_incgrenade", false) || StrEqual(cWeapon, "weapon_molotov", false))
+        if (grenadeType == GrenadeType_Incendiary || grenadeType == GrenadeType_Molotov)
           dtime = 0.0;
       } else {
         // fixVelFraction(GrenadeVelocity, trFraction);
       }
+      // if (flSpeedSqr > 400.0) {
+      //   TE_SetupBeamCube(gEnd, 2.0, g_PredictTrail, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, { 255, 0, 0, 255 }, 0);
+      // }
     }
 
     CloseHandle(gRayTrace);
     TE_SetupBeamPoints(gStart, gEnd, g_PredictTrail, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, { 0, 255, 255, 255 }, 0);
-    TE_SendToAll(0.0);
+    TE_SendToAll();
     gStart = gEnd;
   }
   endPos = gEnd;
+  int colors[4] = { 0, 255, 0, 255 };
+  float explodePos[3];
+  explodePos = endPos;
+  if (grenadeType >= GrenadeType_Molotov && grenadeType != GrenadeType_Decoy) {
+    float ground[3];
+    Handle hTrace = TR_TraceRayEx(explodePos, view_as<float>({90.0,0.0,0.0}), MASK_SOLID | CONTENTS_CURRENT_90, RayType_Infinite);
+    if (TR_DidHit(hTrace)) {
+      TR_GetEndPosition(ground, hTrace);
+      if ((explodePos[2] - ground[2]) < 131) {
+        ground[2] += 2.0;
+      } else {
+        colors[0] = 255; colors[1] = 0;
+      }
+    }
+  }
+  TE_SetupBeamCube(explodePos, 2.0, g_BeamSprite, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, colors, 0);
+}
+
+stock void TE_SetupBeamCube(float center[3], float size, int ModelIndex, int HaloIndex, int StartFrame, int FrameRate, float Life, 
+				float Width, float EndWidth, int FadeLength, float Amplitude, const int Color[4], int Speed) {
+  float vMins[3], vMaxs[3];
+  vMins[0] = -size; vMaxs[0] = size;
+  vMins[1] = -size; vMaxs[1] = size;
+  vMins[2] = -size; vMaxs[2] = size;
+  AddVectors(center, vMaxs, vMaxs);
+  AddVectors(center, vMins, vMins);
+  float vPos1[3], vPos2[3], vPos3[3], vPos4[3], vPos5[3], vPos6[3];
+  vPos1 = vMaxs;
+  vPos1[0] = vMins[0];
+  vPos2 = vMaxs;
+  vPos2[1] = vMins[1];
+  vPos3 = vMaxs;
+  vPos3[2] = vMins[2];
+  vPos4 = vMins;
+  vPos4[0] = vMaxs[0];
+  vPos5 = vMins;
+  vPos5[1] = vMaxs[1];
+  vPos6 = vMins;
+  vPos6[2] = vMaxs[2];
+  TE_SetupBeamPoints(vMaxs, vPos1, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vMaxs, vPos2, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vMaxs, vPos3, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos6, vPos1, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos6, vPos2, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos6, vMins, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos4, vMins, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos5, vMins, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos5, vPos1, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos5, vPos3, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos4, vPos3, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
+  TE_SetupBeamPoints(vPos4, vPos2, ModelIndex, HaloIndex, StartFrame, FrameRate, Life, Width, EndWidth, FadeLength
+  , Amplitude, Color, Speed);
+  TE_SendToAll();
 }
 
 stock void fixVelFraction(float GrenadeVelocity[3], float frac, bool sum = true) {
-  // PrintToChatAll("fraction %f", frac);
-  // if (frac != 0) {
-  //   for (int i = 0; i<3; i++) {
-  //     // GrenadeVelocity[i] -= GrenadeVelocity[i]*(1.0-frac)*0.05;
-  //     // GrenadeVelocity[i] = GrenadeVelocity[i]*(1.0-frac*0.05);
-  //     // GrenadeVelocity[i] += GrenadeVelocity[i]*(1.0-frac)*0.05;
-  //     // GrenadeVelocity[i] += GrenadeVelocity[i]*(1.0-frac)*0.04545454545;
-  //     // GrenadeVelocity[i] += GrenadeVelocity[i]*(1.0-frac)*0.0258;
-  //     // GrenadeVelocity[i] -= GrenadeVelocity[i]*(1.0-frac)*0.0015;
-  //   }
-  // }
+  PrintToChatAll("fraction %f", frac);
+  if (frac != 0) {
+    for (int i = 0; i<3; i++) {
+      // GrenadeVelocity[i] -= GrenadeVelocity[i]*(1.0-frac)*0.05;
+      // GrenadeVelocity[i] = GrenadeVelocity[i]*(1.0-frac*0.05);
+      // GrenadeVelocity[i] += GrenadeVelocity[i]*(1.0-frac)*0.05;
+      // GrenadeVelocity[i] += GrenadeVelocity[i]*(1.0-frac)*0.04545454545;
+      // GrenadeVelocity[i] += GrenadeVelocity[i]*(1.0-frac)*0.0258;
+      // GrenadeVelocity[i] -= GrenadeVelocity[i]*(1.0-frac)*0.0015;
+    }
+  }
 }
 
 public bool Prediction_TraceFilter(int entity, any data) {
@@ -318,19 +392,20 @@ public bool Prediction_TraceFilter(int entity, any data) {
   return false;
 }
 
-stock float GetDetonationTime(int client, const char[] weapon) {
-  if (StrEqual(weapon, "weapon_smokegrenade", false))
-    return 10.0;
-  else if (StrEqual(weapon, "weapon_incgrenade", false) || StrEqual(weapon, "weapon_molotov", false))
-    return 1.979;
-  else if (StrEqual(weapon, "weapon_hegrenade", false) || StrEqual(weapon, "weapon_flashbang", false))
-    return 1.602
-  else {
-    if (g_LastGrenadeType[client] == GrenadeType_Flash || g_LastGrenadeType[client] == GrenadeType_HE)
-      return 1.602
-    else if (g_LastGrenadeType[client] == GrenadeType_Incendiary || g_LastGrenadeType[client] == GrenadeType_Molotov)
-      return 1.979;
-  }
+stock GrenadeType GrenadeTypeFromWeapon(int client, const char[] name) {
+  if (StrEqual(name, "weapon_smokegrenade")) return GrenadeType_Smoke;
+  if (StrEqual(name, "weapon_flashbang")) return GrenadeType_Flash;
+  if (StrEqual(name, "weapon_hegrenade")) return GrenadeType_HE;
+  if (StrEqual(name, "weapon_molotov")) return GrenadeType_Molotov;
+  if (StrEqual(name, "weapon_decoy")) return GrenadeType_Decoy;
+  if (StrEqual(name, "weapon_incgrenade")) return GrenadeType_Incendiary;
+  else return g_LastGrenadeType[client];
+}
+
+stock float GetGrenadeDetonationTime(GrenadeType grenadeType) {
+  if (grenadeType == GrenadeType_Smoke) return 10.0;
+  if (grenadeType == GrenadeType_Incendiary || grenadeType == GrenadeType_Molotov) return 2.00; // 1.979 2.031250
+  if (grenadeType == GrenadeType_HE || grenadeType == GrenadeType_Flash) return 1.602;
   return 10.0;
 }
 

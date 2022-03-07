@@ -19,15 +19,16 @@ public void UpdateHoloSpawnEntities() {
 
 public void RemoveHoloSpawnEntities() {
   for (int i = g_Spawns.Length - 1; i >= 0; i--) {
-    int SpawnEnts[3];
+    int SpawnEnts[5];
     g_Spawns.GetArray(i, SpawnEnts, sizeof(SpawnEnts));
-    int ent = SpawnEnts[1]; // 0 is the info_player_ ent
-    SpawnEnts[1] = -1;
-    g_Spawns.SetArray(i, SpawnEnts, sizeof(SpawnEnts));
-    // in case if it got destroyed before somehow ?
-    if (IsValidEntity(ent)) {
-      AcceptEntityInput(ent, "Kill");
+    for (int j=1; j<5; j++) {
+      int ent = SpawnEnts[j]; // 0 is the info_player_ ent
+      SpawnEnts[j] = -1;
+      if (IsValidEntity(ent)) {
+        AcceptEntityInput(ent, "Kill");
+      }
     }
+    g_Spawns.SetArray(i, SpawnEnts, sizeof(SpawnEnts));
   }
 }
 
@@ -40,7 +41,7 @@ stock int GetNearestSpawnEntsIndex(
   float distance = -1.0;
   float nearestDistance = -1.0;
   //Find all the entities and compare the distances
-  int SpawnEnts[3];
+  int SpawnEnts[5];
   for (int index = 0; index < g_Spawns.Length; index++) {
     //for each of all current active entities
     g_Spawns.GetArray(index, SpawnEnts, sizeof(SpawnEnts));
@@ -59,44 +60,59 @@ stock int GetNearestSpawnEntsIndex(
 }
 
 public Action Timer_SpawnsRedGlow(Handle timer, int ent) {
-  SetGlowColor(ent, "255 0 0");
+  SetEntityRenderColor(ent, 255, 0, 0);
   return Plugin_Handled;
 }
 
 public void CreateHoloSpawnEntities() {
   for (int i = 0; i < g_Spawns.Length; i++) {
-    int SpawnEnts[3];
+    int SpawnEnts[5];
     g_Spawns.GetArray(i, SpawnEnts, sizeof(SpawnEnts));
     int player_info_ent = SpawnEnts[0];
     if (IsValidEntity(player_info_ent)) {
-      int ent = CreateEntityByName("prop_dynamic_override"); // holo ent
-      if (ent != -1) {
-        SetEntPropFloat(ent, Prop_Send, "m_flModelScale", 0.3);
-        float vOrigin[3];
-        Entity_GetAbsOrigin(player_info_ent, vOrigin);
-        DispatchKeyValue(ent, "classname", "prop_dynamic_override");
-        DispatchKeyValue(ent, "spawnflags", "1");
-        DispatchKeyValue(ent, "renderamt", "0");
-        DispatchKeyValue(ent, "rendermode", "1");
-        DispatchKeyValue(ent, "targetname", "holo_spawn");
-        DispatchKeyValue(ent, "model", "models/tools/green_plane/green_plane.mdl");
-        if (!DispatchSpawn(ent)) {
-          continue;
-        }
-        TeleportEntity(ent, vOrigin, NULL_VECTOR, NULL_VECTOR);
-        SetEntProp(ent, Prop_Send, "m_bShouldGlow", true, true);
-        SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
-        SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 900.0);
-        SetGlowColor(ent, "255 0 0");
-      }
-      SpawnEnts[1] = ent;
+      float vOrigin[3];
+      Entity_GetAbsOrigin(player_info_ent, vOrigin);
+      float size = 20.0
+      float vMins[3], vMaxs[3];
+      vMins[0] = -size; vMaxs[0] = size;
+      vMins[1] = -size; vMaxs[1] = size;
+      AddVectors(vOrigin, vMaxs, vMaxs);
+      AddVectors(vOrigin, vMins, vMins);
+      float vPos1[3], vPos2[3];
+      vPos1 = vMaxs;
+      vPos1[0] = vMins[0];
+      vPos2 = vMaxs;
+      vPos2[1] = vMins[1];
+      SpawnEnts[1] = CreateBeam(vMins, vPos1);
+      SpawnEnts[2] = CreateBeam(vPos1, vMaxs);
+      SpawnEnts[3] = CreateBeam(vMaxs, vPos2);
+      SpawnEnts[4] = CreateBeam(vPos2, vMins);
       g_Spawns.SetArray(i, SpawnEnts, sizeof(SpawnEnts));
     }
   }
 }
 
+public int CreateBeam(float origin[3], float end[3]) {
+  int beament = CreateEntityByName("env_beam");
+  SetEntityModel(beament, "sprites/laserbeam.spr");
+  SetEntityRenderColor(beament, 255, 0, 0, 255);
+  TeleportEntity(beament, origin, NULL_VECTOR, NULL_VECTOR); // Teleport the beam
+  SetEntPropVector(beament, Prop_Data, "m_vecEndPos", end);
+  DispatchKeyValue(beament, "texture", "sprites/laserbeam.spr");
+  SetEntPropFloat(beament, Prop_Data, "m_fWidth", 1.0);
+  SetEntPropFloat(beament, Prop_Data, "m_fEndWidth", 1.0);
+  AcceptEntityInput(beament,"TurnOn");
+  return beament;
+}
+
+public void OnBeamInteraction(const char[] output, int caller, int activator, float delay) {
+  // PrintToChatAll("%d interacted", activator);
+  // DispatchKeyValue(caller, "OnTouchedByEntity", "!self,TurnOn,,0.002,-1");
+  // AcceptEntityInput(caller,"TurnOn");
+}
+
 public void AddMapSpawnsForTeam(const char[] spawnClassName) {
-  int SpawnGroup[3] = {-1, ...};
+  int SpawnGroup[5] = {-1, ...};
   int minPriority = -1;
   // First pass over spawns to find minPriority.
   int ent = -1;
@@ -117,13 +133,3 @@ public void AddMapSpawnsForTeam(const char[] spawnClassName) {
     }
   }
 }
-
-// //does what it says
-// public void TeleportToSpawnEnt(int client, int ent) {
-//   float origin[3];
-//   float angles[3];
-//   float velocity[3];
-//   GetEntPropVector(ent, Prop_Data, "m_vecOrigin", origin);
-//   GetEntPropVector(ent, Prop_Data, "m_angRotation", angles);
-//   TeleportEntity(client, origin, angles, velocity);
-// }

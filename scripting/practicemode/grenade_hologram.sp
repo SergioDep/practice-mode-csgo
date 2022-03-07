@@ -19,8 +19,6 @@
 #define GRENADE_COLOR_HE "250 7 7"
 #define GRENADE_COLOR_DEFAULT "180 180 180"
 
-ArrayList g_HoloNadeEntities;
-int g_HoloNadeClientTargetGrenadeIDs[MAXPLAYERS + 1];
 bool g_HoloNadeClientInUse[MAXPLAYERS + 1] = {false, ...};
 int g_CurrentNadeControl[MAXPLAYERS + 1] = {-1, ...};
 int g_CurrentNadeGroupControl[MAXPLAYERS + 1] = {-1, ...};
@@ -118,13 +116,15 @@ public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, floa
       ScaleVector(eyeForward, 3.0);
       AddVectors(eyeOrigin, eyeForward, eyeEnd);
       float entAngles[3];
-      int spawnEnts[3];
+      int spawnEnts[5];
       int spawnEntsIndex = GetNearestSpawnEntsIndex(eyeOrigin, entOrigin, entAngles);
       if (PointInsideViewRange(entOrigin, eyeOrigin, eyeEnd)) {
         TeleportEntity(client, entOrigin, entAngles, view_as<float>({0.0,0.0,0.0}));
         g_Spawns.GetArray(spawnEntsIndex, spawnEnts, sizeof(spawnEnts));
-        SetGlowColor(spawnEnts[1], "0 255 0");
-        CreateTimer(2.0, Timer_SpawnsRedGlow, spawnEnts[1]);
+        for (int i = 1; i < 5; i++) {
+          SetEntityRenderColor(spawnEnts[i], 0, 255, 0);
+          CreateTimer(2.0, Timer_SpawnsRedGlow, spawnEnts[i]);
+        }
       }
     }
   }
@@ -156,7 +156,6 @@ public bool PointInsideViewRange(float q[3], float p1[3], float p2[3]) {
 // check
 // resets all player settings, am i missing something?
 public void InitHoloNadeClientSettings(int client) {
-  g_HoloNadeClientTargetGrenadeIDs[client] = -1;
   g_HoloNadeClientInUse[client] = false;
   g_HoloNadeClientEnabled[client] = true;
   g_HoloNadeClientAllowed[client] = true;
@@ -329,7 +328,7 @@ public Action GiveNadeGroupMenu(int client, int HoloNadeIndex) {
   }
   g_ClientLastMenuType[client] = GrenadeMenuType_NadeGroup;
   char name[64], auth[AUTH_LENGTH], NadeIdStr[16];
-  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
+  GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
   Menu menu = new Menu(NadeGroupMenuHandler);
   char title[64];
   GetEntPropString(client, Prop_Send, "m_szLastPlaceName", title, sizeof(title));

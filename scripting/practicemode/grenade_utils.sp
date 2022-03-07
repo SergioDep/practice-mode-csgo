@@ -184,7 +184,7 @@ stock int SaveGrenadeToKv(int client, const float origin[3], const float angles[
 
   char auth[AUTH_LENGTH];
   char clientName[MAX_NAME_LENGTH];
-  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
+  GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
   GetClientName(client, clientName, sizeof(clientName));
   g_GrenadeLocationsKv.JumpToKey(auth, true);
   g_GrenadeLocationsKv.SetString("name", clientName);
@@ -241,9 +241,9 @@ public void ScheduleSaveGrenadeDetonation(
   // Queue data that the CSU detonation event handler knows how to process.
   // (This approach could cause a small memory leak if the entity never explodes.)
   StringMap args = new StringMap();
-  args.SetString(GRENADE_DETONATION_KEY_AUTH, auth);
-  args.SetString(GRENADE_DETONATION_KEY_ID, grenadeID);
-  args.SetValue(GRENADE_DETONATION_KEY_ENTITY, grenadeEntity);
+  args.SetString("auth", auth);
+  args.SetString("id", grenadeID);
+  args.SetValue("entity", grenadeEntity);
   g_GrenadeDetonationSaveQueue.Push(args);
 }
 
@@ -507,7 +507,7 @@ public void SetClientGrenadeParameters(int id, GrenadeType type, const float gre
 
 public bool FindGrenadeTarget(const char[] nameInput, char[] name, int nameLen, char[] auth, int authLen) {
   int target = AttemptFindTarget(nameInput);
-  if (IsPlayer(target) && GetClientAuthId(target, AUTH_METHOD, auth, authLen) &&
+  if (IsPlayer(target) && GetClientAuthId(target, AuthId_Steam2, auth, authLen) &&
       GetClientName(target, name, nameLen)) {
     return true;
   } else {
@@ -540,7 +540,7 @@ stock int CountGrenadesForPlayer(const char[] auth, GrenadeType grenadeType = Gr
 
 public int FindNextGrenadeId(int client, int currentId) {
   char auth[AUTH_LENGTH];
-  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
+  GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
 
   int ret = -1;
   if (g_GrenadeLocationsKv.JumpToKey(auth)) {
@@ -728,7 +728,7 @@ public bool CanEditGrenade(int client, int id) {
   char strId[32];
   IntToString(id, strId, sizeof(strId));
   char clientAuth[AUTH_LENGTH];
-  GetClientAuthId(client, AUTH_METHOD, clientAuth, sizeof(clientAuth));
+  GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
   char ownerAuth[AUTH_LENGTH];
   return FindId(strId, ownerAuth, sizeof(ownerAuth)) && StrEqual(clientAuth, ownerAuth, false);
 }
@@ -886,7 +886,7 @@ public void SaveClientNade(int client, char[] name) {
   }
 
   char auth[AUTH_LENGTH];
-  GetClientAuthId(client, AUTH_METHOD, auth, sizeof(auth));
+  GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
   char grenadeId[GRENADE_ID_LENGTH];
   if (FindGrenadeByName(auth, name, grenadeId)) {
     PM_Message(client, "Ya has usado ese nombre.");

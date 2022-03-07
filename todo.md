@@ -1,8 +1,6 @@
 # TODO
 
 ## Performance and Bugs
-- [x] lanza una granada, presiona R y vuelve despues que explote, mal teleport
-- [x] Correct Prediction Algorithm (make 99% effective)
 - [ ] Fix inactivity kick
 
 

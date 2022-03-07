@@ -139,24 +139,6 @@ public Action Command_FixGrenadeDetonations(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_HoloNadeToggle(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  if (g_HoloNadeClientAllowed[client]) {
-    //TODO CACA ERROR FIX, hacer variable global
-    g_HoloNadeClientEnabled[client] = !g_HoloNadeClientEnabled[client];
-    if (g_HoloNadeClientEnabled[client]) {
-      InitHoloNadeEntities();
-    } else {
-      RemoveHoloNadeEntities();
-    }
-  }
-
-  return Plugin_Handled;
-}
-
 public Action Command_GrenadeBack(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -218,7 +200,7 @@ public Action Command_Throw(int client, int args) {
   char argString[256];
   GetCmdArgString(argString, sizeof(argString));
   if (args >= 1) {
-    ArrayList ids = new ArrayList(GRENADE_CATEGORY_LENGTH);
+    ArrayList ids = new ArrayList(GRENADE_NAME_LENGTH);
     char auth[AUTH_LENGTH];
     GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
     FindMatchingGrenadesByName(argString, auth, ids);

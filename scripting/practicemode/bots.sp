@@ -2,7 +2,7 @@ stock void CreateBot(int client) {
   if (g_ClientBots[client].Length >= g_MaxPlacedBotsCvar.IntValue) {
     PM_Message(
         client,
-        "Tienes muchos bots (%d) añadidos. Quita algunos con .deletebot o .nobot",
+        "Tienes muchos bots (%d) añadidos.",
         g_ClientBots[client].Length);
     return;
   }
@@ -85,6 +85,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     RemoveSkin(victim);
     int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
     CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(g_BotRespawnTimeCvar.FloatValue, Timer_RespawnBot, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
   }
   return Plugin_Continue;
 }
@@ -96,29 +97,52 @@ public Action Timer_RemoveRagdoll(Handle timer, int ref) {
     return Plugin_Handled;
 }
 
-// move to Event_PlayerDeath ?
-public Action Timer_RespawnBots(Handle timer) {
+public Action Timer_RespawnBot(Handle timer, int serial) {
   if (!g_InPracticeMode) {
+    return Plugin_Stop;
+  }
+
+  int client = GetClientFromSerial(serial);
+  if (IsPMBot(client) && !IsPlayerAlive(client)) {
+    bool respawn = true;
+    if (GetClientTeam(client) == CS_TEAM_CT) {
+      respawn = !!GetCvarIntSafe("mp_respawn_on_death_ct", true);
+    } else if (GetClientTeam(client) == CS_TEAM_T) {
+      respawn = !!GetCvarIntSafe("mp_respawn_on_death_t", true);
+    }
+    if (respawn) {
+      CS_RespawnPlayer(client);
+      return Plugin_Stop;
+    }
     return Plugin_Continue;
   }
 
-  for (int i = 1; i <= MaxClients; i++) {
-    if (IsPMBot(i) && !IsPlayerAlive(i)) {
-      bool respawn = true;
-      if (GetClientTeam(i) == CS_TEAM_CT) {
-        respawn = !!GetCvarIntSafe("mp_respawn_on_death_ct", true);
-      } else if (GetClientTeam(i) == CS_TEAM_T) {
-        respawn = !!GetCvarIntSafe("mp_respawn_on_death_t", true);
-      }
-
-      float dt = GetGameTime() - g_BotDeathTime[i];
-      if (respawn && dt >= g_BotRespawnTimeCvar.FloatValue) {
-        CS_RespawnPlayer(i);
-      }
-    }
-  }
-  return Plugin_Continue;
+  return Plugin_Stop;
 }
+
+// // move to Event_PlayerDeath ?
+// public Action Timer_RespawnBots(Handle timer) {
+//   if (!g_InPracticeMode) {
+//     return Plugin_Continue;
+//   }
+
+//   for (int i = 1; i <= MaxClients; i++) {
+//     if (IsPMBot(i) && !IsPlayerAlive(i)) {
+//       bool respawn = true;
+//       if (GetClientTeam(i) == CS_TEAM_CT) {
+//         respawn = !!GetCvarIntSafe("mp_respawn_on_death_ct", true);
+//       } else if (GetClientTeam(i) == CS_TEAM_T) {
+//         respawn = !!GetCvarIntSafe("mp_respawn_on_death_t", true);
+//       }
+
+//       float dt = GetGameTime() - g_BotDeathTime[i];
+//       if (respawn && dt >= g_BotRespawnTimeCvar.FloatValue) {
+//         CS_RespawnPlayer(i);
+//       }
+//     }
+//   }
+//   return Plugin_Continue;
+// }
 
 public int SelectBotNumber(int client) {
   if (g_ClientBots[client].Length == 0) {

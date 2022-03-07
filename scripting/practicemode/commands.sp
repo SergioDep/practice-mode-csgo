@@ -213,9 +213,6 @@ public Action Command_StopAll(int client, int args) {
   if (g_RunningTimeCommand[client]) {
     StopClientTimer(client);
   }
-  if (g_RunningRepeatedCommand[client]) {
-    Command_StopRepeat(client, 0);
-  }
   if (g_BotMimicLoaded && IsReplayPlaying()) {
     //CancelAllReplays();
     ExitReplayMode();
@@ -273,156 +270,6 @@ public Action Timer_ResetTimescale(Handle timer) {
   return Plugin_Handled;
 }
 
-public Action Command_Repeat(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  if (args < 2) {
-    PM_Message(client, "Usage: .repeat <interval in seconds> <any chat command>");
-    return Plugin_Handled;
-  }
-
-  char timeString[64];
-  char fullString[256];
-  if (GetCmdArgString(fullString, sizeof(fullString)) &&
-      SplitOnSpace(fullString, timeString, sizeof(timeString), g_RunningRepeatedCommandArg[client],
-                   sizeof(fullString))) {
-    float time = StringToFloat(timeString);
-    if (time <= 0.0) {
-      PM_Message(client, "Usage: .repeat <interval in seconds> <any chat command>");
-      return Plugin_Handled;
-    }
-
-    g_RunningRepeatedCommand[client] = true;
-    FakeClientCommand(client, "say %s", g_RunningRepeatedCommandArg[client]);
-    CreateTimer(time, Timer_RepeatCommand, GetClientSerial(client),
-                TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-    PM_Message(client, "Running command every %.1f seconds.", time);
-    PM_Message(client, "Use {GREEN}.stop {NORMAL}when you are done.");
-  }
-
-  return Plugin_Handled;
-}
-
-public Action Timer_RepeatCommand(Handle timer, int serial) {
-  int client = GetClientFromSerial(serial);
-  if (!IsPlayer(client) || !g_RunningRepeatedCommand[client]) {
-    return Plugin_Stop;
-  }
-
-  FakeClientCommand(client, "say %s", g_RunningRepeatedCommandArg[client]);
-  return Plugin_Continue;
-}
-
-public Action Command_RoundRepeat(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  if (args < 2) {
-    PM_Message(client,
-               "Usage: .roundrepeat <delay from round start in seconds> <any chat command>");
-    return Plugin_Handled;
-  }
-
-  char timeString[64];
-  char fullString[256];
-  char cmd[256];
-  if (GetCmdArgString(fullString, sizeof(fullString)) &&
-      SplitOnSpace(fullString, timeString, sizeof(timeString), cmd, sizeof(cmd))) {
-    float time = StringToFloat(timeString);
-    if (time < 0.0) {
-      PM_Message(client,
-                 "Usage: .roundrepeat <delay from round start in seconds> <any chat command>");
-      return Plugin_Handled;
-    }
-
-    g_RunningRepeatedCommand[client] = true;
-    PM_Message(client, "Running command every %.1f seconds after round start.", time);
-    PM_Message(client, "Use {GREEN}.stop {NORMAL}when you are done.");
-    g_RunningRoundRepeatedCommandDelay[client].Push(time);
-    g_RunningRoundRepeatedCommandArg[client].PushString(cmd);
-  }
-
-  return Plugin_Handled;
-}
-
-public void FreezeEnd_RoundRepeat(int client) {
-  if (g_RunningRepeatedCommand[client]) {
-    for (int i = 0; i < g_RunningRoundRepeatedCommandDelay[client].Length; i++) {
-      float delay = g_RunningRoundRepeatedCommandDelay[client].Get(i);
-      char cmd[256];
-      g_RunningRoundRepeatedCommandArg[client].GetString(i, cmd, sizeof(cmd));
-      DataPack p = new DataPack();
-      p.WriteCell(GetClientSerial(client));
-      p.WriteString(cmd);
-      CreateTimer(delay, Timer_RoundRepeatCommand, p);
-    }
-  }
-}
-
-public Action Timer_RoundRepeatCommand(Handle timer, DataPack p) {
-  p.Reset();
-  int client = GetClientFromSerial(p.ReadCell());
-  if (!IsPlayer(client) || !g_RunningRepeatedCommand[client]) {
-    return Plugin_Stop;
-  }
-
-  char cmd[256];
-  p.ReadString(cmd, sizeof(cmd));
-  FakeClientCommand(client, "say %s", cmd);
-  return Plugin_Continue;
-}
-
-public Action Command_StopRepeat(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  if (g_RunningRepeatedCommand[client]) {
-    g_RunningRepeatedCommand[client] = false;
-    g_RunningRoundRepeatedCommandArg[client].Clear();
-    g_RunningRoundRepeatedCommandDelay[client].Clear();
-  }
-  return Plugin_Handled;
-}
-
-public Action Command_Delay(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  if (args < 2) {
-    PM_Message(client, "Usage: .delay <interval in seconds> <any chat command>");
-    return Plugin_Handled;
-  }
-
-  char timeString[64];
-  char fullString[256];
-  if (GetCmdArgString(fullString, sizeof(fullString)) &&
-      SplitOnSpace(fullString, timeString, sizeof(timeString), g_RunningRepeatedCommandArg[client],
-                   sizeof(fullString))) {
-    float time = StringToFloat(timeString);
-    if (time <= 0.0) {
-      PM_Message(client, "Usage: .repeat <interval in seconds> <any chat command>");
-      return Plugin_Handled;
-    }
-
-    CreateTimer(time, Timer_DelayedComand, GetClientSerial(client));
-  }
-
-  return Plugin_Handled;
-}
-
-public Action Timer_DelayedComand(Handle timer, int serial) {
-  int client = GetClientFromSerial(serial);
-  if (IsPlayer(client)) {
-    FakeClientCommand(client, "say %s", g_RunningRepeatedCommandArg[client]);
-  }
-  return Plugin_Stop;
-}
-
 public Action Command_Map(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -448,22 +295,19 @@ public Action Command_Map(int client, int args) {
         return Plugin_Handled;
       }
     }
-    ChangeMap(arg);
-
-  } else {
-    Menu menu = new Menu(ChangeMapHandler);
-    menu.ExitButton = true;
-    menu.ExitBackButton = true;
-    menu.SetTitle("Selecciona un mapa:");
-    for (int i = 0; i < g_MapList.Length; i++) {
-      char map[PLATFORM_MAX_PATH];
-      g_MapList.GetString(i, map, sizeof(map));
-      char cleanedMapName[PLATFORM_MAX_PATH];
-      CleanMapName(map, cleanedMapName, sizeof(cleanedMapName));
-      AddMenuInt(menu, i, cleanedMapName);
-    }
-    DisplayMenu(menu, client, MENU_TIME_FOREVER);
   }
+  Menu menu = new Menu(ChangeMapHandler);
+  menu.ExitButton = true;
+  menu.ExitBackButton = true;
+  menu.SetTitle("Selecciona un mapa:");
+  for (int i = 0; i < g_MapList.Length; i++) {
+    char map[PLATFORM_MAX_PATH];
+    g_MapList.GetString(i, map, sizeof(map));
+    char cleanedMapName[PLATFORM_MAX_PATH];
+    CleanMapName(map, cleanedMapName, sizeof(cleanedMapName));
+    AddMenuInt(menu, i, cleanedMapName);
+  }
+  DisplayMenu(menu, client, MENU_TIME_FOREVER);
 
   return Plugin_Handled;
 }
@@ -507,7 +351,6 @@ public Action Command_DryRun(int client, int args) {
 
   for (int i = 1; i <= MaxClients; i++) {
     g_TestingFlash[i] = false;
-    g_RunningRepeatedCommand[i] = false;
     g_SavedRespawnActive[i] = false;
     g_ClientNoFlash[client] = false;
     if (IsPlayer(i)) {
@@ -585,20 +428,6 @@ public Action Command_God(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_EndRound(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  if (!GetCvarIntSafe("sv_cheats")) {
-    PM_Message(client, ".endround requiere que sv_cheats este activado.");
-    return Plugin_Handled;
-  }
-
-  ServerCommand("endround");
-  return Plugin_Handled;
-}
-
 public Action Command_Break(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -628,7 +457,6 @@ public Action Command_Restart(int client, int args){
 
   for (int i = 1; i <= MaxClients; i++) {
     g_TestingFlash[i] = false;
-    g_RunningRepeatedCommand[i] = false;
     g_SavedRespawnActive[i] = false;
     g_ClientNoFlash[client] = false;
     if (IsPlayer(i)) {

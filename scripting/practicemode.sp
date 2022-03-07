@@ -67,16 +67,11 @@ ConVar g_MaxPlacedBotsCvar;
 
 // Infinite money data
 ConVar g_InfiniteMoneyCvar;
-// Client cvars cached
-int g_ClientColors[MAXPLAYERS + 1][4];
-float g_ClientVolume[MAXPLAYERS + 1];
 
 // Grenade trajectory fix data
 int g_PredictTrail = -1;
 int g_BeamSprite = -1;
 ConVar g_PatchGrenadeTrajectoryCvar;
-ConVar g_GrenadeTrajectoryClientColorCvar;
-ConVar g_RandomGrenadeTrajectoryCvar;
 
 ConVar g_AllowNoclipCvar;
 ConVar g_GlowPMBotsCvar;
@@ -97,12 +92,7 @@ ConVar g_VersionCvar;
 // #define GRENADE_DESCRIPTION_LENGTH 256
 #define GRENADE_NAME_LENGTH 64
 #define GRENADE_ID_LENGTH 16
-#define GRENADE_CATEGORY_LENGTH 128
-#define GRENADE_DETONATION_KEY_AUTH "auth"
-#define GRENADE_DETONATION_KEY_ID "id"
-#define GRENADE_DETONATION_KEY_ENTITY "entity"
 #define AUTH_LENGTH 64
-#define AUTH_METHOD AuthId_Steam2
 #define GRENADE_CODE_LENGTH 256
 
 bool g_WaitForSaveNade[MAXPLAYERS + 1] = {false, ...};
@@ -115,6 +105,7 @@ int g_NextID = 0;
 int g_currentReplayGrenade = -1;
 
 // Grenade Holograms
+ArrayList g_HoloNadeEntities;
 ArrayList g_EnabledHoloNadeAuth = null;
 bool g_HoloNadeLoadDefault = false;
 bool g_HoloNadeClientEnabled[MAXPLAYERS + 1];
@@ -135,12 +126,6 @@ float g_TestingFlashAngles[MAXPLAYERS + 1][3];
 
 bool g_ClientNoFlash[MAXPLAYERS + 1];
 float g_LastFlashDetonateTime[MAXPLAYERS + 1];
-
-bool g_RunningRepeatedCommand[MAXPLAYERS + 1];
-char g_RunningRepeatedCommandArg[MAXPLAYERS + 1][256];
-
-ArrayList g_RunningRoundRepeatedCommandDelay[MAXPLAYERS + 1]; /* float */
-ArrayList g_RunningRoundRepeatedCommandArg[MAXPLAYERS + 1];   /* char[256] */
 
 #define MAX_SIM_REPLAY_NADES 40
 
@@ -206,13 +191,6 @@ bool versusMode, pauseMode;
 const int kMaxBackupsPerMap = 50;
 
 // These must match the values used by cl_color.
-enum ClientColor {
-  ClientColor_Yellow = 0,
-  ClientColor_Purple = 1,
-  ClientColor_Green = 2,
-  ClientColor_Blue = 3,
-  ClientColor_Orange = 4,
-};
 
 int g_LastNoclipCommand[MAXPLAYERS + 1];
 
@@ -308,9 +286,8 @@ public void OnPluginStart() {
   AddCommandListener(Command_TeamJoin, "jointeam");
   AddCommandListener(Command_Noclip, "noclip");
   AddCommandListener(Command_SetPos, "setpos");
-  AddCommandListener(ChatListener, "say");
-  AddCommandListener(ChatListener, "say2");
-  AddCommandListener(ChatListener, "say_team");
+  AddCommandListener(Command_ToggleBuyMenu, "open_buymenu");
+  AddCommandListener(Command_ToggleBuyMenu, "close_buymenu");
 
   // Forwards
   g_OnGrenadeSaved = CreateGlobalForward("PM_OnPracticeModeEnabled", ET_Event, Param_Cell,
@@ -347,8 +324,6 @@ public void OnPluginStart() {
     g_GrenadeHistoryAngles[i] = new ArrayList(3);
     g_ClientGrenadeThrowTimes[i] = new ArrayList(2);
     g_ClientBots[i] = new ArrayList();
-    g_RunningRoundRepeatedCommandArg[i] = new ArrayList(256);
-    g_RunningRoundRepeatedCommandDelay[i] = new ArrayList();
   }
 
   {
@@ -375,8 +350,6 @@ public void OnPluginStart() {
 
   RegAdminCmd("sm_exitpractice", Command_ExitPracticeMode, ADMFLAG_CHANGEMAP,
               "Salir del modo practica");
-  // RegAdminCmd("sm_translategrenades", Command_TranslateGrenades, ADMFLAG_CHANGEMAP,
-  //             "Traduce todas las granadas de este mapa");
   RegAdminCmd("sm_fixgrenades", Command_FixGrenades, ADMFLAG_CHANGEMAP,
               "Reinicia las ids de las granadas para que sean consecutivas y empieza en 1.");
   RegAdminCmd("sm_fixdetonations", Command_FixGrenadeDetonations, ADMFLAG_CHANGEMAP,
@@ -477,21 +450,21 @@ public void OnPluginStart() {
     PM_AddChatAlias(".stoprespawn", "sm_stoprespawn");
   }
 
-  // Learn commands
-  {
-    // RegConsoleCmd("sm_learn", Command_Learn);
-    // PM_AddChatAlias(".learn", "sm_learn");
+  // // Learn commands
+  // {
+  //   RegConsoleCmd("sm_learn", Command_Learn);
+  //   PM_AddChatAlias(".learn", "sm_learn");
 
-    // RegConsoleCmd("sm_skip", Command_Skip);
-    // PM_AddChatAlias(".skip", "sm_skip");
+  //   RegConsoleCmd("sm_skip", Command_Skip);
+  //   PM_AddChatAlias(".skip", "sm_skip");
 
-    // RegConsoleCmd("sm_stoplearn", Command_StopLearn);
-    // PM_AddChatAlias(".stoplearn", "sm_stoplearn");
-    // PM_AddChatAlias(".stoplearning", "sm_stoplearn");
+  //   RegConsoleCmd("sm_stoplearn", Command_StopLearn);
+  //   PM_AddChatAlias(".stoplearn", "sm_stoplearn");
+  //   PM_AddChatAlias(".stoplearning", "sm_stoplearn");
     
-    // RegConsoleCmd("sm_show", Command_Show);
-    // PM_AddChatAlias(".show", "sm_show");
-  }
+  //   RegConsoleCmd("sm_show", Command_Show);
+  //   PM_AddChatAlias(".show", "sm_show");
+  // }
 
   // Other commands
   {
@@ -517,43 +490,15 @@ public void OnPluginStart() {
     RegConsoleCmd("sm_clearmap", Command_ClearNades);
     PM_AddChatAlias(".clear", "sm_clearmap");
 
-    // RegConsoleCmd("sm_pmsettings", Command_Settings);
-    // PM_AddChatAlias(".settings", "sm_pmsettings");
-
-    // RegConsoleCmd("sm_repeat", Command_Repeat);
-    // PM_AddChatAlias(".repeat", "sm_repeat");
-
-    RegConsoleCmd("sm_stoprepeat", Command_StopRepeat);
-    PM_AddChatAlias(".stoprepeat", "sm_stoprepeat");
-
-    // RegConsoleCmd("sm_delay", Command_Delay);
-    // PM_AddChatAlias(".delay", "sm_delay");
-
     RegConsoleCmd("sm_stopall", Command_StopAll);
     PM_AddChatAlias(".stop", "sm_stopall");
-
-    // RegConsoleCmd("sm_roundrepeat", Command_RoundRepeat);
-    // PM_AddChatAlias(".roundrepeat", "sm_roundrepeat");
-    // PM_AddChatAlias(".rrepeat", "sm_roundrepeat");
 
     RegConsoleCmd("sm_dryrun", Command_DryRun);
     PM_AddChatAlias(".dry", "sm_dryrun");
     PM_AddChatAlias(".dryrun", "sm_dryrun");
 
-    // RegConsoleCmd("sm_enablesetting", Command_Enable);
-    // PM_AddChatAlias(".enable", "sm_enablesetting");
-
-    // RegConsoleCmd("sm_disablesetting", Command_Disable);
-    // PM_AddChatAlias(".disable", "sm_disablesetting");
-
     RegConsoleCmd("sm_god", Command_God);
     PM_AddChatAlias(".god", "sm_god");
-
-    RegConsoleCmd("sm_endround", Command_EndRound);
-    PM_AddChatAlias(".endround", "sm_endround");
-
-    RegConsoleCmd("sm_hologram_toggle", Command_HoloNadeToggle);
-    PM_AddChatAlias(".holo", "sm_hologram_toggle");
     
     RegConsoleCmd("sm_break", Command_Break);
     PM_AddChatAlias(".break", "sm_break");
@@ -606,12 +551,6 @@ public void OnPluginStart() {
   g_PatchGrenadeTrajectoryCvar =
       CreateConVar("sm_patch_grenade_trajectory_cvar", "1",
                    "Whether the plugin patches sv_grenade_trajectory with its own grenade trails");
-  g_GrenadeTrajectoryClientColorCvar =
-      CreateConVar("sm_grenade_trajectory_use_player_color", "0",
-                   "Whether to use client colors when drawing grenade trajectories");
-  g_RandomGrenadeTrajectoryCvar =
-      CreateConVar("sm_grenade_trajectory_random_color", "0",
-                   "Whether to randomize all grenade trajectory colors");
   g_GlowPMBotsCvar =
       CreateConVar("sm_glow_pmbots", "0",
                    "Whether to glow all PM Bots");
@@ -627,16 +566,7 @@ public void OnPluginStart() {
   g_GrenadeTimeCvar = GetCvar("sv_grenade_trajectory_time");
   g_GrenadeSpecTimeCvar = GetCvar("sv_grenade_trajectory_time_spectator");
 
-  // Set default client cvars
-  for (int i = 0; i <= MAXPLAYERS; i++) {
-    g_ClientColors[i][0] = 0;
-    g_ClientColors[i][1] = 255;
-    g_ClientColors[i][2] = 0;
-    g_ClientColors[i][3] = 255;
-    g_ClientVolume[i] = 1.0;
-  }
-
-  g_Spawns = new ArrayList(3);
+  g_Spawns = new ArrayList(5); //spawn ent, 4 beams
   g_EnabledHoloNadeAuth = new ArrayList(AUTH_LENGTH);
   g_GrenadeDetonationSaveQueue = new ArrayList();
   g_ManagedGrenadeDetonationsToFix = new StringMap();
@@ -667,10 +597,7 @@ public void OnPluginStart() {
   g_PugsetupLoaded = LibraryExists("pugsetup");
   g_CSUtilsLoaded = LibraryExists("csutils");
 
-  CreateTimer(1.0, Timer_GivePlayersMoney, _, TIMER_REPEAT);
-  CreateTimer(0.1, Timer_RespawnBots, _, TIMER_REPEAT);
   CreateTimer(1.0, Timer_CleanupLivingBots, _, TIMER_REPEAT);
-  CreateTimer(1.0, Timer_UpdateClientCvars, _, TIMER_REPEAT);
 
   HoloNade_PluginStart();
   GrenadeAccuracy_PluginStart();
@@ -686,11 +613,48 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 public Action FUNCION_PRUEBA(int client, int args) {
   char buffer[256];
   GetCmdArgString(buffer, sizeof(buffer));
-  float cacao[3];
-  GetClientAbsOrigin(client, cacao);
-  PrintToChatAll("%f %f %f", cacao[0], cacao[1], cacao[2]);
-  //PM_Message(client, "d");
+  // ArrayList entOrigin;
+  // ArrayList entAngles;
+  // ArrayList entClassname;
+  // ArrayList entModel;
+  // ArrayList entSpawnFlags;
+  // entOrigin = new ArrayList(3);
+
+  // int ent = -1;
+  // while ((ent = FindEntityByClassname(ent, "func_breakable")) != -1) {
+  //   AcceptEntityInput(ent, "Break");
+  // }
+  // while ((ent = FindEntityByClassname(ent, "prop_door_rotating")) != -1) {
+  //   AcceptEntityInput(ent, "Break");
+  // }
+  // while ((ent = FindEntityByClassname(ent, "prop_dynamic")) != -1) {
+  //   AcceptEntityInput(ent, "Break");
+  // }
+
+  // for (int i = 0; i < respawnEntsOrigin.Length; i++) {
+  //   float respawnOrigin[3], respawnAngles[3];
+  //   char respawnClassname[128], respawnModel[256];
+  //   respawnEntsNames.GetString(i, respawnClassname, sizeof(respawnClassname));
+  //   respawnEntsModels.GetString(i, respawnModel, sizeof(respawnModel));
+  //   int respawnEnt = CreateEntityByName(respawnClassname);
+  //   if (respawnEnt > 0) {
+  //     Entity_SetClassName(respawnEnt, respawnClassname);
+  //     Entity_SetModel(respawnEnt, respawnModel);
+  //     Entity_SetSpawnFlags(respawnEnt, respawnEntsSpawnFlags.Get(i));
+  //     Entity_SetSolidFlags(respawnEnt, respawnEntsSolidFlags.Get(i));
+  //     if (DispatchSpawn(respawnEnt)) {
+  //       respawnEntsOrigin.GetArray(i, respawnOrigin, sizeof(respawnOrigin));
+  //       TeleportEntity(respawnEnt, respawnOrigin, respawnAngles, NULL_VECTOR);
+  //       PrintToChatAll("?");
+  //     }
+  //   }
+  // }
   return Plugin_Handled;
+}
+
+public bool tracedonthitself(int entity, int contentsMask, any data) {
+  if (entity == data && data > 0 && data <= MAXPLAYERS) return false;
+  return true;
 }
 
 public Action CommandToggleReplayMode(int client, int args) {
@@ -826,9 +790,6 @@ public void OnClientConnected(int client) {
   g_SavedRespawnActive[client] = false;
   g_LastGrenadeType[client] = GrenadeType_None;
   g_LastGrenadeEntity[client] = -1;
-  g_RunningRepeatedCommand[client] = false;
-  g_RunningRoundRepeatedCommandDelay[client].Clear();
-  g_RunningRoundRepeatedCommandArg[client].Clear();
   CheckAutoStart();
 }
 
@@ -988,73 +949,8 @@ static void MaybeWriteNewGrenadeData() {
   }
 }
 
-public void OnClientSettingsChanged(int client) {
-  UpdateClientCvars(client);
-}
-
 public void OnClientPutInServer(int client) {
-  UpdateClientCvars(client);
   HoloNade_ClientPutInServer(client);
-}
-
-static void UpdateClientCvars(int client) {
-  if (!g_InPracticeMode) {
-    return;
-  }
-
-  QueryClientConVar(client, "cl_color", QueryClientColor, client);
-  QueryClientConVar(client, "volume", QueryClientVolume, client);
-}
-
-public void QueryClientColor(QueryCookie cookie, int client, ConVarQueryResult result,
-                      const char[] cvarName, const char[] cvarValue) {
-  int color = StringToInt(cvarValue);
-  GetColor(view_as<ClientColor>(color), g_ClientColors[client]);
-}
-
-public void QueryClientVolume(QueryCookie cookie, int client, ConVarQueryResult result,
-                       const char[] cvarName, const char[] cvarValue) {
-  g_ClientVolume[client] = StringToFloat(cvarValue);
-}
-
-public void GetColor(ClientColor c, int array[4]) {
-  int r, g, b;
-  switch (c) {
-    case ClientColor_Yellow: {
-      r = 229;
-      g = 224;
-      b = 44;
-    }
-    case ClientColor_Purple: {
-      r = 150;
-      g = 45;
-      b = 225;
-    }
-    case ClientColor_Green: {
-      r = 23;
-      g = 255;
-      b = 102;
-    }
-    case ClientColor_Blue: {
-      r = 112;
-      g = 191;
-      b = 255;
-    }
-    case ClientColor_Orange: {
-      r = 227;
-      g = 152;
-      b = 33;
-    }
-    default: {
-      r = 23;
-      g = 255;
-      b = 102;
-    }
-  }
-  array[0] = r;
-  array[1] = g;
-  array[2] = b;
-  array[3] = 255;
 }
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3],
@@ -1214,6 +1110,16 @@ public Action Command_Noclip(int client, const char[] command, int argc) {
 
 public Action Command_SetPos(int client, const char[] command, int argc) {
   SetEntityMoveType(client, MOVETYPE_WALK);
+  return Plugin_Continue;
+}
+
+public Action Command_ToggleBuyMenu(int client, const char[] command, int argsc) {
+  int maxMoney = GetCvarIntSafe("mp_maxmoney", 16000);
+  if (g_InfiniteMoneyCvar.IntValue != 0) {
+    if (IsPlayer(client)) {
+      SetEntProp(client, Prop_Send, "m_iAccount", maxMoney);
+    }
+  }
   return Plugin_Continue;
 }
 
@@ -1451,28 +1357,6 @@ public void ExitPracticeMode() {
   // PM_MessageToAll("Modo Práctica esta desactivado.");
 }
 
-public Action Timer_GivePlayersMoney(Handle timer) {
-  int maxMoney = GetCvarIntSafe("mp_maxmoney", 16000);
-  if (g_InfiniteMoneyCvar.IntValue != 0) {
-    for (int i = 1; i <= MaxClients; i++) {
-      if (IsPlayer(i)) {
-        SetEntProp(i, Prop_Send, "m_iAccount", maxMoney);
-      }
-    }
-  }
-
-  return Plugin_Continue;
-}
-
-public Action Timer_UpdateClientCvars(Handle timer) {
-  for (int i = 1; i <= MaxClients; i++) {
-    if (IsPlayer(i)) {
-      UpdateClientCvars(i);
-    }
-  }
-  return Plugin_Continue;
-}
-
 public void OnEntityCreated(int entity, const char[] className) {
   if (!IsValidEntity(entity)) {
     return;
@@ -1529,16 +1413,10 @@ public void DelayedOnEntitySpawned(int entity) {
                                                                : g_GrenadeTimeCvar.FloatValue;
 
           int colors[4];
-          if (g_RandomGrenadeTrajectoryCvar.IntValue > 0) {
-            colors[0] = GetRandomInt(0, 255);
-            colors[1] = GetRandomInt(0, 255);
-            colors[2] = GetRandomInt(0, 255);
-            colors[3] = 255;
-          } else if (g_GrenadeTrajectoryClientColorCvar.IntValue > 0 && IsPlayer(client)) {
-            colors = g_ClientColors[client];
-          } else {
-            colors = g_ClientColors[0];
-          }
+          colors[0] = GetRandomInt(0, 255);
+          colors[1] = GetRandomInt(0, 255);
+          colors[2] = GetRandomInt(0, 255);
+          colors[3] = 255;
 
           TE_SetupBeamFollow(entity, g_BeamSprite, 0, time, g_GrenadeThicknessCvar.FloatValue * 5,
                              g_GrenadeThicknessCvar.FloatValue * 5, 1, colors);
@@ -1697,22 +1575,6 @@ public Action Event_FlashDetonate(Event event, const char[] name, bool dontBroad
   return Plugin_Continue;
 }
 
-// public void GetTestingFlashInfo(int serial) {
-//   int client = GetClientFromSerial(serial);
-//   if (IsPlayer(client) && g_TestingFlash[client]) {
-//     float flashDuration = GetFlashDuration(client);
-
-//     if (flashDuration < g_FlashEffectiveThresholdCvar.FloatValue) {
-//       CreateTimer(1.0, Timer_FakeGrenadeBack, GetClientSerial(client));
-//     } else {
-//       float delay = flashDuration - 1.0;
-//       if (delay <= 0.0)
-//         delay = 0.1;
-//       CreateTimer(delay, Timer_FakeGrenadeBack, GetClientSerial(client));
-//     }
-//   }
-// }
-
 public Action Timer_FakeGrenadeBack(Handle timer, int serial) {
   int client = GetClientFromSerial(serial);
   if (g_InPracticeMode && IsPlayer(client)) {
@@ -1733,15 +1595,11 @@ public Action Event_FreezeEnd(Event event, const char[] name, bool dontBroadcast
 
     if (g_ClientNoFlash[i]) {
       g_ClientNoFlash[i] = false;
-      PM_Message(i, "Noflash desactivado al inicio de la ronda.");
     }
 
     if (GetEntityMoveType(i) == MOVETYPE_NOCLIP) {
       SetEntityMoveType(i, MOVETYPE_WALK);
-      PM_Message(i, "Noclip desactivado al inicio de la ronda.");
     }
-
-    FreezeEnd_RoundRepeat(i);
   }
 
   return Plugin_Handled;
@@ -1822,6 +1680,26 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
       GivePracticeMenu(client);
     }
   }
+
+  CleanMsgString(chatCommand, sizeof(chatCommand));
+  if (g_WaitForSaveNade[client]) {
+    g_WaitForSaveNade[client] = false;
+    SaveClientNade(client, chatCommand);
+  } else if (g_WaitForServerPassword && client == g_PracticeSetupClient) {
+    g_WaitForServerPassword = false;
+    if (StrEqual(chatCommand, "!no")) {
+      PM_Message(client, "Cancelado.");
+    } else {
+      SetConVarString(FindConVar("sv_password"), chatCommand);
+      PM_Message(client, "Contraseña Cambiada a \"{ORANGE}%s{NORMAL}\".", chatCommand);
+    }
+    PracticeSetupMenu(client);
+  }
+}
+
+stock void CleanMsgString(char[] msg, int size) {
+  ReplaceString(msg, size, "%", "％");
+  StripQuotes(msg);
 }
 
 public Action Command_GivePracticeSetupMenu(int client, int args) {
@@ -1931,36 +1809,6 @@ stock void GivePracticeMenu(int client, int style = ITEMDRAW_DEFAULT) {
   menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public Action ChatListener(int client, const char[] command, int args) {
-  if (IsPlayer(client) && !IsChatTrigger()) {
-    if (g_WaitForSaveNade[client]) {
-      g_WaitForSaveNade[client] = false;
-      char name[GRENADE_NAME_LENGTH]; GetCmdArgString(name, sizeof(name)); CleanMsgString(name, sizeof(name));
-      SaveClientNade(client, name);
-    } else if (g_WaitForServerPassword && client == g_PracticeSetupClient) {
-      char msg[MAX_PASSWORD_LENGTH]; GetCmdArgString(msg, sizeof(msg)); CleanMsgString(msg, sizeof(msg));
-      g_WaitForServerPassword = false;
-      if (StrEqual(msg, "!no")) {
-        PM_Message(client, "Cancelado.");
-      } else {
-        SetConVarString(FindConVar("sv_password"), msg);
-        PM_Message(client, "Contraseña Cambiada a \"{ORANGE}%s{NORMAL}\".", msg);
-      }
-      PracticeSetupMenu(client);
-      return Plugin_Handled;
-    }
-  }
-  return Plugin_Continue;
-}
-
-stock void CleanMsgString(char[] msg, int size) {
-  ReplaceString(msg, size, "%", "％");
-  while (StrContains(msg, "  ") > -1) {
-    ReplaceString(msg, size, "  ", " ");
-  }
-  StripQuotes(msg);
-}
-
 public int PracticeMenuHandler(Menu menu, MenuAction action, int client, int param2) {
   if (action == MenuAction_Select) {
     char buffer[OPTION_NAME_LENGTH];
@@ -2060,18 +1908,18 @@ public void CSU_OnGrenadeExplode(
       StringMap item = g_GrenadeDetonationSaveQueue.Get(i);
 
       int grenadeEntity;
-      if (!item.GetValue(GRENADE_DETONATION_KEY_ENTITY, grenadeEntity)) {
-        LogError("Tried to access a prop " ... GRENADE_DETONATION_KEY_ENTITY ... " that didn't exist in OnGrenadeExplode");
+      if (!item.GetValue("entity", grenadeEntity)) {
+        LogError("Tried to access a prop " ... "entity" ... " that didn't exist in OnGrenadeExplode");
       }
 
       if (grenadeEntity == currentEntity) {
         char auth[AUTH_LENGTH];
-        if (!item.GetString(GRENADE_DETONATION_KEY_AUTH, auth, sizeof(auth))) {
-          LogError("Tried to access a prop "  ... GRENADE_DETONATION_KEY_AUTH ... " that didn't exist in OnGrenadeExplode");
+        if (!item.GetString("auth", auth, sizeof(auth))) {
+          LogError("Tried to access a prop "  ... "auth" ... " that didn't exist in OnGrenadeExplode");
         }
         char grenadeID[GRENADE_ID_LENGTH];
-        if (!item.GetString(GRENADE_DETONATION_KEY_ID, grenadeID, sizeof(grenadeID))) {
-          LogError("Tried to access a prop "  ... GRENADE_DETONATION_KEY_ID ... " that didn't exist in OnGrenadeExplode");
+        if (!item.GetString("id", grenadeID, sizeof(grenadeID))) {
+          LogError("Tried to access a prop "  ... "id" ... " that didn't exist in OnGrenadeExplode");
         }
         SetGrenadeVector(auth, grenadeID, "grenadeDetonationOrigin", grenadeDetonationOrigin);
       }
