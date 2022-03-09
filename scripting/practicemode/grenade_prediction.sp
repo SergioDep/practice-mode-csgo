@@ -403,10 +403,10 @@ stock GrenadeType GrenadeTypeFromWeapon(int client, const char[] name) {
 }
 
 stock float GetGrenadeDetonationTime(GrenadeType grenadeType) {
-  if (grenadeType == GrenadeType_Smoke) return 10.0;
+  if (grenadeType == GrenadeType_Smoke) return 11.0;
   if (grenadeType == GrenadeType_Incendiary || grenadeType == GrenadeType_Molotov) return 2.00; // 1.979 2.031250
   if (grenadeType == GrenadeType_HE || grenadeType == GrenadeType_Flash) return 1.602;
-  return 10.0;
+  return 11.0;
 }
 
 stock int WatchFlyingGrenade(int client, bool teleport = false) {

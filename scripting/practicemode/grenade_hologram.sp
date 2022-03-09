@@ -116,14 +116,14 @@ public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, floa
       ScaleVector(eyeForward, 3.0);
       AddVectors(eyeOrigin, eyeForward, eyeEnd);
       float entAngles[3];
-      int spawnEnts[5];
+      int spawnEnts[6];
       int spawnEntsIndex = GetNearestSpawnEntsIndex(eyeOrigin, entOrigin, entAngles);
-      if (PointInsideViewRange(entOrigin, eyeOrigin, eyeEnd)) {
-        TeleportEntity(client, entOrigin, entAngles, view_as<float>({0.0,0.0,0.0}));
-        g_Spawns.GetArray(spawnEntsIndex, spawnEnts, sizeof(spawnEnts));
-        for (int i = 1; i < 5; i++) {
-          SetEntityRenderColor(spawnEnts[i], 0, 255, 0);
-          CreateTimer(2.0, Timer_SpawnsRedGlow, spawnEnts[i]);
+      g_Spawns.GetArray(spawnEntsIndex, spawnEnts, sizeof(spawnEnts));
+      int colors[4];
+      Entity_GetRenderColor(spawnEnts[2], colors);
+      if (colors[0] == 0 && colors[1] == 255) {
+        if (PointInsideViewRange(entOrigin, eyeOrigin, eyeEnd)) {
+          TeleportEntity(client, entOrigin, entAngles, view_as<float>({0.0,0.0,0.0}));
         }
       }
     }

@@ -4,6 +4,29 @@ public void Spawns_MapStart() {
   AddMapSpawnsForTeam("info_player_terrorist");
 }
 
+public void AddMapSpawnsForTeam(const char[] spawnClassName) {
+  int SpawnGroup[6] = {-1, ...};
+  // int minPriority = -1;
+  // First pass over spawns to find minPriority.
+  int ent = -1;
+  // while ((ent = FindEntityByClassname(ent, spawnClassName)) != -1) {
+  //   int priority = GetEntProp(ent, Prop_Data, "m_iPriority");
+  //   if (priority < minPriority || minPriority == -1) {
+  //     minPriority = priority;
+  //   }
+  // }
+  // Second pass only adds spawns with the lowest priority to the list.
+  ent = -1;
+  while ((ent = FindEntityByClassname(ent, spawnClassName)) != -1) {
+    // int priority = GetEntProp(ent, Prop_Data, "m_iPriority");
+    int enabled = GetEntProp(ent, Prop_Data, "m_bEnabled");
+    if (enabled) { //&& priority == minPriority
+      SpawnGroup[0] = ent;
+      g_Spawns.PushArray(SpawnGroup, sizeof(SpawnGroup));
+    }
+  }
+}
+
 public void Spawns_MapEnd() {
   RemoveHoloSpawnEntities();
 }
@@ -19,9 +42,9 @@ public void UpdateHoloSpawnEntities() {
 
 public void RemoveHoloSpawnEntities() {
   for (int i = g_Spawns.Length - 1; i >= 0; i--) {
-    int SpawnEnts[5];
+    int SpawnEnts[6];
     g_Spawns.GetArray(i, SpawnEnts, sizeof(SpawnEnts));
-    for (int j=1; j<5; j++) {
+    for (int j=1; j<6; j++) {
       int ent = SpawnEnts[j]; // 0 is the info_player_ ent
       SpawnEnts[j] = -1;
       if (IsValidEntity(ent)) {
@@ -41,7 +64,7 @@ stock int GetNearestSpawnEntsIndex(
   float distance = -1.0;
   float nearestDistance = -1.0;
   //Find all the entities and compare the distances
-  int SpawnEnts[5];
+  int SpawnEnts[6];
   for (int index = 0; index < g_Spawns.Length; index++) {
     //for each of all current active entities
     g_Spawns.GetArray(index, SpawnEnts, sizeof(SpawnEnts));
@@ -59,20 +82,31 @@ stock int GetNearestSpawnEntsIndex(
   return nearestIndex;
 }
 
-public Action Timer_SpawnsRedGlow(Handle timer, int ent) {
-  SetEntityRenderColor(ent, 255, 0, 0);
-  return Plugin_Handled;
-}
-
 public void CreateHoloSpawnEntities() {
+  char iStr[MAX_TARGET_LENGTH];
   for (int i = 0; i < g_Spawns.Length; i++) {
-    int SpawnEnts[5];
+    int SpawnEnts[6];
     g_Spawns.GetArray(i, SpawnEnts, sizeof(SpawnEnts));
     int player_info_ent = SpawnEnts[0];
     if (IsValidEntity(player_info_ent)) {
       float vOrigin[3];
       Entity_GetAbsOrigin(player_info_ent, vOrigin);
-      float size = 20.0
+      int triggerEnt = CreateEntityByName("trigger_multiple");
+      IntToString(i, iStr, sizeof(iStr));
+      DispatchKeyValue(triggerEnt, "spawnflags", "64"); // 1 ?
+      DispatchKeyValue(triggerEnt, "wait", "0");
+      DispatchKeyValue(triggerEnt, "targetname", iStr);
+      DispatchSpawn(triggerEnt);
+      ActivateEntity(triggerEnt);
+      TeleportEntity(triggerEnt, vOrigin, NULL_VECTOR, NULL_VECTOR);
+      SetEntPropVector(triggerEnt, Prop_Send, "m_vecMins", {-16.0, -16.0, 0.0});
+      SetEntPropVector(triggerEnt, Prop_Send, "m_vecMaxs", {16.0, 16.0, 0.0});
+      SetEntProp(triggerEnt, Prop_Send, "m_nSolidType", SOLID_BBOX);
+      Entity_SetCollisionGroup(triggerEnt, COLLISION_GROUP_DEBRIS);
+      SDKHook(triggerEnt, SDKHook_StartTouch, HologramSpawn_OnStartTouch);
+      SDKHook(triggerEnt, SDKHook_EndTouch, HologramSpawn_OnEndTouch);
+      SpawnEnts[1] = triggerEnt;
+      float size = 16.0
       float vMins[3], vMaxs[3];
       vMins[0] = -size; vMaxs[0] = size;
       vMins[1] = -size; vMaxs[1] = size;
@@ -83,12 +117,44 @@ public void CreateHoloSpawnEntities() {
       vPos1[0] = vMins[0];
       vPos2 = vMaxs;
       vPos2[1] = vMins[1];
-      SpawnEnts[1] = CreateBeam(vMins, vPos1);
-      SpawnEnts[2] = CreateBeam(vPos1, vMaxs);
-      SpawnEnts[3] = CreateBeam(vMaxs, vPos2);
-      SpawnEnts[4] = CreateBeam(vPos2, vMins);
+      SpawnEnts[2] = CreateBeam(vMins, vPos1);
+      SpawnEnts[3] = CreateBeam(vPos1, vMaxs);
+      SpawnEnts[4] = CreateBeam(vMaxs, vPos2);
+      SpawnEnts[5] = CreateBeam(vPos2, vMins);
       g_Spawns.SetArray(i, SpawnEnts, sizeof(SpawnEnts));
     }
+  }
+}
+
+public void HologramSpawn_OnEndTouch(int entity, int other) {
+  if (!IsValidClient(other))
+    return;
+  char targetName[MAX_TARGET_LENGTH];
+  GetEntPropString(entity, Prop_Data, "m_iName", targetName, sizeof(targetName));
+  int index = StringToInt(targetName);
+  if (index==0 && !StrEqual(targetName, "0")) {
+    return;
+  }
+  int spawnEnts[6];
+  g_Spawns.GetArray(index, spawnEnts, sizeof(spawnEnts));
+  for (int i = 2; i < 6; i++) {
+    SetEntityRenderColor(spawnEnts[i], 255, 0, 0, 255);
+  }
+}
+
+public void HologramSpawn_OnStartTouch(int entity, int other) {
+  if (!IsValidClient(other))
+    return;
+  char targetName[MAX_TARGET_LENGTH];
+  GetEntPropString(entity, Prop_Data, "m_iName", targetName, sizeof(targetName));
+  int index = StringToInt(targetName);
+  if (index==0 && !StrEqual(targetName, "0")) {
+    return;
+  }
+  int spawnEnts[6];
+  g_Spawns.GetArray(index, spawnEnts, sizeof(spawnEnts));
+  for (int i = 2; i < 6; i++) {
+    SetEntityRenderColor(spawnEnts[i], 0, 255, 0, 255);
   }
 }
 
@@ -105,31 +171,8 @@ public int CreateBeam(float origin[3], float end[3]) {
   return beament;
 }
 
-public void OnBeamInteraction(const char[] output, int caller, int activator, float delay) {
-  // PrintToChatAll("%d interacted", activator);
-  // DispatchKeyValue(caller, "OnTouchedByEntity", "!self,TurnOn,,0.002,-1");
-  // AcceptEntityInput(caller,"TurnOn");
-}
-
-public void AddMapSpawnsForTeam(const char[] spawnClassName) {
-  int SpawnGroup[5] = {-1, ...};
-  int minPriority = -1;
-  // First pass over spawns to find minPriority.
-  int ent = -1;
-  while ((ent = FindEntityByClassname(ent, spawnClassName)) != -1) {
-    int priority = GetEntProp(ent, Prop_Data, "m_iPriority");
-    if (priority < minPriority || minPriority == -1) {
-      minPriority = priority;
-    }
-  }
-  // Second pass only adds spawns with the lowest priority to the list.
-  ent = -1;
-  while ((ent = FindEntityByClassname(ent, spawnClassName)) != -1) {
-    int priority = GetEntProp(ent, Prop_Data, "m_iPriority");
-    int enabled = GetEntProp(ent, Prop_Data, "m_bEnabled");
-    if (enabled && priority == minPriority) {
-      SpawnGroup[0] = ent;
-      g_Spawns.PushArray(SpawnGroup, sizeof(SpawnGroup));
-    }
-  }
-}
+// public void OnBeamInteraction(const char[] output, int caller, int activator, float delay) {
+//   PrintToChatAll("%d interacted", activator);
+//   // DispatchKeyValue(caller, "OnTouchedByEntity", "!self,TurnOn,,0.002,-1");
+//   // AcceptEntityInput(caller,"TurnOn");
+// }

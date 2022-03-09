@@ -108,8 +108,8 @@ public bool TeleportToSavedGrenadePosition(int client, const char[] id) {
     
     if (!StrEqual(execution, "")) {
       //PM_Message(client, "Ejecución: %s", execution);
-      SetHudTextParams( -1.0, 0.67, 3.5, 64, 255, 64, 0, 1, 1.0, 1.0, 1.0);
-      ShowSyncHudText(client, HTM, execution);
+      SetHudTextParams(-1.0, 0.67, 3.5, 64, 255, 64, 0, 1, 1.0, 1.0, 1.0);
+      ShowSyncHudText(client, HudSync, execution);
     }
 
     if (delay > 0.0) {
@@ -717,10 +717,6 @@ public Action _CorrectGrenadeDetonations_Iterator(
 }
 
 public bool CanEditGrenade(int client, int id) {
-  if (!CheckCommandAccess(client, "sm_gotogrenade", ADMFLAG_CHANGEMAP)) {
-    return false;
-  }
-
   if (g_SharedAllNadesCvar.IntValue != 0) {
     return true;
   }

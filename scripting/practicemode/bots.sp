@@ -114,6 +114,7 @@ public Action Timer_RespawnBot(Handle timer, int serial) {
       CS_RespawnPlayer(client);
       return Plugin_Stop;
     }
+    PrintToServer("Timer_RespawnBot - %d", client);
     return Plugin_Continue;
   }
 

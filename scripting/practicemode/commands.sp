@@ -274,14 +274,8 @@ public Action Command_Map(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
-  if (client != g_PracticeSetupClient) {
-    if (IsPlayer(g_PracticeSetupClient)) {
-      PM_Message(client, "{ORANGE}Cliente con permisos de Administrador: {NORMAL}%N.", g_PracticeSetupClient);
-      return Plugin_Handled;
-    } else {
-      LogError("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
-      g_PracticeSetupClient = client;
-    }
+  if (!IsPracticeSetupClient(client)) {
+    return Plugin_Handled;
   }
   char arg[PLATFORM_MAX_PATH];
   if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {

@@ -55,7 +55,10 @@ ArrayList g_MapList;
 ArrayList g_ChatAliases;
 ArrayList g_ChatAliasesCommands;
 
-Handle HTM;
+Handle HudSync;
+// Handle HUDCowntdown_Handle = INVALID_HANDLE;
+// int HUDCountdown_Number;
+
 // Plugin cvars
 ConVar g_AutostartCvar;
 ConVar g_BotRespawnTimeCvar;
@@ -95,6 +98,7 @@ ConVar g_VersionCvar;
 #define AUTH_LENGTH 64
 #define GRENADE_CODE_LENGTH 256
 
+bool g_nadeBotRecord[MAXPLAYERS + 1] = {false, ...};
 bool g_WaitForSaveNade[MAXPLAYERS + 1] = {false, ...};
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
 KeyValues
@@ -508,7 +512,7 @@ public void OnPluginStart() {
     PM_AddChatAlias(".restart", "sm_rr");
   }
       
-  HTM = CreateHudSynchronizer();
+  HudSync = CreateHudSynchronizer();
   // New Plugin cvars
   g_BotRespawnTimeCvar = CreateConVar("sm_practicemode_bot_respawn_time", "3.0",
                                       "How long it should take bots placed with .bot to respawn");
@@ -545,7 +549,7 @@ public void OnPluginStart() {
   g_InfiniteMoneyCvar = CreateConVar("sm_infinite_money", "0",
                                      "Whether clients recieve infinite money", FCVAR_DONTRECORD);
   g_AllowNoclipCvar =
-      CreateConVar("sm_allow_noclip", "0",
+      CreateConVar("sm_allow_noclip", "1",
                    "Whether players may use .noclip in chat to toggle noclip", FCVAR_DONTRECORD);
 
   g_PatchGrenadeTrajectoryCvar =
@@ -566,7 +570,7 @@ public void OnPluginStart() {
   g_GrenadeTimeCvar = GetCvar("sv_grenade_trajectory_time");
   g_GrenadeSpecTimeCvar = GetCvar("sv_grenade_trajectory_time_spectator");
 
-  g_Spawns = new ArrayList(5); //spawn ent, 4 beams
+  g_Spawns = new ArrayList(6); //spawn ent, trigger ent, 4 beams
   g_EnabledHoloNadeAuth = new ArrayList(AUTH_LENGTH);
   g_GrenadeDetonationSaveQueue = new ArrayList();
   g_ManagedGrenadeDetonationsToFix = new StringMap();
@@ -768,8 +772,16 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 
 public Action Timer_FirstPlayerJoin(Handle Timer, int serial) {
   ServerCommand("mp_warmup_end");
-  ServerCommand("mp_restartgame 1");
+  ServerCommand("mp_restartgame 2");
   int client = GetClientFromSerial(serial);
+  SetEntityMoveType(client, MOVETYPE_NONE);
+  CreateTimer(2.5, Timer_FirstPlayerJoin2, serial);
+  return Plugin_Handled;
+}
+
+public Action Timer_FirstPlayerJoin2(Handle Timer, int serial) {
+  int client = GetClientFromSerial(serial);
+  SetEntityMoveType(client, MOVETYPE_WALK);
   PracticeSetupMenu(client);
   ShowHelpInfo(client);
   return Plugin_Handled;
@@ -812,6 +824,7 @@ public void OnMapStart() {
   g_PredictTrail = PrecacheModel("sprites/laserbeam.spr");
   g_BeamSprite = PrecacheModel("materials/sprites/white.vmt");
   PrecacheModel("models/chicken/festive_egg.mdl");
+  PrecacheModel("models/error.mdl");
   PrecacheParticle("silvershot_string_lights_02");
 
   EnforceDirectoryExists("data/practicemode");
@@ -1041,33 +1054,35 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
   if((StrContains(nadelist, weaponName, false) != -1)) {
     if(((buttons & IN_ATTACK) || (buttons & IN_ATTACK2)) && !g_ClientPulledPin[client]) {
-        // PrintToChatAll("Grabación empezada.");
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
         GetClientEyeAngles(client, g_LastGrenadePinPulledAngles[client]);
         g_ClientPulledPinButtons[client] = 0;
-        if (g_PredictMode[client] > GRENADEPREDICT_NONE)
-          PrintHintText(client, "Presione [E] Para Desactivar");
+        if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
+          PrintHintText(client, "Presione [E] Para Cambiar de Modo");
+          // SetHudTextParams(-1.0, 0.8, 1.0, 64, 200, 64, 0, 1, 0.0, 0.0, 0.0);
+          // ShowSyncHudText(client, HudSync, "Presione [E] Para Cambiar de Modo");
+        }
         g_ClientPulledPin[client] = true;
-    } else if (g_ClientPulledPin[client] && !(buttons & IN_ATTACK) && !(buttons & IN_ATTACK2)) {
-        if (buttons & IN_JUMP) g_ClientPulledPinButtons[client] |= IN_JUMP; // jumpthrow: +jump; -attack stops the buttons read
+    } else if (g_ClientPulledPin[client] && !((buttons & IN_ATTACK) || (buttons & IN_ATTACK2))) {
+        g_ClientPulledPinButtons[client] = buttons;
         g_ClientPulledPin[client] = false;
-        // PrintToChatAll("Grabación Guardada.");
-    } else if (g_ClientPulledPin[client]) {
-      if (!(buttons & IN_FORWARD) && !(buttons & IN_BACK) // if player not moving
-      && !(buttons & IN_MOVELEFT) && !(buttons & IN_MOVERIGHT)
-      && !(buttons & IN_JUMP)) {
+        PrintToChatAll("G_saved.");
+    }
+    if (g_ClientPulledPin[client]) {
+      float exxvel[3];
+      Entity_GetAbsVelocity(client, exxvel);
+      // PrintToChatAll("vel : %f", GetVectorDotProduct(exxvel, exxvel));
+      if (GetVectorDotProduct(exxvel, exxvel) > 0.01) {
+        if (!g_nadeBotRecord[client]) {
+          PrintToChatAll("G_start.");
+          g_nadeBotRecord[client] = true;
+        }
+        PrintToChatAll("G_record.");
+      } else {
+        PrintToChatAll("G_cancel.");
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
         GetClientEyeAngles(client, g_LastGrenadePinPulledAngles[client]);
-        g_ClientPulledPinButtons[client] = 0;
-        // PrintToChatAll("Grabacion cancelada.");
-        // g_nadeBotRecord[client] = false;
-      } else {
-        // if (g_nadeBotRecord[client]) {
-        //   // PrintToChatAll("Grabación empezada.");
-        //   g_nadeBotRecord[client] = true;
-        // }
-        //PrintToChatAll("...recording...");
-        g_ClientPulledPinButtons[client] |= buttons;
+        g_nadeBotRecord[client] = false;
       }
     }
   }
@@ -1787,6 +1802,7 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
       ChangeSetting(12, !PM_IsSettingEnabled(12), true);
     } else if (StrEqual(buffer, "changemap")) {
       Command_Map(client, 0);
+      return 0;
     }
     PracticeSetupMenu(client);
   } else if (action == MenuAction_End) {
@@ -1927,7 +1943,7 @@ public void CSU_OnGrenadeExplode(
     // All grenades processed.
     g_GrenadeDetonationSaveQueue.Clear();
   }
-  GrenadeAccuracy_OnGrenadeExplode(client, currentEntity, grenade, grenadeDetonationOrigin);
+  // GrenadeAccuracy_OnGrenadeExplode(client, currentEntity, grenade, grenadeDetonationOrigin);
   // Learn_OnGrenadeExplode(client, currentEntity, grenade, grenadeDetonationOrigin);
 }
 
@@ -1974,3 +1990,32 @@ public void CSU_OnManagedGrenadeExplode(
     }
   }
 }
+
+// public Action HUDCountdownMessage(Handle timer, DataPack pack) {
+//   HUDCountdown_Number--;
+//   if(HUDCountdown_Number <= 0) {
+//     if(HUDCowntdown_Handle != INVALID_HANDLE) {
+//       KillTimer(HUDCowntdown_Handle);
+//       HUDCowntdown_Handle = INVALID_HANDLE;
+//     }
+//     for (int i = 1; i <= MAXPLAYERS + 1; i++) {
+//       if(IsPlayer(i)) {
+//         ClearSyncHud(i, HudSync);
+//       }
+//     }
+//     return Plugin_Handled;
+//   }
+//   char string[256];
+//   pack.Reset();
+//   ReadPackString(pack, string, sizeof(string));
+//   char string2[512];
+//   Format(string2, sizeof(string2), "%s: %d", string, HUDCountdown_Number);
+
+//   for (int i = 1; i <= MAXPLAYERS + 1; i++) {
+//     if(IsValidClient(i)) {
+//       SetHudTextParams(-1.0, 0.67, 3.5, 64, 255, 64, 0, 1, 1.0, 1.0, 1.0);
+//       ShowSyncHudText(i, HudSync, string2);
+//     }
+//   }
+//   return Plugin_Handled;
+// }
