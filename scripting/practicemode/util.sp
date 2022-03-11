@@ -3,11 +3,6 @@
 
 #define DEFAULT_MENU_LENGTH 128
 
-#tryinclude "manual_version.sp"
-#if !defined PLUGIN_VERSION
-#define PLUGIN_VERSION "1.3.5-dev"
-#endif
-
 int g_PracticeSetupClient = -2;
 
 enum struct CEffectData {

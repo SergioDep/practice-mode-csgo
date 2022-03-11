@@ -406,9 +406,10 @@ stock int WatchFlyingGrenade(int client, bool teleport = false) {
     Entity_GetAbsAngles(g_LastGrenadeEntity[client], angles);
     TeleportEntity(ent, origin, angles, NULL_VECTOR);
     if (teleport) TeleportEntity(client, origin, angles, NULL_VECTOR);
-    SetEntProp(ent, Prop_Send, "m_bShouldGlow", true, true);
-    SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
-    SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 250000.0);
+    // SetEntityRenderMode(ent, RENDER_NORMAL);
+    // SetEntProp(ent, Prop_Send, "m_bShouldGlow", true, true);
+    // SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
+    // SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 250000.0);
     SetVariantString("!activator");
     AcceptEntityInput(ent, "SetParent", g_LastGrenadeEntity[client], ent, 0);
   }
@@ -417,9 +418,10 @@ stock int WatchFlyingGrenade(int client, bool teleport = false) {
 }
 
 public void SetClientObserveEntity(int client, int entity) {
+  SetEntityRenderMode(client, RENDER_NONE);
   SetEntityMoveType(client, MOVETYPE_OBSERVER);
-  SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", entity);
   SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
+  SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", entity);
   SetEntityRenderMode(client, RENDER_NONE);
   PrintHintText(client, "Suelta R para regresar");
 }

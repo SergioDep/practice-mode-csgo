@@ -23,6 +23,22 @@ public Action Command_ExitPracticeMode(int client, int args) {
   return Plugin_Handled;
 }
 
+public Action Command_BotsMenu(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  GiveBotsMenu(client);
+  return Plugin_Handled;
+}
+
+public Action Command_NadesMenu(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  GiveNadesMenu(client);
+  return Plugin_Handled;
+}
+
 public Action Command_NoFlash(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;

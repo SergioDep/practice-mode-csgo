@@ -1,6 +1,6 @@
-public Action Command_BotsMenu(int client, int args) {
+public void GiveBotsMenu(int client) {
   if (!g_InPracticeMode) {
-    return Plugin_Handled;
+    return;
   }
 
   Menu menu = new Menu(BotsMenuHandler);
@@ -14,7 +14,6 @@ public Action Command_BotsMenu(int client, int args) {
   menu.ExitBackButton = true;
 
   menu.Display(client, MENU_TIME_FOREVER);
-  return Plugin_Handled;
 }
 
 public int BotsMenuHandler(Menu menu, MenuAction action, int client, int param2) {
@@ -24,7 +23,7 @@ public int BotsMenuHandler(Menu menu, MenuAction action, int client, int param2)
     
     if (StrEqual(buffer, "add")) {
       CreateBot(client);
-      Command_BotsMenu(client, 0);
+      GiveBotsMenu(client);
     } else {
       int bot = IsAimingAtBot(client);
       if (bot >= 0) {
@@ -44,12 +43,12 @@ public int BotsMenuHandler(Menu menu, MenuAction action, int client, int param2)
             g_CurrentBotControl[owner] = -1; // In case another player is using this bot in menu
             ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
             FindAndErase(g_ClientBots[client], bot);
-            Command_BotsMenu(client, 0);
+            GiveBotsMenu(client);
           }
         }
       }
     }
-    Command_BotsMenu(client, 0);
+    GiveBotsMenu(client);
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
     GivePracticeMenu(client);
   } else if (action == MenuAction_End) {
@@ -160,7 +159,7 @@ public int BotEditorMenuHandler(Menu menu, MenuAction action, int client, int pa
     GiveBotEditorMenu(client);
 
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
-    Command_BotsMenu(client, 0);
+    GiveBotsMenu(client);
   } else if (action == MenuAction_End) {
     delete menu;
   }

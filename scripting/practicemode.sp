@@ -1,4 +1,5 @@
 #define UPDATE_URL "https://dl.whiffcity.com/plugins/practicemode/practicemode.txt"
+#define PLUGIN_VERSION "2.0.1-dev"
 
 #include <clientprefs>
 #include <cstrike>
@@ -71,8 +72,8 @@ ConVar g_MaxPlacedBotsCvar;
 // Infinite money data
 ConVar g_InfiniteMoneyCvar;
 
-// Grenade trajectory fix data
 int g_PredictTrail = -1;
+
 int g_BeamSprite = -1;
 ConVar g_PatchGrenadeTrajectoryCvar;
 
@@ -260,16 +261,16 @@ Handle g_OnPracticeModeSettingsRead = INVALID_HANDLE;
 #include "practicemode/pugsetup_integration.sp"
 #include "practicemode/spawns.sp"
 #include "practicemode/breakables.sp"
+#include "practicemode/afk_manager.sp"
+#include "practicemode/commands_blocker.sp"
 
-// clang-format off
 public Plugin myinfo = {
-  name = "CS:GO PracticeMode",
-  author = "splewis",
-  description = "A practice mode that can be launched through the .setup menu",
+  name = "Practicemode v2",
+  author = "sergio",
+  description = "",
   version = PLUGIN_VERSION,
-  url = "https://github.com/splewis/csgo-practice-mode"
+  url = "https://steamcommunity.com/profiles/76561199016822889/"
 };
-// clang-format on
 
 public void OnPluginStart() {
   LoadTranslations("common.phrases"); 
@@ -365,13 +366,21 @@ public void OnPluginStart() {
     PM_AddChatAlias(".rethrow", "sm_throw");
   }
 
+  // Menus
+  {
+    RegConsoleCmd("sm_botsmenu", Command_BotsMenu);
+    PM_AddChatAlias(".bots", "sm_botsmenu");
+    PM_AddChatAlias(".botsmenu", "sm_botsmenu");
+
+    RegConsoleCmd("sm_nadesmenu", Command_NadesMenu);
+    PM_AddChatAlias(".nades", "sm_nadesmenu");
+    PM_AddChatAlias(".nadesmenu", "sm_nadesmenu");
+  }
+
   // Bot commands
   {
     RegConsoleCmd("sm_removeallbots", Command_RemoveAllBots);
     PM_AddChatAlias(".nobots", "sm_removeallbots");
-
-    RegConsoleCmd("sm_botsmenu", Command_BotsMenu);
-    PM_AddChatAlias(".bots", "sm_botsmenu");
 
     RegConsoleCmd("sm_prueba", FUNCION_PRUEBA);
   }
@@ -483,6 +492,7 @@ public void OnPluginStart() {
 
     RegConsoleCmd("sm_clearmap", Command_ClearMap);
     PM_AddChatAlias(".clearmap", "sm_clearmap");
+    PM_AddChatAlias(".cleanmap", "sm_clearmap");
 
     RegConsoleCmd("sm_stopall", Command_StopAll);
     PM_AddChatAlias(".stop", "sm_stopall");
@@ -575,21 +585,41 @@ public void OnPluginStart() {
   HookEvent("player_death", Event_PlayerDeath);
   HookEvent("round_freeze_end", Event_FreezeEnd);
   HookEvent("round_start", Event_RoundStart, EventHookMode_PostNoCopy);
+  HookUserMessage(GetUserMessageId("SayText2"), Hook_SayText2, true);
 
   g_PugsetupLoaded = LibraryExists("pugsetup");
   g_CSUtilsLoaded = LibraryExists("csutils");
 
   CreateTimer(1.0, Timer_CleanupLivingBots, _, TIMER_REPEAT);
 
+  CommandsBlocker_PluginStart();
   HoloNade_PluginStart();
   GrenadeAccuracy_PluginStart();
   Breakables_PluginStart();
+  AfkManager_PluginStart();
 }
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
   UpdateHoloNadeEntities();
   UpdateHoloSpawnEntities();
   return Plugin_Continue;
+}
+
+public Action Hook_SayText2(UserMsg msg_id, any msg, const int[] players, int playersNum, bool reliable, bool init) {
+    char[] sMessage = new char[24];
+    if(GetUserMessageType() == UM_Protobuf) {
+        Protobuf pbmsg = msg;
+        pbmsg.ReadString("msg_name", sMessage, 24);
+    } else {
+        BfRead bfmsg = msg;
+        bfmsg.ReadByte();
+        bfmsg.ReadByte();
+        bfmsg.ReadString(sMessage, 24, false);
+    }
+    if(StrEqual(sMessage, "#Cstrike_Name_Change")) {
+        return Plugin_Handled;
+    }
+    return Plugin_Continue;
 }
 
 public Action FUNCION_PRUEBA(int client, int args) {
@@ -809,6 +839,7 @@ public void OnMapStart() {
   HoloNade_MapStart();
   GrenadeAccuracy_MapStart();
   Breakables_MapStart();
+  AfkManager_MapStart();
   // Learn_MapStart();
 }
 
@@ -873,6 +904,7 @@ public void OnClientDisconnect(int client) {
   }
 
   HoloNade_ClientDisconnect(client);
+  AfkManager_ClientDisconnect(client);
   // Learn_ClientDisconnect(client);
 }
 
@@ -902,6 +934,9 @@ static void MaybeWriteNewGrenadeData() {
 }
 
 public void OnClientPutInServer(int client) {
+  if (!IsPlayer(client)) {
+    return;
+  }
   HoloNade_ClientPutInServer(client);
 }
 
@@ -1764,7 +1799,7 @@ public int PracticeMenuHandler(Menu menu, MenuAction action, int client, int par
     menu.GetItem(param2, buffer, sizeof(buffer));
     
     if (StrEqual(buffer, "bots_menu")) {
-      Command_BotsMenu(client, 0);
+      GiveBotsMenu(client);
     } else if (StrEqual(buffer, "nades_menu")) {
       GiveNadesMenu(client);
     } else {
@@ -1803,7 +1838,7 @@ stock void ShowHelpInfo(int client, int page = 1) {
     PM_Message(client, "{GREEN}.flash: {PURPLE}Guarda tu posicion para probar una flash");
     PM_Message(client, "{GREEN}.last: {PURPLE}Ve a tu último lineup");
     PM_Message(client, "{GREEN}.clear: {PURPLE}Limpia instantáneamente los humos y molos");
-    PM_Message(client, "{GREEN}.clearmap: {PURPLE}Resetea los vidrios, puertas y objetos del mapa");
+    PM_Message(client, "{GREEN}.clearmap/.cleanmap: {PURPLE}Resetea los vidrios, puertas y objetos del mapa");
     PM_Message(client, "{GREEN}.map: {PURPLE}Menú de cambio de mapa");
     PM_Message(client, "{GREEN}.bots: {PURPLE}Muestra el menu de los bots");
     PM_Message(client, "{ORANGE}Con una Granada Equipada:");
