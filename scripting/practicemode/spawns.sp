@@ -170,9 +170,3 @@ public int CreateBeam(float origin[3], float end[3]) {
   AcceptEntityInput(beament,"TurnOn");
   return beament;
 }
-
-// public void OnBeamInteraction(const char[] output, int caller, int activator, float delay) {
-//   PrintToChatAll("%d interacted", activator);
-//   // DispatchKeyValue(caller, "OnTouchedByEntity", "!self,TurnOn,,0.002,-1");
-//   // AcceptEntityInput(caller,"TurnOn");
-// }

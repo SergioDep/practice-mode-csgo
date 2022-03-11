@@ -116,7 +116,7 @@ public bool TeleportToSavedGrenadePosition(int client, const char[] id) {
       PM_Message(client, "Delay de granada: %.1f seconds", delay);
     }
 
-    if (type != GrenadeType_None && GetSetting(client, UserSetting_SwitchToNadeOnSelect)) {
+    if (type != GrenadeType_None) {
       char weaponName[64];
       GetGrenadeWeapon(type, weaponName, sizeof(weaponName));
       FakeClientCommand(client, "use %s", weaponName);

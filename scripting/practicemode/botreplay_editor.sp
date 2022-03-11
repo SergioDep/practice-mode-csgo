@@ -399,7 +399,7 @@ public int ReplayRoleNadesMenuHandler(Menu menu, MenuAction action, int param1, 
 
     TeleportEntity(client, personOrigin, personAngles, NULL_VECTOR);
 
-    if (type != GrenadeType_None && GetSetting(client, UserSetting_SwitchToNadeOnSelect)) {
+    if (type != GrenadeType_None) {
       char weaponName[64];
       GetGrenadeWeapon(type, weaponName, sizeof(weaponName));
       FakeClientCommand(client, "use %s", weaponName);
@@ -488,13 +488,7 @@ stock void StartReplayRecording(int client, int role, bool printCommands = true)
 
   if (printCommands) {
     PM_Message(client, "Grabación de jugador rol %d empezada.", role + 1);
-
-    if (GetSetting(client, UserSetting_StopsRecordingInspectKey)) {
-      PM_Message(client,
-                 "Usa .finish, (F) o .noclip para dejar de grabar.");
-    } else {
-      PM_Message(client, "Usa .finish o .noclip para dejar de grabar.");
-    }
+    PM_Message(client, "Usa .finish o activa noclip para dejar de grabar.");
   }
 }
 

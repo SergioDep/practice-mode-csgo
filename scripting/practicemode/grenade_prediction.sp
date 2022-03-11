@@ -48,12 +48,10 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
           g_Predict_LastClientPos[client][1] == g_Predict_LastClientPos[client][2] &&
           g_Predict_LastClientAng[client][0] == g_Predict_LastClientAng[client][1] &&
           g_Predict_LastClientAng[client][1] == g_Predict_LastClientAng[client][2])) {
-        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]
-        , view_as<float>({0.0,0.0,0.0}));
+        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , {0.0,0.0,0.0});
       }
       else
-        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client]
-        , view_as<float>({0.0,0.0,0.0}));
+        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , {0.0,0.0,0.0});
     } else if (g_Predict_ViewEndpoint[client]) {
       SetClientViewEntity(client, client);
       Client_SetFOV(client, 90);
@@ -62,12 +60,10 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
           g_Predict_LastClientPos[client][1] == g_Predict_LastClientPos[client][2] &&
           g_Predict_LastClientAng[client][0] == g_Predict_LastClientAng[client][1] &&
           g_Predict_LastClientAng[client][1] == g_Predict_LastClientAng[client][2])) {
-        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]
-        , view_as<float>({0.0,0.0,0.0}));
+        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , {0.0,0.0,0.0});
       }
       else
-        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client]
-        , view_as<float>({0.0,0.0,0.0}));
+        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , {0.0,0.0,0.0});
     }
     g_Predict_HoldingReload[client] = false;
   }
@@ -98,10 +94,10 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         GetClientEyeAngles(client, g_Predict_LastClientAng[client]);
         float endPoint[3];
         if (g_PredictMode[client] == GRENADEPREDICT_NONE) {
-          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, true); //jt
+          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, true);
           TeleportEntity(g_Predict_FinalDestinationEnt[client], endPoint, NULL_VECTOR, NULL_VECTOR);
         } else {
-          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, false); //jt
+          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, false);
           if (!g_Predict_ViewEndpoint[client]) {
             SetClientViewEntity(client, g_Predict_FinalDestinationEnt[client]);
             Client_SetFOV(client, 120);
@@ -113,11 +109,9 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
               g_Predict_GenerateViewPointDelay[client] = 0;
             }
             g_Predict_GenerateViewPointDelay[client]++;
-            // TeleportEntity(g_Predict_FinalDestinationEnt[client], endPoint, NULL_VECTOR, NULL_VECTOR);
           }
         }
       } else {
-        //WATCH_NONE
         if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
           CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW);
         }
@@ -135,16 +129,13 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         }
     } else if (g_Predict_HoldingReload[client]) {
       CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true);
-      // random bug
       if (GetEntityMoveType(client) == MOVETYPE_NONE && g_Predict_ObservingGrenade[client] > 1) {
         SetClientObserveEntity(client, g_Predict_ObservingGrenade[client]);
-        SetEntityMoveType(client, MOVETYPE_OBSERVER);
       }
-      //WATCH_FINAL_ENDPOINT (LAST_ENDPOINT)  # VIEW AND TELEPORT PLAYER WHEN RELEASE?
     }
-  } else if (g_Predict_ObservingGrenade[client] > 0) { // && GetEntityMoveType(client) == MOVETYPE_OBSERVER
-    CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true); //jt
-    SetEntityRenderMode(client, RENDER_NONE); //0
+  } else if (g_Predict_ObservingGrenade[client] > 0) {
+    CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true);
+    SetEntityRenderMode(client, RENDER_NONE); //?
   }
   return Plugin_Handled;
 }
@@ -152,7 +143,7 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
 public void TeleportToObserverPos(int client, const float CenterPoint[3]) {
   Handle NearestCeil = TR_TraceRayFilterEx(
     CenterPoint,
-    view_as<float>({-90.0,0.0,0.0}),
+    {-90.0,0.0,0.0},
     CONTENTS_SOLID,
     RayType_Infinite,
     Prediction_TraceFilter,
@@ -231,8 +222,8 @@ stock void CreateTrajectory(
     Handle gRayTrace = TR_TraceHullFilterEx(
       gStart,
       gEnd,
-      view_as<float>({-2.0, -2.0, -2.0}),
-      view_as<float>({2.0, 2.0, 2.0}),
+      {-2.0, -2.0, -2.0},
+      {2.0, 2.0, 2.0},
       MASK_SOLID | CONTENTS_CURRENT_90,
       Prediction_TraceFilter,
       client);
@@ -280,9 +271,6 @@ stock void CreateTrajectory(
       } else {
         // fixVelFraction(GrenadeVelocity, trFraction);
       }
-      // if (flSpeedSqr > 400.0) {
-      //   TE_SetupBeamCube(gEnd, 2.0, g_PredictTrail, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, { 255, 0, 0, 255 }, 0);
-      // }
     }
 
     CloseHandle(gRayTrace);
@@ -296,7 +284,7 @@ stock void CreateTrajectory(
   explodePos = endPos;
   if (grenadeType >= GrenadeType_Molotov && grenadeType != GrenadeType_Decoy) {
     float ground[3];
-    Handle hTrace = TR_TraceRayEx(explodePos, view_as<float>({90.0,0.0,0.0}), MASK_SOLID | CONTENTS_CURRENT_90, RayType_Infinite);
+    Handle hTrace = TR_TraceRayEx(explodePos, {90.0,0.0,0.0}, MASK_SOLID | CONTENTS_CURRENT_90, RayType_Infinite);
     if (TR_DidHit(hTrace)) {
       TR_GetEndPosition(ground, hTrace);
       if ((explodePos[2] - ground[2]) < 131) {
@@ -382,14 +370,14 @@ stock void fixVelFraction(float GrenadeVelocity[3], float frac, bool sum = true)
   }
 }
 
-public bool Prediction_TraceFilter(int entity, any data) {
+public bool Prediction_TraceFilter(int entity, int contentsMask, any data) {
   if (entity == data) return false;
   char ClassName[30];
   GetEdictClassname(entity, ClassName, sizeof(ClassName));
   if (StrContains(ClassName, "_projectile") != -1) {
     return false;
   }
-  return false;
+  return true;
 }
 
 stock GrenadeType GrenadeTypeFromWeapon(int client, const char[] name) {
@@ -429,10 +417,10 @@ stock int WatchFlyingGrenade(int client, bool teleport = false) {
 }
 
 public void SetClientObserveEntity(int client, int entity) {
-  SetEntityRenderMode(client, RENDER_NONE); //0
-  SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", entity); //parent an entity to here?
-  SetEntProp(client, Prop_Send, "m_iObserverMode", 5); //3
-  SetEntityMoveType(client, MOVETYPE_OBSERVER); //1
+  SetEntityMoveType(client, MOVETYPE_OBSERVER);
+  SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", entity);
+  SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
+  SetEntityRenderMode(client, RENDER_NONE);
   PrintHintText(client, "Suelta R para regresar");
 }
 

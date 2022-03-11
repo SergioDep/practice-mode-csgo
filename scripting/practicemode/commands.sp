@@ -226,10 +226,21 @@ public Action Command_StopAll(int client, int args) {
   return Plugin_Handled;
 }
 
+public Action Command_ClearMap(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+
+  BreakBreakableEnts();
+  RespawnBreakableEnts();
+  return Plugin_Handled;
+}
+
 public Action Command_ClearNades(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
+  g_LastGrenadeEntity[client] = -1;
   CEffectData smokeData;
   smokeData.m_nEntIndex = 0;
   smokeData.m_nHitBox = GetParticleSystemIndex("explosion_smokegrenade_fallback");
@@ -427,14 +438,7 @@ public Action Command_Break(int client, int args) {
     return Plugin_Handled;
   }
 
-  int ent = -1;
-  while ((ent = FindEntityByClassname(ent, "func_breakable")) != -1) {
-    AcceptEntityInput(ent, "Break");
-  }
-  while ((ent = FindEntityByClassname(ent, "prop_dynamic")) != -1) {
-    AcceptEntityInput(ent, "Break");
-  }
-
+  BreakBreakableEnts();
   PM_MessageToAll("Broke all breakable entities.");
   return Plugin_Handled;
 }

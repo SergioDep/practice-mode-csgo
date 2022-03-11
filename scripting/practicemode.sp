@@ -225,19 +225,6 @@ GrenadeMenuType g_ClientLastMenuType[MAXPLAYERS + 1];
 // Data storing spawn priorities.
 ArrayList g_Spawns = null;
 
-enum UserSetting {
-  UserSetting_ShowAirtime,
-  UserSetting_LeaveNadeMenuOpen,
-  UserSetting_NoGrenadeTrajectory,
-  UserSetting_SwitchToNadeOnSelect,
-  UserSetting_StopsRecordingInspectKey,
-  UserSetting_NumSettings,
-};
-#define USERSETTING_DISPLAY_LENGTH 128
-Handle g_UserSettingCookies[UserSetting_NumSettings];
-bool g_UserSettingDefaults[UserSetting_NumSettings];
-char g_UserSettingDisplayName[UserSetting_NumSettings][USERSETTING_DISPLAY_LENGTH];
-
 // Forwards
 Handle g_OnGrenadeSaved = INVALID_HANDLE;
 Handle g_OnPracticeModeDisabled = INVALID_HANDLE;
@@ -271,8 +258,8 @@ Handle g_OnPracticeModeSettingsRead = INVALID_HANDLE;
 #include "practicemode/learn.sp"
 #include "practicemode/natives.sp"
 #include "practicemode/pugsetup_integration.sp"
-#include "practicemode/settings_menu.sp"
 #include "practicemode/spawns.sp"
+#include "practicemode/breakables.sp"
 
 // clang-format off
 public Plugin myinfo = {
@@ -491,8 +478,11 @@ public void OnPluginStart() {
     RegConsoleCmd("sm_countdown", Command_CountDown);
     PM_AddChatAlias(".countdown", "sm_countdown");
 
-    RegConsoleCmd("sm_clearmap", Command_ClearNades);
-    PM_AddChatAlias(".clear", "sm_clearmap");
+    RegConsoleCmd("sm_clearnades", Command_ClearNades);
+    PM_AddChatAlias(".clear", "sm_clearnades");
+
+    RegConsoleCmd("sm_clearmap", Command_ClearMap);
+    PM_AddChatAlias(".clearmap", "sm_clearmap");
 
     RegConsoleCmd("sm_stopall", Command_StopAll);
     PM_AddChatAlias(".stop", "sm_stopall");
@@ -575,18 +565,6 @@ public void OnPluginStart() {
   g_GrenadeDetonationSaveQueue = new ArrayList();
   g_ManagedGrenadeDetonationsToFix = new StringMap();
 
-  // Create client cookies.
-  RegisterUserSetting(UserSetting_ShowAirtime, "practicemode_grenade_airtime", true,
-                      "Show grenade airtime");
-  RegisterUserSetting(UserSetting_LeaveNadeMenuOpen, "practicemode_leave_menu_open", false,
-                      "Leave .nades menu open after selection");
-  RegisterUserSetting(UserSetting_NoGrenadeTrajectory, "practicemode_no_traject", false,
-                      "Disable grenade trajectories");
-  RegisterUserSetting(UserSetting_SwitchToNadeOnSelect, "practicemode_use_ade", true,
-                      "Switch to nade on .nades select");
-  RegisterUserSetting(UserSetting_StopsRecordingInspectKey, "practicemode_stop_inspect", false,
-                      "Stop bot recording on inspect command");
-
   // Remove cheats so sv_cheats isn't required for this:
   RemoveCvarFlag(g_GrenadeTrajectoryCvar, FCVAR_CHEAT);
 
@@ -605,7 +583,7 @@ public void OnPluginStart() {
 
   HoloNade_PluginStart();
   GrenadeAccuracy_PluginStart();
-
+  Breakables_PluginStart();
 }
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
@@ -617,48 +595,8 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 public Action FUNCION_PRUEBA(int client, int args) {
   char buffer[256];
   GetCmdArgString(buffer, sizeof(buffer));
-  // ArrayList entOrigin;
-  // ArrayList entAngles;
-  // ArrayList entClassname;
-  // ArrayList entModel;
-  // ArrayList entSpawnFlags;
-  // entOrigin = new ArrayList(3);
 
-  // int ent = -1;
-  // while ((ent = FindEntityByClassname(ent, "func_breakable")) != -1) {
-  //   AcceptEntityInput(ent, "Break");
-  // }
-  // while ((ent = FindEntityByClassname(ent, "prop_door_rotating")) != -1) {
-  //   AcceptEntityInput(ent, "Break");
-  // }
-  // while ((ent = FindEntityByClassname(ent, "prop_dynamic")) != -1) {
-  //   AcceptEntityInput(ent, "Break");
-  // }
-
-  // for (int i = 0; i < respawnEntsOrigin.Length; i++) {
-  //   float respawnOrigin[3], respawnAngles[3];
-  //   char respawnClassname[128], respawnModel[256];
-  //   respawnEntsNames.GetString(i, respawnClassname, sizeof(respawnClassname));
-  //   respawnEntsModels.GetString(i, respawnModel, sizeof(respawnModel));
-  //   int respawnEnt = CreateEntityByName(respawnClassname);
-  //   if (respawnEnt > 0) {
-  //     Entity_SetClassName(respawnEnt, respawnClassname);
-  //     Entity_SetModel(respawnEnt, respawnModel);
-  //     Entity_SetSpawnFlags(respawnEnt, respawnEntsSpawnFlags.Get(i));
-  //     Entity_SetSolidFlags(respawnEnt, respawnEntsSolidFlags.Get(i));
-  //     if (DispatchSpawn(respawnEnt)) {
-  //       respawnEntsOrigin.GetArray(i, respawnOrigin, sizeof(respawnOrigin));
-  //       TeleportEntity(respawnEnt, respawnOrigin, respawnAngles, NULL_VECTOR);
-  //       PrintToChatAll("?");
-  //     }
-  //   }
-  // }
   return Plugin_Handled;
-}
-
-public bool tracedonthitself(int entity, int contentsMask, any data) {
-  if (entity == data && data > 0 && data <= MAXPLAYERS) return false;
-  return true;
 }
 
 public Action CommandToggleReplayMode(int client, int args) {
@@ -870,6 +808,7 @@ public void OnMapStart() {
   BotReplay_MapStart();
   HoloNade_MapStart();
   GrenadeAccuracy_MapStart();
+  Breakables_MapStart();
   // Learn_MapStart();
 }
 
@@ -1066,7 +1005,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     } else if (g_ClientPulledPin[client] && !((buttons & IN_ATTACK) || (buttons & IN_ATTACK2))) {
         g_ClientPulledPinButtons[client] = buttons;
         g_ClientPulledPin[client] = false;
-        PrintToChatAll("G_saved.");
+        PrintToConsole(client, "G_saved.");
     }
     if (g_ClientPulledPin[client]) {
       float exxvel[3];
@@ -1074,12 +1013,12 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
       // PrintToChatAll("vel : %f", GetVectorDotProduct(exxvel, exxvel));
       if (GetVectorDotProduct(exxvel, exxvel) > 0.01) {
         if (!g_nadeBotRecord[client]) {
-          PrintToChatAll("G_start.");
+          PrintToConsole(client, "G_start.");
           g_nadeBotRecord[client] = true;
         }
-        PrintToChatAll("G_record.");
+        PrintToConsole(client, "G_record.");
       } else {
-        PrintToChatAll("G_cancel.");
+        PrintToConsole(client, "G_cancel.");
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
         GetClientEyeAngles(client, g_LastGrenadePinPulledAngles[client]);
         g_nadeBotRecord[client] = false;
@@ -1418,23 +1357,19 @@ public void DelayedOnEntitySpawned(int entity) {
             continue;
           }
 
-          if (GetSetting(client, UserSetting_NoGrenadeTrajectory)) {
-            continue;
-          }
-
           // Note: the technique using temporary entities is taken from InternetBully's NadeTails
           // plugin which you can find at https://forums.alliedmods.net/showthread.php?t=240668
           float time = (GetClientTeam(i) == CS_TEAM_SPECTATOR) ? g_GrenadeSpecTimeCvar.FloatValue
                                                                : g_GrenadeTimeCvar.FloatValue;
 
-          int colors[4];
-          colors[0] = GetRandomInt(0, 255);
-          colors[1] = GetRandomInt(0, 255);
-          colors[2] = GetRandomInt(0, 255);
-          colors[3] = 255;
+          // int colors[4];
+          // colors[0] = GetRandomInt(0, 255);
+          // colors[1] = GetRandomInt(0, 255);
+          // colors[2] = GetRandomInt(0, 255);
+          // colors[3] = 255;
 
           TE_SetupBeamFollow(entity, g_BeamSprite, 0, time, g_GrenadeThicknessCvar.FloatValue * 5,
-                             g_GrenadeThicknessCvar.FloatValue * 5, 1, colors);
+                             g_GrenadeThicknessCvar.FloatValue * 5, 1, { 0, 255, 255, 255 });
           TE_SendToClient(i);
         }
       }
@@ -1538,9 +1473,7 @@ public void GrenadeDetonateTimerHelper(Event event, const char[] grenadeName) {
       if (EntRefToEntIndex(ref) == entity) {
         float dt = GetEngineTime() - view_as<float>(g_ClientGrenadeThrowTimes[client].Get(i, 1));
         g_ClientGrenadeThrowTimes[client].Erase(i);
-        if (GetSetting(client, UserSetting_ShowAirtime)) {
-          PM_Message(client, "Tiempo en aire de %s: %.1f segundos", grenadeName, dt);
-        }
+        PM_Message(client, "Tiempo en aire de %s: %.1f segundos", grenadeName, dt);
         ForceGlow(entity);
         break;
       }
@@ -1870,6 +1803,7 @@ stock void ShowHelpInfo(int client, int page = 1) {
     PM_Message(client, "{GREEN}.flash: {PURPLE}Guarda tu posicion para probar una flash");
     PM_Message(client, "{GREEN}.last: {PURPLE}Ve a tu último lineup");
     PM_Message(client, "{GREEN}.clear: {PURPLE}Limpia instantáneamente los humos y molos");
+    PM_Message(client, "{GREEN}.clearmap: {PURPLE}Resetea los vidrios, puertas y objetos del mapa");
     PM_Message(client, "{GREEN}.map: {PURPLE}Menú de cambio de mapa");
     PM_Message(client, "{GREEN}.bots: {PURPLE}Muestra el menu de los bots");
     PM_Message(client, "{ORANGE}Con una Granada Equipada:");
