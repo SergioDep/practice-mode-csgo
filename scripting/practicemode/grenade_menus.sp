@@ -38,10 +38,9 @@ public int NadesMenuHandler(Menu menu, MenuAction action, int client, int param2
     char buffer[OPTION_NAME_LENGTH];
     menu.GetItem(param2, buffer, sizeof(buffer));
     
-    
     if (StrEqual(buffer, "savenade")) {
       g_WaitForSaveNade[client] = true;
-      PM_Message(client, "{ORANGE}Ingrese el nombre de la granada a guardar:");
+      PM_Message(client, "{ORANGE}Ingrese el nombre de la granada a guardar. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
     } else if (StrEqual(buffer, "filternades")) {
       g_ClientLastMenuGrenadeTypeFilter[client] += GrenadeType_Smoke;
       if (g_ClientLastMenuGrenadeTypeFilter[client] == GrenadeType_Decoy)

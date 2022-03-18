@@ -1,3 +1,50 @@
+public Action PMBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
+  if (g_BotMindControlOwner[client] > 0) {
+    int controller = g_BotMindControlOwner[client];
+    if (IsPlayer(controller)) {
+      if (IsPlayerAlive(controller) && IsPlayerAlive(client)) {
+        int playerButtons = GetClientButtons(controller);
+
+        if (playerButtons & IN_FORWARD) vel[0] = 250.0;
+        else if (playerButtons & IN_BACK) vel[0] = -250.0;
+
+        if (playerButtons & IN_MOVERIGHT) vel[1] = 250.0;
+        else if (playerButtons & IN_MOVELEFT) vel[1] = -250.0;
+
+        if(playerButtons & IN_JUMP){
+          buttons &= ~IN_JUMP;
+        }
+        if ((playerButtons & IN_ATTACK) || (playerButtons & IN_ATTACK2)) {
+          g_BotMindControlOwner[client] = -1;
+          return Plugin_Changed;
+        }
+
+        float botOrigin[3], contAngles[3];
+        GetClientEyeAngles(controller, contAngles);
+        GetClientAbsOrigin(client, botOrigin);
+        g_BotSpawnAngles[client] = contAngles;
+        g_BotSpawnOrigin[client] = botOrigin;
+        TeleportEntity(client, NULL_VECTOR, contAngles, NULL_VECTOR);
+
+        return Plugin_Changed;
+      }
+    }
+  }
+
+  if (g_BotCrouch[client]) {
+    buttons |= IN_DUCK;
+  } else {
+    buttons &= ~IN_DUCK;
+  }
+  if (g_BotJump[client]) {
+    buttons |= IN_JUMP;
+    g_BotJump[client] = false;
+  }
+  TeleportEntity(client, NULL_VECTOR, g_BotSpawnAngles[client], NULL_VECTOR);
+
+  return Plugin_Continue;
+}
+
 stock void CreateBot(int client) {
   if (g_ClientBots[client].Length >= g_MaxPlacedBotsCvar.IntValue) {
     PM_Message(
@@ -85,7 +132,9 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     RemoveSkin(victim);
     int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
     CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
-    CreateTimer(g_BotRespawnTimeCvar.FloatValue, Timer_RespawnBot, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(g_BotRespawnTimeCvar.FloatValue, Timer_RespawnClient, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+  } else if (IsPlayer(victim)) {
+    CreateTimer(1.5, Timer_RespawnClient, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
   }
   return Plugin_Continue;
 }
@@ -97,13 +146,13 @@ public Action Timer_RemoveRagdoll(Handle timer, int ref) {
     return Plugin_Handled;
 }
 
-public Action Timer_RespawnBot(Handle timer, int serial) {
+public Action Timer_RespawnClient(Handle timer, int serial) {
   if (!g_InPracticeMode) {
     return Plugin_Stop;
   }
 
   int client = GetClientFromSerial(serial);
-  if (IsPMBot(client) && !IsPlayerAlive(client)) {
+  if (IsValidClient(client) && !IsPlayerAlive(client)) {
     bool respawn = true;
     if (GetClientTeam(client) == CS_TEAM_CT) {
       respawn = !!GetCvarIntSafe("mp_respawn_on_death_ct", true);
@@ -114,36 +163,12 @@ public Action Timer_RespawnBot(Handle timer, int serial) {
       CS_RespawnPlayer(client);
       return Plugin_Stop;
     }
-    PrintToServer("Timer_RespawnBot - %d", client);
+    PrintToServer("Timer_RespawnClient - %d", client);
     return Plugin_Continue;
   }
 
   return Plugin_Stop;
 }
-
-// // move to Event_PlayerDeath ?
-// public Action Timer_RespawnBots(Handle timer) {
-//   if (!g_InPracticeMode) {
-//     return Plugin_Continue;
-//   }
-
-//   for (int i = 1; i <= MaxClients; i++) {
-//     if (IsPMBot(i) && !IsPlayerAlive(i)) {
-//       bool respawn = true;
-//       if (GetClientTeam(i) == CS_TEAM_CT) {
-//         respawn = !!GetCvarIntSafe("mp_respawn_on_death_ct", true);
-//       } else if (GetClientTeam(i) == CS_TEAM_T) {
-//         respawn = !!GetCvarIntSafe("mp_respawn_on_death_t", true);
-//       }
-
-//       float dt = GetGameTime() - g_BotDeathTime[i];
-//       if (respawn && dt >= g_BotRespawnTimeCvar.FloatValue) {
-//         CS_RespawnPlayer(i);
-//       }
-//     }
-//   }
-//   return Plugin_Continue;
-// }
 
 public int SelectBotNumber(int client) {
   if (g_ClientBots[client].Length == 0) {
@@ -167,7 +192,7 @@ public int SelectBotNumber(int client) {
   return -1;
 }
 
-bool IsPMBot(int client) {
+public bool IsPMBot(int client) {
   return client > 0 && g_IsPMBot[client] && IsClientInGame(client) && IsFakeClient(client);
 }
 

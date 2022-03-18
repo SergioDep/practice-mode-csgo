@@ -297,6 +297,57 @@ public Action Timer_ResetTimescale(Handle timer) {
   return Plugin_Handled;
 }
 
+public Action Command_Kick(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  if (!IsPracticeSetupClient(client)) {
+    return Plugin_Handled;
+  }
+  char arg[PLATFORM_MAX_PATH];
+  if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
+    // Before trying to change to the arg first, check to see if
+    // there's a clear match in the players list
+    for (int i = 1; i <= MAXPLAYERS; i++) {
+      if (IsPlayer(i)) {
+        char playerName[MAX_NAME_LENGTH];
+        GetClientName(i, playerName, sizeof(playerName));
+        if (StrEqual(playerName, arg)) {
+          KickClient(i, "Kickeado Por %N", client);
+          PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", i);
+          return Plugin_Handled;
+        }
+      }
+    }
+  }
+  Menu menu = new Menu(KickPlayersMenuHandler);
+  menu.ExitButton = true;
+  menu.ExitBackButton = true;
+  menu.SetTitle("Kickear Jugador:");
+  for (int i = 0; i <= MAXPLAYERS; i++) {
+    if (IsPlayer(i)) {
+      char playerName[MAX_NAME_LENGTH];
+      GetClientName(i, playerName, sizeof(playerName));
+      AddMenuInt(menu, i, playerName);
+    }
+  }
+  DisplayMenu(menu, client, MENU_TIME_FOREVER);
+  return Plugin_Handled;
+}
+
+public int KickPlayersMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    int kickedPlayer = GetMenuInt(menu, item);
+    KickClient(kickedPlayer, "Kickeado por %N", client);
+    PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", kickedPlayer);
+  } else if (action == MenuAction_Cancel && item == MenuCancel_ExitBack) {
+    PracticeSetupMenu(client);
+  } else if (action == MenuAction_End) {
+    delete menu;
+  }
+  return 0;
+}
+
 public Action Command_Map(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -339,6 +390,8 @@ public int ChangeMapHandler(Menu menu, MenuAction action, int param1, int param2
     char map[PLATFORM_MAX_PATH];
     g_MapList.GetString(index, map, sizeof(map));
     ChangeMap(map);
+  } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
+    PracticeSetupMenu(param1);
   } else if (action == MenuAction_End) {
     delete menu;
   }

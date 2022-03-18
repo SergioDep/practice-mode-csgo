@@ -171,6 +171,7 @@ char nadelist[128] = "weapon_hegrenade weapon_smokegrenade weapon_flashbang weap
 ArrayList g_ClientBots[MAXPLAYERS + 1];  // Bots owned by each client.
 char g_PMBotStartName[MAXPLAYERS + 1][MAX_NAME_LENGTH]; // Used for kicking them, otherwise they rejoin
 bool g_IsPMBot[MAXPLAYERS + 1];
+bool g_IsRetakeBot[MAXPLAYERS + 1];
 float g_BotSpawnOrigin[MAXPLAYERS + 1][3];
 int g_BotPlayerModels[MAXPLAYERS + 1] = {-1, ...};
 int g_BotPlayerModelsIndex[MAXPLAYERS + 1] = {-1, ...};
@@ -247,8 +248,10 @@ Handle g_OnPracticeModeSettingsRead = INVALID_HANDLE;
 #include "practicemode/backups.sp"
 #include "practicemode/bots.sp"
 #include "practicemode/bots_menu.sp"
+
 #include "practicemode/commands.sp"
 #include "practicemode/debug.sp"
+
 #include "practicemode/grenade_commands.sp"
 #include "practicemode/grenade_filters.sp"
 #include "practicemode/grenade_menus.sp"
@@ -257,12 +260,19 @@ Handle g_OnPracticeModeSettingsRead = INVALID_HANDLE;
 #include "practicemode/grenade_hologram.sp"
 #include "practicemode/grenade_prediction.sp"
 #include "practicemode/learn.sp"
+
 #include "practicemode/natives.sp"
 #include "practicemode/pugsetup_integration.sp"
 #include "practicemode/spawns.sp"
 #include "practicemode/breakables.sp"
 #include "practicemode/afk_manager.sp"
 #include "practicemode/commands_blocker.sp"
+
+#include "practicemode/retakes.sp"
+#include "practicemode/retakes_editor.sp"
+#include "practicemode/retakes_data.sp"
+#include "practicemode/retakes_menu.sp"
+#include "practicemode/dev_entries.sp"
 
 public Plugin myinfo = {
   name = "Practicemode v2",
@@ -466,6 +476,15 @@ public void OnPluginStart() {
   //   PM_AddChatAlias(".show", "sm_show");
   // }
 
+  // Retakes commands
+  {
+    RegConsoleCmd("sm_retakes_editormenu", Command_RetakesEditorMenu);
+    PM_AddChatAlias(".editretakes", "sm_retakes_editormenu");
+
+    RegConsoleCmd("sm_retakes_setupmenu", Command_RetakesSetupMenu);
+    PM_AddChatAlias(".retakes", "sm_retakes_setupmenu");
+  }
+
   // Other commands
   {
     RegConsoleCmd("sm_testflash", Command_TestFlash);
@@ -597,6 +616,8 @@ public void OnPluginStart() {
   GrenadeAccuracy_PluginStart();
   Breakables_PluginStart();
   AfkManager_PluginStart();
+  Retakes_PluginStart();
+  DevEntries_PluginStart();
 }
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
@@ -625,7 +646,7 @@ public Action Hook_SayText2(UserMsg msg_id, any msg, const int[] players, int pl
 public Action FUNCION_PRUEBA(int client, int args) {
   char buffer[256];
   GetCmdArgString(buffer, sizeof(buffer));
-
+  PM_Message(client, "random 0, 2 %d", GetRandomInt(0,2));
   return Plugin_Handled;
 }
 
@@ -800,8 +821,10 @@ public void OnMapStart() {
   EnforceDirectoryExists("data/practicemode/bots/backups");
   EnforceDirectoryExists("data/practicemode/grenades");
   EnforceDirectoryExists("data/practicemode/grenades/backups");
-  EnforceDirectoryExists("data/practicemode/spawns");
-  EnforceDirectoryExists("data/practicemode/spawns/backups");
+  EnforceDirectoryExists("data/practicemode/retakes");
+  EnforceDirectoryExists("data/practicemode/retakes/backups");
+  EnforceDirectoryExists("data/practicemode/entries");
+  EnforceDirectoryExists("data/practicemode/entries/backups");
   EnforceDirectoryExists("data/practicemode/replays");
   EnforceDirectoryExists("data/practicemode/replays/backups");
 
@@ -840,6 +863,7 @@ public void OnMapStart() {
   GrenadeAccuracy_MapStart();
   Breakables_MapStart();
   AfkManager_MapStart();
+  Retakes_MapStart();
   // Learn_MapStart();
 }
 
@@ -918,6 +942,7 @@ public void OnMapEnd() {
   Spawns_MapEnd();
   BotReplay_MapEnd();
   HoloNade_MapEnd();
+  Retakes_MapEnd();
   delete g_GrenadeLocationsKv;
 }
 
@@ -947,56 +972,13 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     return Plugin_Continue;
   }
 
-  if (IsPMBot(client)) {
-    if (g_BotMindControlOwner[client] > 0) {
-      int controller = g_BotMindControlOwner[client];
-      if (IsPlayer(controller)) {
-        if (IsPlayerAlive(controller) && IsPlayerAlive(client)) {
-          int playerButtons = GetClientButtons(controller);
-
-          if (playerButtons & IN_FORWARD) vel[0] = 250.0;
-          else if (playerButtons & IN_BACK) vel[0] = -250.0;
-
-          if (playerButtons & IN_MOVERIGHT) vel[1] = 250.0;
-          else if (playerButtons & IN_MOVELEFT) vel[1] = -250.0;
-
-          if(playerButtons & IN_JUMP){
-            buttons &= ~IN_JUMP;
-          }
-          if ((playerButtons & IN_ATTACK) || (playerButtons & IN_ATTACK2)) {
-            g_BotMindControlOwner[client] = -1;
-            return Plugin_Changed;
-          }
-
-          float botOrigin[3], contAngles[3];
-          GetClientEyeAngles(controller, contAngles);
-          GetClientAbsOrigin(client, botOrigin);
-          g_BotSpawnAngles[client] = contAngles;
-          g_BotSpawnOrigin[client] = botOrigin;
-          TeleportEntity(client, NULL_VECTOR, contAngles, NULL_VECTOR);
-
-          return Plugin_Changed;
-        }
-      }
-    }
-
-    if (g_BotCrouch[client]) {
-      buttons |= IN_DUCK;
-    } else {
-      buttons &= ~IN_DUCK;
-    }
-
-    if (g_BotJump[client]) {
-      buttons |= IN_JUMP;
-      g_BotJump[client] = false;
-    }
-
-    TeleportEntity(client, NULL_VECTOR, g_BotSpawnAngles[client], NULL_VECTOR);
-
-    return Plugin_Continue;
-  }
-
   if (!IsPlayer(client)) {
+    if (IsPMBot(client)) {
+      return PMBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
+    }
+    if (IsRetakeBot(client)) {
+      return RetakeBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
+    }
     return Plugin_Continue;
   }
 
@@ -1021,6 +1003,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         StartClientTimer(client);
       }
     }
+  }
+
+  if (!IsPlayerAlive(client)) {
+    return Plugin_Continue;
   }
   
   char weaponName[64];
@@ -1484,7 +1470,6 @@ public Action Event_PlayerBlind(Event event, const char[] name, bool dontBroadca
     }
   }
 
-  // TODO: move this into another place (has nothing to do with bots!)
   if (g_ClientNoFlash[victim]) {
     RequestFrame(KillFlashEffect, GetClientSerial(victim));
   }
@@ -1667,16 +1652,30 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
   CleanMsgString(chatCommand, sizeof(chatCommand));
   if (g_WaitForSaveNade[client]) {
     g_WaitForSaveNade[client] = false;
-    SaveClientNade(client, chatCommand);
+    if (StrEqual(chatCommand, "!no")) {
+      PM_Message(client, "{ORANGE}Cancelado.");
+    } else {
+      SaveClientNade(client, chatCommand);
+    }
   } else if (g_WaitForServerPassword && client == g_PracticeSetupClient) {
     g_WaitForServerPassword = false;
     if (StrEqual(chatCommand, "!no")) {
-      PM_Message(client, "Cancelado.");
+      PM_Message(client, "{ORANGE}Cancelado.");
     } else {
       SetConVarString(FindConVar("sv_password"), chatCommand);
       PM_Message(client, "Contraseña Cambiada a \"{ORANGE}%s{NORMAL}\".", chatCommand);
     }
     PracticeSetupMenu(client);
+  } else if(g_WaitForRetakeSave[client]) {
+    g_WaitForRetakeSave[client] = false;
+    if(StrEqual(chatCommand, "!no")) {
+      PM_Message(client, "{ORANGE}Cancelado.");
+    } else {
+      IntToString(GetRetakesNextId(), g_SelectedRetakeId, RETAKE_ID_LENGTH);
+      SetRetakeName(g_SelectedRetakeId, chatCommand);
+      PM_Message(client, "{ORANGE}Retake \"%s\" (retake_%s) creado.", chatCommand, g_SelectedRetakeId);
+      SingleRetakeEditorMenu(client);
+    }
   }
 }
 
@@ -1712,6 +1711,13 @@ public void PracticeSetupMenu(int client) {
     menu.AddItem("changepassword", "Cambiar contraseña\n ", ITEMDRAW_DISABLED);
   }
 
+  menu.AddItem("kickplayers", "Kickear Jugadores");
+  menu.AddItem("changemap", "Cambiar Mapa");
+
+  menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  menu.AddItem("", "", ITEMDRAW_NOTEXT);
+
   char enabled[32];
   GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(8), client);
   Format(buffer, sizeof(buffer), "%s: %s", "Mostrar impactos de bala: ", enabled);
@@ -1730,12 +1736,10 @@ public void PracticeSetupMenu(int client) {
   menu.AddItem("5", buffer);
 
   GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(12), client);
-  Format(buffer, sizeof(buffer), "%s: %s\n ", "Mostrar Spawns: ", enabled);
+  Format(buffer, sizeof(buffer), "%s: %s", "Mostrar Spawns: ", enabled);
   menu.AddItem("12", buffer);
 
-  menu.AddItem("changemap", "Cambiar mapa");
-
-  menu.Pagination = MENU_NO_PAGINATION;
+  // menu.Pagination = MENU_NO_PAGINATION;
   menu.ExitButton = true;
 
   menu.Display(client, MENU_TIME_FOREVER);
@@ -1768,6 +1772,9 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
       ChangeSetting(5, !PM_IsSettingEnabled(5), true);
     } else if (StrEqual(buffer, "12")) {
       ChangeSetting(12, !PM_IsSettingEnabled(12), true);
+    } else if (StrEqual(buffer, "kickplayers")) {
+      Command_Kick(client, 0);
+      return 0;
     } else if (StrEqual(buffer, "changemap")) {
       Command_Map(client, 0);
       return 0;

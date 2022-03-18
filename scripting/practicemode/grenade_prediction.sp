@@ -159,7 +159,7 @@ public void TeleportToObserverPos(int client, const float CenterPoint[3]) {
 
 public Action Timer_WaitForNewGrenade(Handle Timer, int serial) {
   int client = GetClientFromSerial(serial);
-  if (!g_Predict_HoldingReload[client]) {
+  if (!g_Predict_HoldingReload[client] || !IsValidEntity(g_LastGrenadeEntity[client]) || g_LastGrenadeEntity[client] < 0) {
     ClientStopObserveEntities(client);
     return Plugin_Handled;
   }
