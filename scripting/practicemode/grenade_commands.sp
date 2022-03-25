@@ -1,5 +1,5 @@
 public Action Command_SaveNade(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
   char name[GRENADE_NAME_LENGTH];
@@ -11,7 +11,7 @@ public Action Command_SaveNade(int client, int args) {
 }
 
 public Action Command_ImportNade(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
   char code[GRENADE_CODE_LENGTH];
@@ -55,7 +55,7 @@ stock int FindGrenadeWithCode(const char[] code) {
 }
 
 public Action Command_CopyPlayerLastGrenade(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
   
@@ -105,7 +105,7 @@ public int CopyPlayerMenuHandler(Menu menu, MenuAction action, int client, int p
 }
 
 public Action Command_LastGrenade(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -118,7 +118,7 @@ public Action Command_LastGrenade(int client, int args) {
 }
 
 public Action Command_FixGrenades(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -129,7 +129,7 @@ public Action Command_FixGrenades(int client, int args) {
 }
 
 public Action Command_FixGrenadeDetonations(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -140,7 +140,7 @@ public Action Command_FixGrenadeDetonations(int client, int args) {
 }
 
 public Action Command_GrenadeBack(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -166,7 +166,7 @@ public Action Command_GrenadeBack(int client, int args) {
 }
 
 public Action Command_GrenadeForward(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -188,7 +188,7 @@ static void ClientThrowGrenade(int client, const char[] id, float delay = 0.0) {
 }
 
 public Action Command_Throw(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -229,7 +229,7 @@ public Action Command_Throw(int client, int args) {
 }
 
 public Action Command_TestFlash(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
   

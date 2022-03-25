@@ -13,7 +13,6 @@
 #undef REQUIRE_PLUGIN
 #include "botmimic.inc"
 #include "csutils.inc"
-#include "menu-stocks.inc"
 
 #include <get5>
 #include <pugsetup>
@@ -29,6 +28,8 @@
 #define MAX_PASSWORD_LENGTH 32
 
 bool g_InPracticeMode = false;
+bool g_InDryMode = false;
+bool g_InRetakeMode = false;
 bool g_WaitForServerPassword = false;
 bool g_PugsetupLoaded = false;
 bool g_CSUtilsLoaded = false;
@@ -92,14 +93,15 @@ ConVar g_VersionCvar;
 
 // Saved grenade locations data
 #define MAX_GRENADE_SAVES_PLAYER 512
-#define GRENADE_EXECUTION_LENGTH 256
+#define GRENADE_EXECUTION_LENGTH 128
 // #define GRENADE_DESCRIPTION_LENGTH 256
 #define GRENADE_NAME_LENGTH 64
 #define GRENADE_ID_LENGTH 16
 #define AUTH_LENGTH 64
 #define GRENADE_CODE_LENGTH 256
 
-bool g_nadeBotRecord[MAXPLAYERS + 1] = {false, ...};
+
+int g_nadeBotRecord[MAXPLAYERS + 1] = {0, ...}; // 0 = not recording/canceled, 1 = recording, 2 = not recording/saved
 bool g_WaitForSaveNade[MAXPLAYERS + 1] = {false, ...};
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
 KeyValues
@@ -172,6 +174,7 @@ ArrayList g_ClientBots[MAXPLAYERS + 1];  // Bots owned by each client.
 char g_PMBotStartName[MAXPLAYERS + 1][MAX_NAME_LENGTH]; // Used for kicking them, otherwise they rejoin
 bool g_IsPMBot[MAXPLAYERS + 1];
 bool g_IsRetakeBot[MAXPLAYERS + 1];
+bool g_IsHoloNadeBot[MAXPLAYERS + 1];
 float g_BotSpawnOrigin[MAXPLAYERS + 1][3];
 int g_BotPlayerModels[MAXPLAYERS + 1] = {-1, ...};
 int g_BotPlayerModelsIndex[MAXPLAYERS + 1] = {-1, ...};
@@ -346,6 +349,9 @@ public void OnPluginStart() {
     RegConsoleCmd("sm_practicemap", Command_Map);
     PM_AddChatAlias(".map", "sm_practicemap");
 
+    RegConsoleCmd("sm_practicekick", Command_Kick);
+    PM_AddChatAlias(".kick", "sm_practicekick");
+
     RegConsoleCmd("sm_helpinfo", Command_GiveHelpInfo);
     PM_AddChatAlias(".help", "sm_helpinfo");
   }
@@ -376,9 +382,29 @@ public void OnPluginStart() {
     PM_AddChatAlias(".rethrow", "sm_throw");
   }
 
+  // spawns.
+  {
+    RegConsoleCmd("sm_gotospawn", Command_GotoSpawn);
+    PM_AddChatAlias(".spawn", "sm_gotospawn");
+    PM_AddChatAlias(".spawns", "sm_gotospawn");
+
+    RegConsoleCmd("sm_gotoctspawn", Command_GotoCTSpawn);
+    PM_AddChatAlias(".ctspawn", "sm_gotoctspawn");
+    PM_AddChatAlias(".ctspawns", "sm_gotoctspawn");
+    PM_AddChatAlias(".spawnct", "sm_gotoctspawn");
+    PM_AddChatAlias(".spawnsct", "sm_gotoctspawn");
+
+    RegConsoleCmd("sm_gototspawn", Command_GotoTSpawn);
+    PM_AddChatAlias(".tspawn", "sm_gototspawn");
+    PM_AddChatAlias(".tspawns", "sm_gototspawn");
+    PM_AddChatAlias(".spawnt", "sm_gototspawn");
+    PM_AddChatAlias(".spawnst", "sm_gototspawn");
+  }
+
   // Menus
   {
     RegConsoleCmd("sm_botsmenu", Command_BotsMenu);
+    PM_AddChatAlias(".bot", "sm_botsmenu");
     PM_AddChatAlias(".bots", "sm_botsmenu");
     PM_AddChatAlias(".botsmenu", "sm_botsmenu");
 
@@ -393,6 +419,7 @@ public void OnPluginStart() {
     PM_AddChatAlias(".nobots", "sm_removeallbots");
 
     RegConsoleCmd("sm_prueba", FUNCION_PRUEBA);
+    PM_AddChatAlias(".prueba", "sm_prueba");
   }
 
   // Bot replay commands
@@ -483,6 +510,7 @@ public void OnPluginStart() {
 
     RegConsoleCmd("sm_retakes_setupmenu", Command_RetakesSetupMenu);
     PM_AddChatAlias(".retakes", "sm_retakes_setupmenu");
+    PM_AddChatAlias(".retake", "sm_retakes_setupmenu");
   }
 
   // Other commands
@@ -604,12 +632,15 @@ public void OnPluginStart() {
   HookEvent("player_death", Event_PlayerDeath);
   HookEvent("round_freeze_end", Event_FreezeEnd);
   HookEvent("round_start", Event_RoundStart, EventHookMode_PostNoCopy);
+  HookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
+  HookEvent("player_disconnect", Event_PlayerDisconnect, EventHookMode_Pre);
   HookUserMessage(GetUserMessageId("SayText2"), Hook_SayText2, true);
 
   g_PugsetupLoaded = LibraryExists("pugsetup");
   g_CSUtilsLoaded = LibraryExists("csutils");
 
-  CreateTimer(1.0, Timer_CleanupLivingBots, _, TIMER_REPEAT);
+  // why am i killing them
+  // CreateTimer(1.0, Timer_CleanupLivingBots, _, TIMER_REPEAT);
 
   CommandsBlocker_PluginStart();
   HoloNade_PluginStart();
@@ -623,7 +654,34 @@ public void OnPluginStart() {
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
   UpdateHoloNadeEntities();
   UpdateHoloSpawnEntities();
+  if (g_InRetakeMode) {
+    Event_Retakes_RoundStart(event, name, dontBroadcast);
+  }
   return Plugin_Continue;
+}
+
+public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
+  if (g_InRetakeMode) {
+    Event_Retakes_RoundEnd(event, name, dontBroadcast);
+  }
+  return Plugin_Continue;
+}
+
+public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBroadcast) {
+    int client = GetClientOfUserId(event.GetInt("userid"));
+    if (IsRetakeBot(client)) {
+      SetEventBroadcast(event, true);
+      return Plugin_Continue;
+    }
+    if (IsPMBot(client)) {
+      SetEventBroadcast(event, true);
+      return Plugin_Continue;
+    }
+    if (IsReplayBot(client)) {
+      SetEventBroadcast(event, true);
+      return Plugin_Continue;
+    }
+    return Plugin_Continue;
 }
 
 public Action Hook_SayText2(UserMsg msg_id, any msg, const int[] players, int playersNum, bool reliable, bool init) {
@@ -644,9 +702,6 @@ public Action Hook_SayText2(UserMsg msg_id, any msg, const int[] players, int pl
 }
 
 public Action FUNCION_PRUEBA(int client, int args) {
-  char buffer[256];
-  GetCmdArgString(buffer, sizeof(buffer));
-  PM_Message(client, "random 0, 2 %d", GetRandomInt(0,2));
   return Plugin_Handled;
 }
 
@@ -680,7 +735,7 @@ public Action CommandTogglePauseMode(int client, int args) {
         PM_Message(client, "Empieza una repetición primero!");
         return Plugin_Handled;
     }
-    if (!versusMode) {
+    if (versusMode) {
         PM_Message(client, "Cambia el modo de repetición a espectador primero!");
         return Plugin_Handled;
     }
@@ -732,17 +787,25 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 
   int client = GetClientOfUserId(event.GetInt("userid"));
   if (IsPlayer(client)) {
-    if (g_PracticeSetupClient == -2 && IsPlayerAlive(client) && GetClientTeam(client) >= CS_TEAM_T) {
-      LogMessage("Give Setup to Client %d", client);
-      g_PracticeSetupClient = client;
-      ServerCommand("mp_restartgame 1");
-      CreateTimer(2.0, Timer_FirstPlayerJoin, GetClientSerial(client));
+    if (g_PracticeSetupClient == -2) { //&& IsPlayerAlive(client) && GetClientTeam(client) >= CS_TEAM_T
+      if (IsPlayerAlive(client) && GetClientTeam(client) >= CS_TEAM_T) {
+        ServerCommand("bot_kick");
+        ServerCommand("mp_warmup_end");
+        LogMessage("Give Setup to Client %d", client);
+        g_PracticeSetupClient = client;
+        PracticeSetupMenu(client);
+        ShowHelpInfo(client);
+      } else {
+        // Fix so when adding the first bot the match doesnt restart
+        ServerCommand("mp_restartgame 1");
+        ServerCommand("bot_add_ct");
+        ServerCommand("bot_add_t");
+      }
     }
     if (g_SavedRespawnActive[client]) {
       TeleportEntity(client, g_SavedRespawnOrigin[client], g_SavedRespawnAngles[client], NULL_VECTOR);
     }
-  }
-  if (IsPMBot(client)) {
+  } else if (IsPMBot(client)) {
     GiveBotParams(client);
     if (g_GlowPMBotsCvar.IntValue != 0) {
       RemoveSkin(client);
@@ -757,23 +820,6 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
   }
 
   return Plugin_Continue;
-}
-
-public Action Timer_FirstPlayerJoin(Handle Timer, int serial) {
-  ServerCommand("mp_warmup_end");
-  ServerCommand("mp_restartgame 2");
-  int client = GetClientFromSerial(serial);
-  SetEntityMoveType(client, MOVETYPE_NONE);
-  CreateTimer(2.5, Timer_FirstPlayerJoin2, serial);
-  return Plugin_Handled;
-}
-
-public Action Timer_FirstPlayerJoin2(Handle Timer, int serial) {
-  int client = GetClientFromSerial(serial);
-  SetEntityMoveType(client, MOVETYPE_WALK);
-  PracticeSetupMenu(client);
-  ShowHelpInfo(client);
-  return Plugin_Handled;
 }
 
 public void OnClientConnected(int client) {
@@ -791,6 +837,8 @@ public void OnClientConnected(int client) {
   g_SavedRespawnActive[client] = false;
   g_LastGrenadeType[client] = GrenadeType_None;
   g_LastGrenadeEntity[client] = -1;
+  g_CurrentEditingRole[client] = -1;
+  g_ReplayId[client] = "";
   CheckAutoStart();
 }
 
@@ -902,8 +950,10 @@ public void CheckAutoStart() {
 
 public void OnClientDisconnect(int client) {
   MaybeWriteNewGrenadeData();
-  if (g_IsPMBot[client]) {
+  if (g_IsPMBot[client] || g_IsRetakeBot[client] || g_IsHoloNadeBot[client]) {
     g_IsPMBot[client] = false;
+    g_IsRetakeBot[client] = false;
+    g_IsHoloNadeBot[client] = false;
     return;
   }
   if (g_PracticeSetupClient == client) {
@@ -946,7 +996,7 @@ public void OnMapEnd() {
   delete g_GrenadeLocationsKv;
 }
 
-static void MaybeWriteNewGrenadeData() {
+public void MaybeWriteNewGrenadeData() {
   if (g_UpdatedGrenadeKv) {
     g_GrenadeLocationsKv.Rewind();
     BackupFiles("grenades");
@@ -973,12 +1023,15 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
   }
 
   if (!IsPlayer(client)) {
-    if (IsPMBot(client)) {
-      return PMBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
-    }
     if (IsRetakeBot(client)) {
       return RetakeBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
+    } else if (IsPMBot(client)) {
+      return PMBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
     }
+    return Plugin_Continue;
+  }
+
+  if (g_InRetakeMode) {
     return Plugin_Continue;
   }
 
@@ -1017,33 +1070,46 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
         GetClientEyeAngles(client, g_LastGrenadePinPulledAngles[client]);
         g_ClientPulledPinButtons[client] = 0;
-        if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
-          PrintHintText(client, "Presione [E] Para Cambiar de Modo");
-          // SetHudTextParams(-1.0, 0.8, 1.0, 64, 200, 64, 0, 1, 0.0, 0.0, 0.0);
-          // ShowSyncHudText(client, HudSync, "Presione [E] Para Cambiar de Modo");
-        }
         g_ClientPulledPin[client] = true;
     } else if (g_ClientPulledPin[client] && !((buttons & IN_ATTACK) || (buttons & IN_ATTACK2))) {
         g_ClientPulledPinButtons[client] = buttons;
         g_ClientPulledPin[client] = false;
-        PrintToConsole(client, "G_saved.");
+        if (g_nadeBotRecord[client] == 1) {
+          if (BotMimic_IsPlayerRecording(client)) {
+            PM_Message(client, "lastbuttons: %d", buttons);
+            int serial = GetClientSerial(client);
+            CreateTimer(0.5, Timer_HoloNadeBot_PauseRecording, serial);
+          }
+        }
     }
     if (g_ClientPulledPin[client]) {
+      if (g_nadeBotRecord[client] == 0) {
+        if (BotMimic_IsPlayerRecording(client)) {
+          BotMimic_StopRecording(client, false); // delete
+        }
+        char recordName[128];
+        Format(recordName, sizeof(recordName), "player %N %s", client, weaponName);
+        // char clientAuth[AUTH_LENGTH];
+        // GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
+        // ReplaceString(clientAuth, sizeof(clientAuth), ":", "_"); // windows file
+        g_CurrentRecordingStartTime[client] = GetGameTime();
+        BotMimic_StartRecording(client, recordName, "practicemode", _, 600);
+        g_nadeBotRecord[client] = 1;
+      }
       float exxvel[3];
       Entity_GetAbsVelocity(client, exxvel);
       // PrintToChatAll("vel : %f", GetVectorDotProduct(exxvel, exxvel));
-      if (GetVectorDotProduct(exxvel, exxvel) > 0.01) {
-        if (!g_nadeBotRecord[client]) {
-          PrintToConsole(client, "G_start.");
-          g_nadeBotRecord[client] = true;
-        }
-        PrintToConsole(client, "G_record.");
-      } else {
-        PrintToConsole(client, "G_cancel.");
+      if (GetVectorDotProduct(exxvel, exxvel) <= 0.01) {
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
         GetClientEyeAngles(client, g_LastGrenadePinPulledAngles[client]);
-        g_nadeBotRecord[client] = false;
       }
+    }
+  } else {
+    if (g_nadeBotRecord[client] == 1) {
+      if (BotMimic_IsPlayerRecording(client)) {
+        BotMimic_StopRecording(client, false); // delete
+      }
+      g_nadeBotRecord[client] = 0;
     }
   }
   NadePrediction_PlayerRunCmd(client, buttons, weaponName);
@@ -1089,6 +1155,12 @@ public Action Command_SetPos(int client, const char[] command, int argc) {
 }
 
 public Action Command_ToggleBuyMenu(int client, const char[] command, int argsc) {
+  if (!g_InPracticeMode) {
+    return Plugin_Continue;
+  }
+  if (g_InDryMode) {
+    return Plugin_Continue;
+  }
   int maxMoney = GetCvarIntSafe("mp_maxmoney", 16000);
   if (g_InfiniteMoneyCvar.IntValue != 0) {
     if (IsPlayer(client)) {
@@ -1114,6 +1186,11 @@ public void PerformNoclipAction(int client) {
   // by saving the frame count of each use in g_LastNoclipCommand.
   if (g_LastNoclipCommand[client] == GetGameTickCount() ||
       (g_AllowNoclipCvar.IntValue == 0 && GetCvarIntSafe("sv_cheats") == 0)) {
+    return;
+  }
+
+  if (!PM_IsSettingEnabled(9)) {
+    SetEntityMoveType(client, MOVETYPE_WALK);
     return;
   }
 
@@ -1296,9 +1373,11 @@ public void ExitPracticeMode() {
   Call_Finish();
 
   for (int i = 1; i <= MaxClients; i++) {
-    if (IsClientInGame(i) && IsFakeClient(i) && g_IsPMBot[i]) {
+    if (IsClientInGame(i) && IsFakeClient(i) && (g_IsPMBot[i] || g_IsRetakeBot[i] || g_IsHoloNadeBot[i])) {
       KickClient(i);
       g_IsPMBot[i] = false;
+      g_IsRetakeBot[i] = false;
+      g_IsHoloNadeBot[i] = false;
     }
   }
 
@@ -1551,6 +1630,30 @@ public Action Timer_FakeGrenadeBack(Handle timer, int serial) {
   return Plugin_Handled;
 }
 
+public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast) {
+  int victim = GetClientOfUserId(event.GetInt("userid"));
+  if (IsPlayer(victim)) {
+    if (g_InRetakeMode) {
+      int index = g_RetakePlayers.FindValue(victim);
+      if (index != -1) {
+        g_RetakeDeathPlayersCount++;
+        if (g_RetakeDeathPlayersCount == g_RetakePlayers.Length) {
+          EndSetupRetake(false);
+        }
+      }
+    }
+    CreateTimer(1.5, Timer_RespawnClient, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+  } else {
+    if (IsPMBot(victim)) {
+      return Event_PMBot_Death(victim, event, name, dontBroadcast);
+    }
+    if (IsRetakeBot(victim)) {
+      return Event_RetakeBot_Death(victim, event, name, dontBroadcast);
+    }
+  }
+  return Plugin_Continue;
+}
+
 public Action Event_FreezeEnd(Event event, const char[] name, bool dontBroadcast) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -1695,7 +1798,7 @@ public Action Command_GivePracticeSetupMenu(int client, int args) {
   return Plugin_Handled;
 }
 
-public void PracticeSetupMenu(int client) {
+stock void PracticeSetupMenu(int client, int pos = 0) {
   Menu menu = new Menu(PracticeSetupMenuHandler);
   menu.SetTitle("Configuración del Servidor");
 
@@ -1711,12 +1814,11 @@ public void PracticeSetupMenu(int client) {
     menu.AddItem("changepassword", "Cambiar contraseña\n ", ITEMDRAW_DISABLED);
   }
 
-  menu.AddItem("kickplayers", "Kickear Jugadores");
-  menu.AddItem("changemap", "Cambiar Mapa");
+  menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  menu.AddItem("", "", ITEMDRAW_NOTEXT);
 
-  menu.AddItem("", "", ITEMDRAW_NOTEXT);
-  menu.AddItem("", "", ITEMDRAW_NOTEXT);
-  menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  menu.AddItem("changemap", "Cambiar Mapa");
+  menu.AddItem("kickplayers", "Kickear Jugadores");
 
   char enabled[32];
   GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(8), client);
@@ -1739,14 +1841,19 @@ public void PracticeSetupMenu(int client) {
   Format(buffer, sizeof(buffer), "%s: %s", "Mostrar Spawns: ", enabled);
   menu.AddItem("12", buffer);
 
+  GetEnabledString(enabled, sizeof(enabled), g_BinaryOptionEnabled.Get(9), client);
+  Format(buffer, sizeof(buffer), "%s: %s", "Noclip: ", enabled);
+  menu.AddItem("9", buffer);
+
   // menu.Pagination = MENU_NO_PAGINATION;
   menu.ExitButton = true;
 
-  menu.Display(client, MENU_TIME_FOREVER);
+  menu.DisplayAt(client, pos, MENU_TIME_FOREVER);
 }
 
 public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, int param2) {
   if (action == MenuAction_Select) {
+    int menuPos = 0;
     char buffer[OPTION_NAME_LENGTH];
     menu.GetItem(param2, buffer, sizeof(buffer));
 
@@ -1762,24 +1869,29 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
     } else if (StrEqual(buffer, "changepassword")) {
         PM_Message(client, "{ORANGE}Escriba la nueva contraseña. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
         g_WaitForServerPassword = true;
-    } else if (StrEqual(buffer, "8")) {
-      ChangeSetting(8, !PM_IsSettingEnabled(8), true);
-    } else if (StrEqual(buffer, "3")) {
-      ChangeSetting(3, !PM_IsSettingEnabled(3), true);
-    } else if (StrEqual(buffer, "11")) {
-      ChangeSetting(11, !PM_IsSettingEnabled(11), true);
-    } else if (StrEqual(buffer, "5")) {
-      ChangeSetting(5, !PM_IsSettingEnabled(5), true);
-    } else if (StrEqual(buffer, "12")) {
-      ChangeSetting(12, !PM_IsSettingEnabled(12), true);
     } else if (StrEqual(buffer, "kickplayers")) {
       Command_Kick(client, 0);
       return 0;
     } else if (StrEqual(buffer, "changemap")) {
       Command_Map(client, 0);
       return 0;
+    } else {
+      if (StrEqual(buffer, "8")) {
+        ChangeSetting(8, !PM_IsSettingEnabled(8), true);
+      } else if (StrEqual(buffer, "3")) {
+        ChangeSetting(3, !PM_IsSettingEnabled(3), true);
+      } else if (StrEqual(buffer, "11")) {
+        ChangeSetting(11, !PM_IsSettingEnabled(11), true);
+      } else if (StrEqual(buffer, "5")) {
+        ChangeSetting(5, !PM_IsSettingEnabled(5), true);
+      } else if (StrEqual(buffer, "12")) {
+        ChangeSetting(12, !PM_IsSettingEnabled(12), true);
+      } else if (StrEqual(buffer, "9")) {
+        ChangeSetting(9, !PM_IsSettingEnabled(9), true);
+      }
+      menuPos = 6;
     }
-    PracticeSetupMenu(client);
+    PracticeSetupMenu(client, menuPos);
   } else if (action == MenuAction_End) {
     delete menu;
   }
@@ -1837,7 +1949,13 @@ public Action Command_GiveHelpInfo(int client, int args) {
 
 stock void ShowHelpInfo(int client, int page = 1) {
   if (page == 1) {
-    PM_Message(client, "{GREEN}.setup: {PURPLE}Menu Principal de Administrador del Servidor");
+    char setupClientName[MAX_NAME_LENGTH];
+    if (IsPlayer(g_PracticeSetupClient)) {
+      GetClientName(g_PracticeSetupClient, setupClientName, MAX_NAME_LENGTH);
+    } else {
+      setupClientName = "No Asignado";
+    }
+    PM_Message(client, "{GREEN}.setup: {PURPLE}Menu Para Administrador del Servidor: {ORANGE}%s", setupClientName);
     PM_Message(client, "{GREEN}.menu: {PURPLE}Menu Para todos los Usuarios");
     PM_Message(client, "{GREEN}.save <nombre>: {PURPLE}Guarda tu última granada");
     PM_Message(client, "{GREEN}.copy: {PURPLE}Copia el último lineup de un jugador");

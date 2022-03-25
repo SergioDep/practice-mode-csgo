@@ -351,8 +351,7 @@ public void CaptureEntity(int entity) {
 
   LogDebug(
       "CSU_OnThrowGrenade client=%d, entity=%d, grenadeType=%d, origin=[%f %f %f], velocity=[%f %f %f]",
-      client, entity, grenadeType, origin[0], origin[1], origin[2], velocity[0], velocity[1],
-      velocity[2]);
+      client, entity, grenadeType, origin[0], origin[1], origin[2], velocity[0], velocity[1], velocity[2]);
 }
 
 public void CheckGrenadeType(GrenadeType type) {

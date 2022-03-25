@@ -20,12 +20,12 @@ bool g_StopBotSignal[MAXPLAYERS + 1];
 
 float g_CurrentRecordingStartTime[MAXPLAYERS + 1];
 
-int g_CurrentEditingRole[MAXPLAYERS + 1];
+int g_CurrentEditingRole[MAXPLAYERS + 1] = {-1, ...};
 char g_ReplayId[MAXPLAYERS + 1][REPLAY_ID_LENGTH];
 int g_ReplayBotClients[MAX_REPLAY_CLIENTS];
-bool g_ReplayPlayRoundTimer[MAXPLAYERS + 1];  // TODO: add a client cookie for this
+bool g_ReplayPlayRoundTimer[MAXPLAYERS + 1] = {false, ...};  // TODO: add a client cookie for this
 
-int g_CurrentReplayNadeIndex[MAXPLAYERS + 1];
+int g_CurrentReplayNadeIndex[MAXPLAYERS + 1] = {0, ...};
 ArrayList g_NadeReplayData[MAXPLAYERS + 1];
 
 // TODO: cvar/setting?
@@ -73,9 +73,20 @@ public void Replays_OnThrowGrenade(int client, int entity, GrenadeType grenadeTy
           client,
           "{LIGHT_RED}Advertencia: {NORMAL}Tirar una granada justo despues de empezar la grabación puede no guardarla. {LIGHT_RED}Espera un segundo {NORMAL}despues de empezar la grabacion para tirar la granada.");
     }
+  } else if (g_nadeBotRecord[client] == 2 && BotMimic_IsPlayerRecording(client)) {
+    float delay = GetGameTime() - g_CurrentRecordingStartTime[client];
+    //tododtotododod cacaca pedopedo
+    //setear esto en el archivo de granada
+    
+    if (delay < 1.27) {  // Takes 1.265625s to pull out a grenade.
+      PM_Message(
+          client,
+          "{LIGHT_RED}Advertencia: {NORMAL}Tirar una granada justo despues de empezar la grabación puede no guardarla. {LIGHT_RED}Espera un segundo {NORMAL}despues de empezar la grabacion para tirar la granada.");
+    }
   }
 
   if (BotMimic_IsPlayerMimicing(client)) {
+    PrintToChatAll("test1");
     int index = g_CurrentReplayNadeIndex[client];
     int length = g_NadeReplayData[client].Length;
     if (index < length) {
@@ -152,7 +163,7 @@ public void GetReplayBots() {
 }
 
 public Action Command_Replay(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -203,7 +214,7 @@ void GiveReplayMenuInContext(int client) {
 }
 
 public Action Command_Replays(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -226,7 +237,7 @@ public Action Command_Replays(int client, int args) {
 }
 
 public Action Command_NameReplay(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -251,7 +262,7 @@ public Action Command_NameReplay(int client, int args) {
 }
 
 public Action Command_NameRole(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -280,7 +291,7 @@ public Action Command_NameRole(int client, int args) {
 }
 
 public Action Command_PlayRecording(int client, int args) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
 
@@ -303,6 +314,7 @@ public Action Command_PlayRecording(int client, int args) {
   if (!ReplayExists(g_ReplayId[client])) {
     PM_Message(client, "No existe repetición con id %s.", g_ReplayId[client]);
     g_ReplayId[client] = "";
+    g_CurrentEditingRole[client] = -1;
     return Plugin_Handled;
   }
 
@@ -352,7 +364,7 @@ public void ResetData() {
 }
 
 public void BotMimic_OnPlayerMimicLoops(int client) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return;
   }
 
@@ -365,17 +377,22 @@ public void BotMimic_OnPlayerMimicLoops(int client) {
   } else {
     g_StopBotSignal[client] = true;
   }
+
+  // if (g_IsHoloNadeBot[client]) {
+  //   BotMimic_StopPlayerMimic(client);
+  //   KickClient(client);
+  // }
 }
 
 public Action Timer_CleanupLivingBots(Handle timer) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Continue;
   }
 
   if (g_InBotReplayMode) {
     for (int i = 1; i <= MaxClients; i++) {
       //if (IsReplayBot(i) && !BotMimic_IsPlayerMimicing(i)) {
-      if (IsReplayBot(i) && !BotMimic_IsPlayerMimicing(i)&& !versusMode) {
+      if (IsReplayBot(i) && !BotMimic_IsPlayerMimicing(i) && !versusMode) {
         KillBot(i);
       }
     }
@@ -385,7 +402,7 @@ public Action Timer_CleanupLivingBots(Handle timer) {
 }
 
 public Action Event_ReplayBotDamageDealtEvent(Event event, const char[] name, bool dontBroadcast) {
-  if (!g_InPracticeMode || !g_InBotReplayMode || !g_BotMimicLoaded) {
+  if (!g_InPracticeMode || g_InRetakeMode || !g_InBotReplayMode || !g_BotMimicLoaded) {
     return Plugin_Continue;
   }
 

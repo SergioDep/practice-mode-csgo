@@ -2,6 +2,7 @@
 #include <sdktools>
 
 #define DEFAULT_MENU_LENGTH 128
+#define ZERO_VECTOR {0.0, 0.0, 0.0}
 
 int g_PracticeSetupClient = -2;
 
@@ -56,42 +57,25 @@ stock bool IsPlayer(int client) {
   return IsValidClient(client) && !IsFakeClient(client) && !IsClientSourceTV(client);
 }
 
-stock int GetClosestPlayer(int client, bool enemiesOnly = false) {
-  int clientTeam = GetClientTeam(client);
-  int nearestTarget = -1;
-
-  float nearestDistance = -1.0;
-  float distance;
-
-  for (int target = 1; target <= MaxClients; target++) {
-    if (IsPlayer(target)) {
-      if (client == target || (enemiesOnly && GetClientTeam(target)==clientTeam) || !IsPlayerAlive(target)) {
-          continue;
-      }
-      distance = Entity_GetDistance(client, target);
-      if (distance > nearestDistance && nearestDistance > -1.0) {
-          continue;
-      }
-      float targetEyePos[3];
-      GetClientEyePosition(target, targetEyePos);
-      if (!ClientCanSeePoint(client, targetEyePos)) {
-          continue;
-      }
-      nearestDistance = distance;
-      nearestTarget = target;
-    }
-  }
-  return nearestTarget;
+public bool IsPointVisible(const float start[3], const float end[3]) {
+  TR_TraceRayFilter(start, end, MASK_SHOT_HULL, RayType_EndPoint, Trace_NoPlayersFilter);
+  return TR_GetFraction() == 1.0;
 }
 
-public bool ClientCanSeePoint(int client, const float point[3]) {
-  float clientEyes[3];
+public bool ClientCanSeeClient(int client, int target) {
+  float clientEyes[3], targetEyes[3];
   GetClientEyePosition(client, clientEyes);
-  Handle hTrace = TR_TraceRayFilterEx(clientEyes, point, MASK_VISIBLE, RayType_EndPoint, Base_TraceFilter, client);
-  return TR_DidHit(hTrace);
+  GetClientEyePosition(target, targetEyes);
+  Handle hTrace = TR_TraceRayFilterEx(clientEyes, targetEyes, MASK_SHOT, RayType_EndPoint, Trace_BaseFilter, client);
+  return TR_DidHit(hTrace) && (TR_GetEntityIndex(hTrace) == target);
 }
 
-public bool Base_TraceFilter(int entity, int contentsMask, any data) {
+public bool Trace_NoPlayersFilter(int entity, int contentsMask)
+{
+    return (entity > MaxClients && !(0 < GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity") <= MaxClients));
+}
+
+public bool Trace_BaseFilter(int entity, int contentsMask, any data) {
   if (entity == data) return false;
   return true;
 }
@@ -107,6 +91,19 @@ stock bool IsPracticeSetupClient(int client) {
     }
   }
   return true;
+}
+
+stock void SendVectorToGround(float origin[3]) {
+  if(TR_PointOutsideWorld(origin)){
+    return;
+  }
+  float ground[3];
+  Handle hTrace = TR_TraceRayEx(origin, {90.0,0.0,0.0}, CONTENTS_SOLID, RayType_Infinite);
+  if (TR_DidHit(hTrace)) {
+    TR_GetEndPosition(ground, hTrace);
+    CloseHandle(hTrace);
+    origin[2] = ground[2];
+  }
 }
 
 stock bool IsServerEmpty() {

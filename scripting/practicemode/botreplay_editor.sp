@@ -505,30 +505,38 @@ public Action BotMimic_OnStopRecording(int client, char[] name, char[] category,
       PM_Message(client, "Grabacion de jugador rol %d cancelada.", g_CurrentEditingRole[client] + 1);
       GiveReplayMenuInContext(client);
     }
+    return Plugin_Continue;
   }
 
   return Plugin_Continue;
 }
 
 public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, char[] subdir, char[] file) {
-  if (g_CurrentEditingRole[client] >= 0) {
-    SetRoleFile(g_ReplayId[client], g_CurrentEditingRole[client], file);
-    SetRoleNades(g_ReplayId[client], g_CurrentEditingRole[client], client);
-    SetRoleTeam(g_ReplayId[client], g_CurrentEditingRole[client], GetClientTeam(client));
+  if (g_InBotReplayMode) {
+    if (g_CurrentEditingRole[client] >= 0) {
+      SetRoleFile(g_ReplayId[client], g_CurrentEditingRole[client], file);
+      SetRoleNades(g_ReplayId[client], g_CurrentEditingRole[client], client);
+      SetRoleTeam(g_ReplayId[client], g_CurrentEditingRole[client], GetClientTeam(client));
 
-    if (!g_RecordingFullReplay) {
-      PM_Message(client, "Terminó la grabación de jugador rol %d", g_CurrentEditingRole[client] + 1);
-      GiveReplayMenuInContext(client);
-    } else {
-      if (g_RecordingFullReplayClient == client) {
-        g_CurrentEditingRole[client] = -1;
-        PM_MessageToAll("Terminó la grabación completa de esta repetición.");
-        RequestFrame(ResetFullReplayRecording, GetClientSerial(client));
+      if (!g_RecordingFullReplay) {
+        PM_Message(client, "Terminó la grabación de jugador rol %d", g_CurrentEditingRole[client] + 1);
+        GiveReplayMenuInContext(client);
+      } else {
+        if (g_RecordingFullReplayClient == client) {
+          g_CurrentEditingRole[client] = -1;
+          PM_MessageToAll("Terminó la grabación completa de esta repetición.");
+          RequestFrame(ResetFullReplayRecording, GetClientSerial(client));
+        }
       }
-    }
 
-    MaybeWriteNewReplayData();
+      MaybeWriteNewReplayData();
+    }
+    return;
   }
+
+  PM_Message(client, "saved: current: %d, file %s", g_CurrentSavedGrenadeId[client], file);
+  SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
+  MaybeWriteNewGrenadeData();
 }
 
 public void ResetFullReplayRecording(int serial) {

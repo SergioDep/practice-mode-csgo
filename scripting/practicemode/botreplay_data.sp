@@ -1,31 +1,33 @@
 #define DEFAULT_KEY_LENGTH 64
-
+/*DemosEditorMenu
+*@deprecated */
 stock void GiveMainReplaysMenu(int client, int pos = 0) {
   Menu menu = new Menu(ReplaysMenuHandler);
   menu.SetTitle("Lista de Replays");
-  menu.AddItem("add_new", "Añadir nueva repetición");
-  menu.AddItem("exit", "Salir de modo repetición");
-  DeleteReplayIfEmpty(client);
+  menu.AddItem("add_new", "Grabar Nueva Demo");
+  menu.AddItem("exit", "Salir de modo Demos");
+  // DeleteReplayIfEmpty(client);
 
-  g_ReplayId[client] = "";
+  g_ReplayId[client] = "-1";
   g_CurrentEditingRole[client] = -1;
 
-  char id[REPLAY_ID_LENGTH];
-  char name[REPLAY_NAME_LENGTH];
+  char demo_id[REPLAY_ID_LENGTH];
+  char demo_name[REPLAY_NAME_LENGTH];
   if (g_ReplaysKv.GotoFirstSubKey()) {
     do {
-      g_ReplaysKv.GetSectionName(id, sizeof(id));
-      g_ReplaysKv.GetString("name", name, sizeof(name));
+      g_ReplaysKv.GetSectionName(demo_id, sizeof(demo_id));
+      g_ReplaysKv.GetString("name", demo_name, sizeof(demo_name));
       char display[128];
-      Format(display, sizeof(display), "%s (id %s)", name, id);
-      menu.AddItem(id, display);
+      Format(display, sizeof(display), "Demo N-%s: %s", demo_id, demo_name);
+      menu.AddItem(demo_id, display);
     } while (g_ReplaysKv.GotoNextKey());
     g_ReplaysKv.GoBack();
   }
 
   menu.DisplayAt(client, pos, MENU_TIME_FOREVER);
 }
-
+/*DemosEditorMenuHandler
+*@deprecated */
 public int ReplaysMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
   if (action == MenuAction_Select) {
     int client = param1;

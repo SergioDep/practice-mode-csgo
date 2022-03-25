@@ -163,7 +163,7 @@ public void InitHoloNadeClientSettings(int client) {
 }
 
 public void InitHoloNadeEntities() {
-  if (g_InPracticeMode && !g_HoloNadeEntities.Length) {
+  if (g_InPracticeMode && !g_InRetakeMode && !g_HoloNadeEntities.Length) {
     UpdateHoloNadeEntities();
   }
 }
@@ -172,18 +172,6 @@ public void UpdateHoloNadeEntities() {
   RemoveHoloNadeEntities();
   IterateGrenades(_UpdateHoloNadeEntities_Iterator);
   SetupHoloNadeEntitiesHooks();
-}
-
-stock void SendToGround(float origin[3]) {
-    if(TR_PointOutsideWorld(origin)){
-        return;
-    }
-    float ground[3];
-    Handle hTrace = TR_TraceRayEx(origin, view_as<float>({90.0,0.0,0.0}), CONTENTS_SOLID, RayType_Infinite);
-    if (TR_DidHit(hTrace)) {
-        TR_GetEndPosition(ground, hTrace);
-        origin[2] = ground[2] + GRENADEMODEL_HEIGHT;
-    }
 }
 
 public Action _UpdateHoloNadeEntities_Iterator(
@@ -209,9 +197,10 @@ public Action _UpdateHoloNadeEntities_Iterator(
   float projectedOrigin[3];
   AddVectors(grenadeDetonationOrigin, view_as<float>({0.0, 0.0, GRENADEMODEL_HEIGHT}), projectedOrigin);
   
-  if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary)
-    SendToGround(projectedOrigin);
-  else if (type == GrenadeType_Flash)
+  if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary) {
+    SendVectorToGround(projectedOrigin);
+    projectedOrigin[2] += GRENADEMODEL_HEIGHT;
+  } else if (type == GrenadeType_Flash)
     projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
 
   CreateHoloNadeGroup(projectedOrigin, angles, type, grenadeId);
@@ -398,32 +387,115 @@ public Action GiveNadeMenu(int client, int NadeId) {
 // check
 // menu for each nade, add delete confirmation?
 public int NadeMenuHandler(Menu menu, MenuAction action, int client, int param2) {
-    if (action == MenuAction_Select) {
-        char buffer[OPTION_NAME_LENGTH];
-        char NadeIdStr[64];
-        menu.GetItem(param2, buffer, sizeof(buffer));
-        int NadeId = g_CurrentNadeControl[client];
-        IntToString(NadeId, NadeIdStr, sizeof(NadeIdStr));
-        if (StrEqual(buffer, "goto")) {
-            TeleportToSavedGrenadePosition(client, NadeIdStr);
-            GiveNadeMenu(client, NadeId);
-        } else if (StrEqual(buffer, "delete")) {
-            GiveNadeDeleteConfirmationMenu(client);
-        } else if (StrEqual(buffer, "exportcode")) {
-            ExportClientNade(client, NadeIdStr);
-        } else if (StrEqual(buffer, "throw")) {
-            ThrowGrenade(client, NadeIdStr);
-        }
-    } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
-      if (g_ClientLastMenuType[client] == GrenadeMenuType_NadeGroup) {
-        GiveNadeGroupMenu(client, g_CurrentNadeGroupControl[client]);
-      } else if (g_ClientLastMenuType[client] == GrenadeMenuType_TypeFilter) {
-        GiveNadeFilterMenu(client, g_ClientLastMenuGrenadeTypeFilter[client]);
-      }
-    } else if (action == MenuAction_End) {
-      delete menu;
+  if (action == MenuAction_Select) {
+    char buffer[OPTION_NAME_LENGTH];
+    char NadeIdStr[64];
+    menu.GetItem(param2, buffer, sizeof(buffer));
+    int NadeId = g_CurrentNadeControl[client];
+    IntToString(NadeId, NadeIdStr, sizeof(NadeIdStr));
+    if (StrEqual(buffer, "goto")) {
+      TeleportToSavedGrenadePosition(client, NadeIdStr);
+      GiveNadeMenu(client, NadeId);
+    } else if (StrEqual(buffer, "delete")) {
+      GiveNadeDeleteConfirmationMenu(client);
+    } else if (StrEqual(buffer, "exportcode")) {
+      ExportClientNade(client, NadeIdStr);
+    } else if (StrEqual(buffer, "throw")) {
+      PM_Message(client, "{ORANGE}Start Recording...");
+      HoloNade_ReplayStart(client, NadeIdStr);
+      // ThrowGrenade(client, NadeIdStr);
     }
-    return 0;
+  } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
+    if (g_ClientLastMenuType[client] == GrenadeMenuType_NadeGroup) {
+      GiveNadeGroupMenu(client, g_CurrentNadeGroupControl[client]);
+    } else if (g_ClientLastMenuType[client] == GrenadeMenuType_TypeFilter) {
+      GiveNadeFilterMenu(client, g_ClientLastMenuGrenadeTypeFilter[client]);
+    }
+  } else if (action == MenuAction_End) {
+    delete menu;
+  }
+  return 0;
+}
+
+public void HoloNade_ReplayStart(int client, const char[] idStr) {
+  int nadeId = StringToInt(idStr);
+
+  ServerCommand("bot_quota_mode normal");
+  ServerCommand("bot_add");
+  CreateTimer(0.2, Timer_GetHoloNadeBot, nadeId);
+}
+
+public Action Timer_HoloNadeBot_PauseRecording(Handle timer, int serial) {
+  int client = GetClientFromSerial(serial);
+  if (BotMimic_IsPlayerRecording(client)) {
+    BotMimic_PauseRecording(client);
+    g_nadeBotRecord[client] = 2;
+  }
+  return Plugin_Handled;
+}
+
+public Action Timer_GetHoloNadeBot(Handle timer, int nadeId) {
+  int largestUserid = -1;
+  for (int i = 1; i <= MaxClients; i++) {
+    if (IsValidClient(i) && IsFakeClient(i) && !IsClientSourceTV(i)) {
+      int userid = GetClientUserId(i);
+      if (userid > largestUserid && !g_IsRetakeBot[i] && !IsReplayBot(i) && !g_IsPMBot[i] && !g_IsHoloNadeBot[i]) {
+        largestUserid = userid;
+      }
+    }
+  }
+  if (largestUserid == -1) {
+    LogError("(Timer_GetHoloNadeBot->largestUserid) Error getting bot from nade %d", nadeId);
+    return Plugin_Handled;
+  }
+  int bot = GetClientOfUserId(largestUserid);
+  if (!IsValidClient(bot)) {
+    LogError("(Timer_GetHoloNadeBot->IsValidClient) Error getting bot from nade %d", nadeId);
+    return Plugin_Handled;
+  }
+  char name[MAX_NAME_LENGTH];
+  GetClientName(bot, name, MAX_NAME_LENGTH);
+  Format(name, MAX_NAME_LENGTH, "[GRENADEBOT]%s", name);
+  SetClientName(bot, name);
+  g_IsHoloNadeBot[bot] = true;
+  ChangeClientTeam(bot, CS_TEAM_T);
+  KillBot(bot);
+  CS_RespawnPlayer(bot);
+
+  // Weapons
+  Client_RemoveAllWeapons(bot);
+
+  char filepath[PLATFORM_MAX_PATH + 1];
+  GetClientGrenadeData(nadeId, "record", filepath, sizeof(filepath));
+  // GetRoleNades(id, role, client);
+  DataPack pack = new DataPack();
+  pack.WriteCell(bot);
+  pack.WriteString(filepath);
+  g_CurrentReplayNadeIndex[bot] = 0;
+  RequestFrame(StartHoloNadeBotReplay, pack);
+
+  // float botOrigin[3], botAngles[3];
+  // TeleportEntity(bot, botOrigin, botAngles, {0.0,0.0,0.0});
+
+  return Plugin_Handled;
+}
+
+public void StartHoloNadeBotReplay(DataPack pack) {
+  pack.Reset();
+  int client = pack.ReadCell();
+  char filepath[PLATFORM_MAX_PATH];
+  pack.ReadString(filepath, sizeof(filepath));
+
+  BMError err = BotMimic_PlayRecordFromFile(client, filepath);
+  if (err != BM_NoError) {
+    char errString[128];
+    BotMimic_GetErrorString(err, errString, sizeof(errString));
+    LogError("Error playing record %s on client %d: %s", filepath, client, errString);
+    PrintToChatAll("status2 %s", filepath);
+  }
+  PrintToChatAll("status1 %s", filepath);
+
+  delete pack;
 }
 
 public Action GiveNadeDeleteConfirmationMenu(int client) {

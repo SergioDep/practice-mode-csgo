@@ -1,5 +1,5 @@
 stock void GiveNadesMenu(int client) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return;
   }
   Menu menu = new Menu(NadesMenuHandler);

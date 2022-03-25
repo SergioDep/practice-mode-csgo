@@ -6,7 +6,7 @@ public bool IsPossibleReplayBot(int client) {
   if (!IsValidClient(client) || !IsFakeClient(client) || IsClientSourceTV(client)) {
     return false;
   }
-  return IsFakeClient(client) && !g_IsPMBot[client];
+  return IsFakeClient(client) && !g_IsPMBot[client] && !g_IsRetakeBot[client] && !g_IsHoloNadeBot[client];
 }
 
 public bool IsReplayBot(int client) {

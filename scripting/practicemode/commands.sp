@@ -278,6 +278,9 @@ public Action Command_ClearNades(int client, int args) {
     StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
     AcceptEntityInput(infernoEnt, "Kill");
   }
+
+  // ??
+  g_GrenadeDetonationSaveQueue.Clear();
   
   return Plugin_Handled;
 }
@@ -313,7 +316,7 @@ public Action Command_Kick(int client, int args) {
         char playerName[MAX_NAME_LENGTH];
         GetClientName(i, playerName, sizeof(playerName));
         if (StrEqual(playerName, arg)) {
-          KickClient(i, "Kickeado Por %N", client);
+          KickClient(i);
           PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", i);
           return Plugin_Handled;
         }
@@ -337,13 +340,55 @@ public Action Command_Kick(int client, int args) {
 
 public int KickPlayersMenuHandler(Menu menu, MenuAction action, int client, int item) {
   if (action == MenuAction_Select) {
-    int kickedPlayer = GetMenuInt(menu, item);
-    KickClient(kickedPlayer, "Kickeado por %N", client);
-    PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", kickedPlayer);
+    int kickPlayer = GetMenuInt(menu, item);
+    KickPlayerConfirmationMenu(client, kickPlayer);
   } else if (action == MenuAction_Cancel && item == MenuCancel_ExitBack) {
     PracticeSetupMenu(client);
   } else if (action == MenuAction_End) {
     delete menu;
+  }
+  return 0;
+}
+
+public void KickPlayerConfirmationMenu(int client, int kickPlayer) {
+  if (!IsPlayer(kickPlayer)) {
+    return;
+  }
+  Menu menu = new Menu(KickPlayerMenuHandler);
+  menu.SetTitle("Kickear Jugador: %N ?", kickPlayer);
+
+  menu.ExitBackButton = false;
+  menu.ExitButton = false;
+  menu.Pagination = MENU_NO_PAGINATION;
+
+  char kickIndexStr[16];
+  IntToString(kickPlayer, kickIndexStr, sizeof(kickIndexStr));
+  menu.AddItem("", kickIndexStr, ITEMDRAW_IGNORE);
+
+  for (int i = 0; i < 6; i++) {
+    menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  }
+
+  menu.AddItem("no", "No, cancelar");
+  menu.AddItem("yes", "Si, kickear");
+  menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int KickPlayerMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    char buffer[OPTION_NAME_LENGTH];
+    menu.GetItem(item, buffer, sizeof(buffer));
+    if (StrEqual(buffer, "yes")) {
+      char kickIndexStr[16];
+      menu.GetItem(0, kickIndexStr, sizeof(kickIndexStr));
+      int kickPlayer = StringToInt(kickIndexStr);
+      if (IsPlayer(kickPlayer) && IsPlayer(client)) {
+        KickClient(kickPlayer);
+        PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", kickPlayer);
+      }
+    } else {
+      Command_Kick(client, 0);
+    }
   }
   return 0;
 }
@@ -413,23 +458,54 @@ public Action Command_DryRun(int client, int args) {
     return Plugin_Handled;
   }
 
-  SetCvar("mp_freezetime", g_DryRunFreezeTimeCvar.IntValue);
-  ChangeSettingById("allradar", false);
-  ChangeSettingById("glowbots", false);
-  ChangeSettingById("blockroundendings", false);
-  ChangeSettingById("grenadetrajectory", false);
-  ChangeSettingById("infiniteammo", false);
-  ChangeSettingById("noclip", false);
-  ChangeSettingById("respawning", false);
-  ChangeSettingById("showimpacts", false);
-
-  for (int i = 1; i <= MaxClients; i++) {
-    g_TestingFlash[i] = false;
-    g_SavedRespawnActive[i] = false;
-    g_ClientNoFlash[client] = false;
-    if (IsPlayer(i)) {
-      SetEntityMoveType(i, MOVETYPE_WALK);
+  g_InDryMode = !g_InDryMode;
+  if (g_InDryMode || args >= 1) {
+    int startMoney = 800;
+    float roundTime = 2.0;
+    if (args >= 1) {
+      char startMoneyStr[COMMAND_LENGTH];
+      GetCmdArg(1, startMoneyStr, sizeof(startMoneyStr));
+      startMoney = StringToInt(startMoneyStr);
+      if (args >= 2) {
+        char roundTimeStr[COMMAND_LENGTH];
+        GetCmdArg(2, roundTimeStr, sizeof(roundTimeStr));
+        roundTime = StringToFloat(roundTimeStr);
+      }
     }
+    SetConVarInt(FindConVar("mp_startmoney"), startMoney);
+    SetConVarFloat(FindConVar("mp_roundtime_defuse"), roundTime);
+
+    SetCvar("mp_freezetime", g_DryRunFreezeTimeCvar.IntValue);
+    ChangeSettingById("allradar", false);
+    ChangeSettingById("glowbots", false);
+    ChangeSettingById("blockroundendings", false);
+    ChangeSettingById("grenadetrajectory", false);
+    ChangeSettingById("infiniteammo", false);
+    ChangeSettingById("noclip", false);
+    ChangeSettingById("respawning", false);
+    ChangeSettingById("showimpacts", false);
+    ChangeSettingById("showspawns", false);
+
+    for (int i = 1; i <= MaxClients; i++) {
+      g_TestingFlash[i] = false;
+      g_SavedRespawnActive[i] = false;
+      g_ClientNoFlash[client] = false;
+      if (IsPlayer(i)) {
+        SetEntityMoveType(i, MOVETYPE_WALK);
+      }
+    }
+  } else {
+    SetConVarFloat(FindConVar("mp_roundtime_defuse"), 60.0);
+    SetCvar("mp_freezetime", 0);
+    ChangeSettingById("allradar", true);
+    ChangeSettingById("glowbots", true);
+    ChangeSettingById("blockroundendings", true);
+    ChangeSettingById("grenadetrajectory", true);
+    ChangeSettingById("infiniteammo", true);
+    ChangeSettingById("noclip", true);
+    ChangeSettingById("respawning", true);
+    ChangeSettingById("showimpacts", true);
+    ChangeSettingById("showspawns", true);
   }
 
   ServerCommand("mp_restartgame 1");
@@ -520,7 +596,7 @@ public Action Command_Restart(int client, int args){
   char argString[256];
   GetCmdArgString(argString, sizeof(argString));
   int freezeTime = StringToInt(argString);
-  ServerCommand("mp_freezetime %d", freezeTime);
+  SetCvar("mp_freezetime", freezeTime);
 
   for (int i = 1; i <= MaxClients; i++) {
     g_TestingFlash[i] = false;

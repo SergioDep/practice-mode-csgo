@@ -35,8 +35,9 @@ enum struct BMFileHeader {
  * @param name		The name of the record (anything, not the filename)
  * @param category	The category to put this record in. This is used as a directory filename inside /data/botmimic/%CATEGORY%/%MAP_NAME%/stuff.rec
  * @param subdir	The subdirectory to organize records physically. This isn't used or retrieved back anywhere, just to better manage files by hand. /data/botmimic/%CATEGORY%/%MAP_NAME%/%SUBDIR%/stuff.rec
+ * @param sizelimit Max ticks that will be stored until the first array elements are erased and shifted down (-1 if No Limit).
  */
-native void BotMimic_StartRecording(int client, const char[] name, const char[] category = "", const char[] subdir = "");
+native void BotMimic_StartRecording(int client, const char[] name, const char[] category = "", const char[] subdir = "", int sizelimit = -1);
 
 /**
  * Pause recording the current record.

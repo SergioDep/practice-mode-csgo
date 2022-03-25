@@ -125,17 +125,12 @@ stock void SetupPMBot(
   GetClientWeapon(client, g_BotSpawnWeapon[bot], CLASS_LENGTH);
 }
 
-public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast) {
-  int victim = GetClientOfUserId(event.GetInt("userid"));
-  if (IsPMBot(victim)) {
-    g_BotDeathTime[victim] = GetGameTime();
-    RemoveSkin(victim);
-    int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
-    CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
-    CreateTimer(g_BotRespawnTimeCvar.FloatValue, Timer_RespawnClient, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-  } else if (IsPlayer(victim)) {
-    CreateTimer(1.5, Timer_RespawnClient, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-  }
+public Action Event_PMBot_Death(int victim, Event event, const char[] name, bool dontBroadcast) {
+  g_BotDeathTime[victim] = GetGameTime();
+  RemoveSkin(victim);
+  int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
+  CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
+  CreateTimer(g_BotRespawnTimeCvar.FloatValue, Timer_RespawnClient, GetClientSerial(victim), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
   return Plugin_Continue;
 }
 
@@ -147,7 +142,7 @@ public Action Timer_RemoveRagdoll(Handle timer, int ref) {
 }
 
 public Action Timer_RespawnClient(Handle timer, int serial) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Stop;
   }
 
@@ -163,7 +158,6 @@ public Action Timer_RespawnClient(Handle timer, int serial) {
       CS_RespawnPlayer(client);
       return Plugin_Stop;
     }
-    PrintToServer("Timer_RespawnClient - %d", client);
     return Plugin_Continue;
   }
 
@@ -277,7 +271,7 @@ void GiveBotParams(int bot) {
 // Commands.
 
 public Action Event_BotDamageDealtEvent(Event event, const char[] name, bool dontBroadcast) {
-  if (!g_InPracticeMode) {
+  if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Continue;
   }
 

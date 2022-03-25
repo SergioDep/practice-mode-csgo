@@ -729,109 +729,141 @@ public bool CanEditGrenade(int client, int id) {
   return FindId(strId, ownerAuth, sizeof(ownerAuth)) && StrEqual(clientAuth, ownerAuth, false);
 }
 
-public int GetGrenadeExecutionType(int btns, char[] buffer) {
-  if (btns & IN_FORWARD) {
-    if (btns & IN_SPEED) {
-      //walking ?
-      if (btns & IN_JUMP) {
-        //walking + space
-        return strcopy(buffer, 64, "Walk + W + JumpThrow");
-      } else {
-        //walking
-        return strcopy(buffer, 64, "Walk + W + Throw");
-      }
-    } else if (btns & IN_DUCK) {
-      //crouching
-      if (btns & IN_JUMP) {
-        return strcopy(buffer, 64, "Crouch + W + JumpThrow");
-      } else {
-        return strcopy(buffer, 64, "Crouch + W + Throw");
-      }
-    } else if (btns & IN_JUMP) {
-      //w + space
-      return strcopy(buffer, 64, "W + JumpThrow");
-    }
-  } else if (btns & IN_MOVELEFT) {
-    if (btns & IN_SPEED) {
-      //walking ?
-      if (btns & IN_JUMP) {
-        //walking + space
-        return strcopy(buffer, 64, "Walk + A + JumpThrow");
-      } else {
-        //walking
-        return strcopy(buffer, 64, "Walk + A + Throw");
-      }
-    } else if (btns & IN_DUCK) {
-      //crouching
-      if (btns & IN_JUMP) {
-        return strcopy(buffer, 64, "Crouch + A + JumpThrow");
-      } else {
-        return strcopy(buffer, 64, "Crouch + A + Throw");
-      }
-    } else if (btns & IN_JUMP) {
-      //w + space
-      return strcopy(buffer, 64, "A + JumpThrow");
-    }
-  } else if (btns & IN_MOVERIGHT) {
-    if (btns & IN_SPEED) {
-      //walking ?
-      if (btns & IN_JUMP) {
-        //walking + space
-        return strcopy(buffer, 64, "Walk + D + JumpThrow");
-      } else {
-        //walking
-        return strcopy(buffer, 64, "Walk + D + Throw");
-      }
-    } else if (btns & IN_DUCK) {
-      //crouching
-      if (btns & IN_JUMP) {
-        return strcopy(buffer, 64, "Crouch + D + JumpThrow");
-      } else {
-        return strcopy(buffer, 64, "Crouch + D + Throw");
-      }
-    } else if (btns & IN_JUMP) {
-      //w + space
-      return strcopy(buffer, 64, "D + JumpThrow");
-    }
-  } else if (btns & IN_BACK) {
-    //ive never seen a back jumpthrow but just in case
-    if (btns & IN_SPEED) {
-      //walking ?
-      if (btns & IN_JUMP) {
-        //walking + space
-        return strcopy(buffer, 64, "Walk + S + JumpThrow");
-      } else {
-        //walking
-        return strcopy(buffer, 64, "Walk + S + Throw");
-      }
-    } else if (btns & IN_DUCK) {
-      //crouching
-      if (btns & IN_JUMP) {
-        return strcopy(buffer, 64, "Crouch + S + JumpThrow");
-      } else {
-        return strcopy(buffer, 64, "Crouch + S + Throw");
-      }
-    } else if (btns & IN_JUMP) {
-      //w + space
-      return strcopy(buffer, 64, "S + JumpThrow");
-    }
-  } else {
-    //standing still
-    if (btns & IN_DUCK) {
-      if (btns & IN_JUMP) {
-        return strcopy(buffer, 64, "Crouch + JumpThrow");
-      } else {
-        return strcopy(buffer, 64, "Crouch + Throw");
-      }
-    } else if (btns & IN_JUMP) {
-      return strcopy(buffer, 64, "JumpThrow");
-    } else {
-      //not moving, not jumping, not ducking
-      return strcopy(buffer, 64, "Normal Throw");
-    }
+public void GetGrenadeExecutionType(int btns, char[] buffer, int size) {
+  char execution[GRENADE_EXECUTION_LENGTH-1];
+  if (btns & IN_SPEED) {
+    strcopy(execution, sizeof(execution), "Walk ");
   }
-  //not moving, not jumping, not ducking
-  return strcopy(buffer, 64, "-");
+  if (btns & IN_DUCK) {
+    StrCat(execution, sizeof(execution), "Crouch ");
+  }
+  if (btns & IN_FORWARD) {
+    StrCat(execution, sizeof(execution), "W ");
+  }
+  if (btns & IN_MOVELEFT) {
+    StrCat(execution, sizeof(execution), "A ");
+  }
+  if (btns & IN_MOVERIGHT) {
+    StrCat(execution, sizeof(execution), "D ");
+  }
+  if (btns & IN_BACK) {
+    StrCat(execution, sizeof(execution), "S ");
+  }
+  if (btns & IN_ATTACK) {
+    StrCat(execution, sizeof(execution), "Mouse1 ");
+  }
+  if (btns & IN_ATTACK2) {
+    StrCat(execution, sizeof(execution), "Mouse2 ");
+  }
+  if (btns & IN_JUMP) {
+    StrCat(execution, sizeof(execution), "Jump");
+  }
+  StrCat(execution, sizeof(execution), "Throw");
+
+  strcopy(buffer, size, execution);
+
+  // if (btns & IN_FORWARD) {
+  //   if (btns & IN_SPEED) {
+  //     //walking ?
+  //     if (btns & IN_JUMP) {
+  //       //walking + space
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + W + JumpThrow");
+  //     } else {
+  //       //walking
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + W + Throw");
+  //     }
+  //   } else if (btns & IN_DUCK) {
+  //     //crouching
+  //     if (btns & IN_JUMP) {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + W + JumpThrow");
+  //     } else {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + W + Throw");
+  //     }
+  //   } else if (btns & IN_JUMP) {
+  //     //w + space
+  //     return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "W + JumpThrow");
+  //   }
+  // } else if (btns & IN_MOVELEFT) {
+  //   if (btns & IN_SPEED) {
+  //     //walking ?
+  //     if (btns & IN_JUMP) {
+  //       //walking + space
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + A + JumpThrow");
+  //     } else {
+  //       //walking
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + A + Throw");
+  //     }
+  //   } else if (btns & IN_DUCK) {
+  //     //crouching
+  //     if (btns & IN_JUMP) {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + A + JumpThrow");
+  //     } else {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + A + Throw");
+  //     }
+  //   } else if (btns & IN_JUMP) {
+  //     //w + space
+  //     return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "A + JumpThrow");
+  //   }
+  // } else if (btns & IN_MOVERIGHT) {
+  //   if (btns & IN_SPEED) {
+  //     //walking ?
+  //     if (btns & IN_JUMP) {
+  //       //walking + space
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + D + JumpThrow");
+  //     } else {
+  //       //walking
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + D + Throw");
+  //     }
+  //   } else if (btns & IN_DUCK) {
+  //     //crouching
+  //     if (btns & IN_JUMP) {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + D + JumpThrow");
+  //     } else {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + D + Throw");
+  //     }
+  //   } else if (btns & IN_JUMP) {
+  //     //w + space
+  //     return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "D + JumpThrow");
+  //   }
+  // } else if (btns & IN_BACK) {
+  //   //ive never seen a back jumpthrow but just in case
+  //   if (btns & IN_SPEED) {
+  //     //walking ?
+  //     if (btns & IN_JUMP) {
+  //       //walking + space
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + S + JumpThrow");
+  //     } else {
+  //       //walking
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Walk + S + Throw");
+  //     }
+  //   } else if (btns & IN_DUCK) {
+  //     //crouching
+  //     if (btns & IN_JUMP) {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + S + JumpThrow");
+  //     } else {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + S + Throw");
+  //     }
+  //   } else if (btns & IN_JUMP) {
+  //     //w + space
+  //     return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "S + JumpThrow");
+  //   }
+  // } else {
+  //   //standing still
+  //   if (btns & IN_DUCK) {
+  //     if (btns & IN_JUMP) {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + JumpThrow");
+  //     } else {
+  //       return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Crouch + Throw");
+  //     }
+  //   } else if (btns & IN_JUMP) {
+  //     return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "JumpThrow");
+  //   } else {
+  //     //not moving, not jumping, not ducking
+  //     return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "Normal Throw");
+  //   }
+  // }
+  // //not moving, not jumping, not ducking
+  // return strcopy(buffer, GRENADE_EXECUTION_LENGTH, "-");
 }
 
 public int CopyGrenade(int client, const char[] nadeId) {
@@ -909,8 +941,8 @@ public void SaveClientNade(int client, char[] name) {
   grenadeVelocity = g_LastGrenadeVelocity[client];
   grenadeDetonationOrigin = g_LastGrenadeDetonationOrigin[client];
 
-  char execution[64];
-  GetGrenadeExecutionType(g_ClientPulledPinButtons[client], execution);
+  char execution[GRENADE_EXECUTION_LENGTH];
+  GetGrenadeExecutionType(g_ClientPulledPinButtons[client], execution, sizeof(execution));
 
   Action ret = Plugin_Continue;
   Call_StartForward(g_OnGrenadeSaved);
@@ -941,6 +973,20 @@ public void SaveClientNade(int client, char[] name) {
         g_CurrentSavedGrenadeId[client] = nadeId;
         PM_Message(client, "{ORANGE}Granada {PURPLE}%s {ORANGE}guardada.", name);
         OnGrenadeKvMutate();
+        g_UpdatedGrenadeKv = true;
+        MaybeWriteNewGrenadeData();
+        if (g_nadeBotRecord[client] == 2) {
+          if (BotMimic_IsPlayerRecording(client)) {
+            BotMimic_StopRecording(client, true); // save
+          }
+          g_nadeBotRecord[client] = 0;
+        } else if (g_nadeBotRecord[client] == 1) {
+          LogError("client %N tried to save nade while recording...", client);
+          if (BotMimic_IsPlayerRecording(client)) {
+            BotMimic_StopRecording(client, false); // delete
+            LogError("..recording of %N canceled.", client);
+          }
+        }
       }
     }
   }

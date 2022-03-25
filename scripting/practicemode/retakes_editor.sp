@@ -19,25 +19,39 @@ public void RemoveHoloRetakeEntities() {
 }
 
 public void CreateHoloRetakeEntities() {
-  if (g_RetakesKv.GotoFirstSubKey()) {
-    do {
-      char retakeid[RETAKE_ID_LENGTH];
-      g_RetakesKv.GetSectionName(retakeid, sizeof(retakeid));
-      // g_RetakesKv.GetString("name", retakename, sizeof(retakename));
-      int retakeColor[4] = {255, 255, 255, 150};
-      if (StrEqual(retakeid, g_SelectedRetakeId)) {
-        retakeColor = {0, 255, 0, 255};
-      }
+  if (!StrEqual(g_SelectedRetakeId, "-1")) {
+    // Show Only Selected
+    if (g_RetakesKv.JumpToKey(g_SelectedRetakeId)) {
       if (g_RetakesKv.GotoFirstSubKey()) {
-        do {
-          char spawnType[RETAKE_ID_LENGTH];
-          g_RetakesKv.GetSectionName(spawnType, sizeof(spawnType));
-          CreateHoloRetakeEntity(spawnType, retakeColor);
-        } while (g_RetakesKv.GotoNextKey());
-        g_RetakesKv.GoBack();
-      }
-    } while (g_RetakesKv.GotoNextKey());
-    g_RetakesKv.GoBack();
+          do {
+            char spawnType[RETAKE_ID_LENGTH];
+            g_RetakesKv.GetSectionName(spawnType, sizeof(spawnType));
+            CreateHoloRetakeEntity(spawnType, {0, 255, 0, 150});
+          } while (g_RetakesKv.GotoNextKey());
+          g_RetakesKv.GoBack();
+        }
+      g_RetakesKv.GoBack();
+    }
+  } else {
+    // Show All Retakes
+    if (g_RetakesKv.GotoFirstSubKey()) {
+      do {
+        char retakeid[RETAKE_ID_LENGTH];
+        g_RetakesKv.GetSectionName(retakeid, sizeof(retakeid));
+        // g_RetakesKv.GetString("name", retakename, sizeof(retakename));
+        int retakeColor[4];
+        GetRandomColor(retakeColor, 150);
+        if (g_RetakesKv.GotoFirstSubKey()) {
+          do {
+            char spawnType[RETAKE_ID_LENGTH];
+            g_RetakesKv.GetSectionName(spawnType, sizeof(spawnType));
+            CreateHoloRetakeEntity(spawnType, retakeColor);
+          } while (g_RetakesKv.GotoNextKey());
+          g_RetakesKv.GoBack();
+        }
+      } while (g_RetakesKv.GotoNextKey());
+      g_RetakesKv.GoBack();
+    }
   }
 }
 
@@ -79,14 +93,19 @@ public int CreateRetakePlayerEntity(const char[] spawnType, const char[] spawnid
   //models/player/custom_player/legacy/ctm_sas.mdl <- ct
   int iEnt = CreateEntityByName("prop_dynamic_override");
   if (iEnt > 0) {
-    DispatchKeyValue(iEnt, "classname", "prop_dynamic");
+    DispatchKeyValue(iEnt, "classname", "prop_dynamic_override");
     if (StrEqual(spawnType, KV_BOTSPAWN)) {
       DispatchKeyValue(iEnt, "model", "models/player/custom_player/legacy/tm_separatist_variantD.mdl");
       SetEntityRenderColor(iEnt, color[0], color[1], color[2], color[3]);
-    } else {
+    } else if (StrEqual(spawnType, KV_PLAYERSPAWN)) {
       DispatchKeyValue(iEnt, "model", "models/player/custom_player/legacy/ctm_sas.mdl");
       SetEntityRenderColor(iEnt, color[0], color[1], 255, color[3]);
+    } else if (StrEqual(spawnType, KV_BOMBSPAWN)) {
+      SetEntPropFloat(iEnt, Prop_Send, "m_flModelScale", 3.0);
+      DispatchKeyValue(iEnt, "model", "models/weapons/w_ied_dropped.mdl");
+      SetEntityRenderColor(iEnt, 255, color[1], color[2], color[3]);
     }
+    DispatchKeyValue(iEnt, "spawnflags", "1"); 
     DispatchKeyValue(iEnt, "rendermode", "1");
     SetEntProp(iEnt, Prop_Send, "m_bShouldGlow", true, true);
     SetEntProp(iEnt, Prop_Send, "m_nGlowStyle", 0);
@@ -95,7 +114,7 @@ public int CreateRetakePlayerEntity(const char[] spawnType, const char[] spawnid
     AcceptEntityInput(iEnt, "SetGlowColor");
     DispatchKeyValue(iEnt, "targetname", spawnid);
     if (DispatchSpawn(iEnt)) {
-      angles[0] = 0.0;
+      angles[0] = 0.0; // look paralel to ground
       TeleportEntity(iEnt, origin, angles, NULL_VECTOR);
     }
   }

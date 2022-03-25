@@ -94,6 +94,8 @@ int DelayBeforeShooting[MAXPLAYERS+1] = {0, ...};
 // Where did he start recording. The bot is teleported to this position on replay.
 float g_fInitialPosition[MAXPLAYERS+1][3];
 float g_fInitialAngles[MAXPLAYERS+1][3];
+// Array Cut Size
+int g_hRecordingSizeLimit[MAXPLAYERS+1];
 // Array of frames
 ArrayList g_hRecording[MAXPLAYERS+1];
 ArrayList g_hRecordingAdditionalTeleport[MAXPLAYERS+1];
@@ -466,7 +468,14 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
             iFrame.newWeapon = weaponId;
         }
     }
-    
+
+    if (g_hRecordingSizeLimit[client] > 0) {
+        if (g_hRecording[client].Length > g_hRecordingSizeLimit[client]) {
+            g_hRecording[client].Erase(0);
+            g_iRecordedTicks[client]--;
+        }
+    }
+
     g_hRecording[client].PushArray(iFrame, sizeof(FrameInfo));
     
     g_iRecordedTicks[client]++;
@@ -486,17 +495,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     if(!IsPlayerAlive(client) || GetClientTeam(client) < CS_TEAM_T)
         return Plugin_Continue;
 
-    // // Skip 1
-    // if (currenttickrate < servertickrate) {
-    //     currenttickrate += demotickrate;
-    //     //TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
-    //     seed = 0;
-    //     return Plugin_Handled;
-    // } else {
-    //     //reset, execute
-    //     currenttickrate = demotickrate;
-    // }
-
     if(g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client])
     {
         if(!versusMode)
@@ -511,7 +509,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     }
     
     FrameInfo iFrame;
-    g_hBotMimicsRecord[client].GetArray(g_iBotMimicTick[client], iFrame, sizeof(FrameInfo)); //ya no deberia ejecutarse
+    g_hBotMimicsRecord[client].GetArray(g_iBotMimicTick[client], iFrame, sizeof(FrameInfo));
 
     char weaponName[64];
     GetClientWeapon(client, weaponName, sizeof(weaponName));
@@ -546,7 +544,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     Array_Copy(iFrame.predictedVelocity, vel, 3);
     if ((holdingGrenade || !versusMode) || target == -1)
         Array_Copy(iFrame.predictedAngles, angles, 2);
-    //PrintToChatAll("%f %f %f", angles[0], angles[1], angles[2]);
     subtype = iFrame.playerSubtype;
     seed = iFrame.playerSeed;
     weapon = 0;
@@ -1013,6 +1010,7 @@ public int StartRecording(Handle plugin, int numParams)
     GetNativeString(2, g_sRecordName[client], MAX_RECORD_NAME_LENGTH);
     GetNativeString(3, g_sRecordCategory[client], PLATFORM_MAX_PATH);
     GetNativeString(4, g_sRecordSubDir[client], PLATFORM_MAX_PATH);
+    g_hRecordingSizeLimit[client] = GetNativeCell(5);
     
     if(g_sRecordCategory[client][0] == '\0')
         strcopy(g_sRecordCategory[client], sizeof(g_sRecordCategory[]), DEFAULT_CATEGORY);
@@ -1246,6 +1244,7 @@ public int StopRecording(Handle plugin, int numParams)
     }
     
     g_hRecording[client] = null;
+    g_hRecordingSizeLimit[client] = -1;
     g_hRecordingAdditionalTeleport[client] = null;
     g_hRecordingBookmarks[client] = null;
     g_iRecordedTicks[client] = 0;

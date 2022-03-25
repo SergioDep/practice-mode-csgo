@@ -2,7 +2,7 @@
 #define interval_per_tick 0.05
 #define GenerateViewPointDelay 1
 
-GrenadePredict_Mode g_PredictMode[MAXPLAYERS + 1] = {GRENADEPREDICT_NORMAL, ...};
+GrenadePredict_Mode g_PredictMode[MAXPLAYERS + 1] = {GRENADEPREDICT_NONE, ...};
 bool g_Predict_HoldingUse[MAXPLAYERS + 1] = {false, ...};
 bool g_Predict_HoldingReload[MAXPLAYERS + 1] = {false, ...};
 bool g_Predict_ViewEndpoint[MAXPLAYERS + 1] = {false, ...};
@@ -35,7 +35,7 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
   if (g_Predict_FinalDestinationEnt[client] < 0 || !IsValidEntity(g_Predict_FinalDestinationEnt[client])) {
     g_Predict_FinalDestinationEnt[client] = CreateInvisibleEnt();
     return Plugin_Handled;
-  }
+  } 
 
   // Get Client Buttons
   if ((buttons & IN_RELOAD) && !g_Predict_HoldingReload[client]) {
@@ -44,26 +44,20 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
     if (g_Predict_ObservingGrenade[client] > 0) {
       ClientStopObserveEntities(client);
       g_Predict_ObservingGrenade[client] = -1;
-      if (!(g_Predict_LastClientPos[client][0] == g_Predict_LastClientPos[client][1] &&
-          g_Predict_LastClientPos[client][1] == g_Predict_LastClientPos[client][2] &&
-          g_Predict_LastClientAng[client][0] == g_Predict_LastClientAng[client][1] &&
-          g_Predict_LastClientAng[client][1] == g_Predict_LastClientAng[client][2])) {
-        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , {0.0,0.0,0.0});
+      if (Math_VectorsEqual(g_Predict_LastClientPos[client], ZERO_VECTOR) && Math_VectorsEqual(g_Predict_LastClientAng[client], ZERO_VECTOR)) {
+        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , ZERO_VECTOR);
+      } else {
+        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , ZERO_VECTOR);
       }
-      else
-        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , {0.0,0.0,0.0});
     } else if (g_Predict_ViewEndpoint[client]) {
       SetClientViewEntity(client, client);
       Client_SetFOV(client, 90);
       g_Predict_ViewEndpoint[client] = false;
-      if (!(g_Predict_LastClientPos[client][0] == g_Predict_LastClientPos[client][1] &&
-          g_Predict_LastClientPos[client][1] == g_Predict_LastClientPos[client][2] &&
-          g_Predict_LastClientAng[client][0] == g_Predict_LastClientAng[client][1] &&
-          g_Predict_LastClientAng[client][1] == g_Predict_LastClientAng[client][2])) {
+      if (!(Math_VectorsEqual(g_Predict_LastClientPos[client], {0.0,0.0,0.0}) && Math_VectorsEqual(g_Predict_LastClientAng[client], {0.0,0.0,0.0}))) {
         TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , {0.0,0.0,0.0});
-      }
-      else
+      } else {
         TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , {0.0,0.0,0.0});
+      }
     }
     g_Predict_HoldingReload[client] = false;
   }
@@ -294,7 +288,7 @@ stock void CreateTrajectory(
       }
     }
   }
-  TE_SetupBeamCube(explodePos, 2.0, g_BeamSprite, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, colors, 0);
+  // TE_SetupBeamCube(explodePos, 2.0, g_BeamSprite, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, colors, 0);
 }
 
 stock void TE_SetupBeamCube(float center[3], float size, int ModelIndex, int HaloIndex, int StartFrame, int FrameRate, float Life, 
@@ -357,7 +351,7 @@ stock void TE_SetupBeamCube(float center[3], float size, int ModelIndex, int Hal
 }
 
 stock void fixVelFraction(float GrenadeVelocity[3], float frac, bool sum = true) {
-  PrintToChatAll("fraction %f", frac);
+  // PrintToChatAll("fraction %f", frac);
   if (frac != 0) {
     for (int i = 0; i<3; i++) {
       // GrenadeVelocity[i] -= GrenadeVelocity[i]*(1.0-frac)*0.05;
@@ -391,10 +385,10 @@ stock GrenadeType GrenadeTypeFromWeapon(int client, const char[] name) {
 }
 
 stock float GetGrenadeDetonationTime(GrenadeType grenadeType) {
-  if (grenadeType == GrenadeType_Smoke) return 11.0;
+  if (grenadeType == GrenadeType_Smoke) return 10.0;
   if (grenadeType == GrenadeType_Incendiary || grenadeType == GrenadeType_Molotov) return 2.00; // 1.979 2.031250
   if (grenadeType == GrenadeType_HE || grenadeType == GrenadeType_Flash) return 1.602;
-  return 11.0;
+  return 10.0;
 }
 
 stock int WatchFlyingGrenade(int client, bool teleport = false) {
@@ -406,10 +400,6 @@ stock int WatchFlyingGrenade(int client, bool teleport = false) {
     Entity_GetAbsAngles(g_LastGrenadeEntity[client], angles);
     TeleportEntity(ent, origin, angles, NULL_VECTOR);
     if (teleport) TeleportEntity(client, origin, angles, NULL_VECTOR);
-    // SetEntityRenderMode(ent, RENDER_NORMAL);
-    // SetEntProp(ent, Prop_Send, "m_bShouldGlow", true, true);
-    // SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
-    // SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 250000.0);
     SetVariantString("!activator");
     AcceptEntityInput(ent, "SetParent", g_LastGrenadeEntity[client], ent, 0);
   }
