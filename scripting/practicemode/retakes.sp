@@ -246,7 +246,7 @@ public Action Timer_StartRetake(Handle timer, int serial) {
     int player = g_RetakePlayers.Get(i);
     ChangeClientTeam(player, CS_TEAM_CT);
     SetEntityMoveType(player, MOVETYPE_WALK);
-    TeleportEntity(player, origin, angles, {0.0,0.0,0.0});
+    TeleportEntity(player, origin, angles, ZERO_VECTOR);
   }
 
   delete enabledPlayers;
@@ -319,7 +319,7 @@ public Action Timer_GetRetakeBots(Handle timer, DataPack pack) {
   float botOrigin[3], botAngles[3];
   GetRetakeSpawnVectorKV(g_RetakePlayId, KV_BOTSPAWN, spawnId, "origin", botOrigin);
   GetRetakeSpawnVectorKV(g_RetakePlayId, KV_BOTSPAWN, spawnId, "angles", botAngles);
-  TeleportEntity(bot, botOrigin, botAngles, {0.0,0.0,0.0});
+  TeleportEntity(bot, botOrigin, botAngles, ZERO_VECTOR);
   // SetEntPropFloat(bot, Prop_Data, "m_flLaggedMovementValue", 0.0);
 
   return Plugin_Handled;

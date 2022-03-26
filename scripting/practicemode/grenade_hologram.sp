@@ -123,7 +123,7 @@ public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, floa
       Entity_GetRenderColor(spawnEnts[2], colors);
       if (colors[0] == 0 && colors[1] == 255) {
         if (PointInsideViewRange(entOrigin, eyeOrigin, eyeEnd)) {
-          TeleportEntity(client, entOrigin, entAngles, view_as<float>({0.0,0.0,0.0}));
+          TeleportEntity(client, entOrigin, entAngles, ZERO_VECTOR);
         }
       }
     }
@@ -475,7 +475,7 @@ public Action Timer_GetHoloNadeBot(Handle timer, int nadeId) {
   RequestFrame(StartHoloNadeBotReplay, pack);
 
   // float botOrigin[3], botAngles[3];
-  // TeleportEntity(bot, botOrigin, botAngles, {0.0,0.0,0.0});
+  // TeleportEntity(bot, botOrigin, botAngles, ZERO_VECTOR);
 
   return Plugin_Handled;
 }
@@ -577,7 +577,7 @@ public int GetGrenadeModelFromType(const GrenadeType type, char[] bufferz) {
 stock int GetNearestNadeGroupIndex(
   const float origin[3],
   float &distance,
-  float nearestEntOrigin[3] = {0.0,0.0,0.0}
+  float nearestEntOrigin[3] = ZERO_VECTOR
   ) {
   int nearestIndex = -1;
   distance = -1.0;

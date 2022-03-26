@@ -1,3 +1,5 @@
+/* SingleDemoEditorMenu
+*/
 stock void GiveReplayEditorMenu(int client, int pos = 0) {
   if (StrEqual(g_ReplayId[client], "")) {
     IntToString(GetNextReplayId(), g_ReplayId[client], REPLAY_NAME_LENGTH);
@@ -256,6 +258,8 @@ public Action Command_Cancel(int client, int args) {
   return Plugin_Handled;
 }
 
+/*SingleDemoRoleMenu 
+*/
 stock void GiveReplayRoleMenu(int client, int role, int pos = 0) {
   Menu menu = new Menu(ReplayRoleMenuHandler);
   g_CurrentEditingRole[client] = role;
@@ -291,6 +295,8 @@ stock void GiveReplayRoleMenu(int client, int role, int pos = 0) {
   menu.DisplayAt(client, MENU_TIME_FOREVER, pos);
 }
 
+/*SingleDemoRoleMenuHandler
+*/
 public int ReplayRoleMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
   if (action == MenuAction_Select) {
     int client = param1;
@@ -357,7 +363,8 @@ public int ReplayRoleMenuHandler(Menu menu, MenuAction action, int param1, int p
 
   return 0;
 }
-
+/*DemoRoleNadesMenu
+ */
 stock void GiveReplayRoleNadesMenu(int client, int pos = 0) {
   Menu menu = new Menu(ReplayRoleNadesMenuHandler);
   menu.SetTitle("Granadas de Rol %d", g_CurrentEditingRole[client] + 1);
@@ -461,6 +468,8 @@ public int ReplayDeletionMenuHandler(Menu menu, MenuAction action, int param1, i
   return 0;
 }
 
+/*StartDemoRecording
+ */
 stock void StartReplayRecording(int client, int role, bool printCommands = true) {
   if (role < 0 || role >= MAX_REPLAY_CLIENTS) {
     return;
@@ -511,34 +520,35 @@ public Action BotMimic_OnStopRecording(int client, char[] name, char[] category,
   return Plugin_Continue;
 }
 
-public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, char[] subdir, char[] file) {
-  if (g_InBotReplayMode) {
-    if (g_CurrentEditingRole[client] >= 0) {
-      SetRoleFile(g_ReplayId[client], g_CurrentEditingRole[client], file);
-      SetRoleNades(g_ReplayId[client], g_CurrentEditingRole[client], client);
-      SetRoleTeam(g_ReplayId[client], g_CurrentEditingRole[client], GetClientTeam(client));
+// public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, char[] subdir, char[] file) {
+//   if (g_InBotReplayMode) {
+//     if (g_CurrentEditingRole[client] >= 0) {
+//       SetRoleFile(g_ReplayId[client], g_CurrentEditingRole[client], file);
+//       SetRoleNades(g_ReplayId[client], g_CurrentEditingRole[client], client);
+//       SetRoleTeam(g_ReplayId[client], g_CurrentEditingRole[client], GetClientTeam(client));
 
-      if (!g_RecordingFullReplay) {
-        PM_Message(client, "Terminó la grabación de jugador rol %d", g_CurrentEditingRole[client] + 1);
-        GiveReplayMenuInContext(client);
-      } else {
-        if (g_RecordingFullReplayClient == client) {
-          g_CurrentEditingRole[client] = -1;
-          PM_MessageToAll("Terminó la grabación completa de esta repetición.");
-          RequestFrame(ResetFullReplayRecording, GetClientSerial(client));
-        }
-      }
+//       if (!g_RecordingFullReplay) {
+//         PM_Message(client, "Terminó la grabación de jugador rol %d", g_CurrentEditingRole[client] + 1);
+//         GiveReplayMenuInContext(client);
+//       } else {
+//         if (g_RecordingFullReplayClient == client) {
+//           g_CurrentEditingRole[client] = -1;
+//           PM_MessageToAll("Terminó la grabación completa de esta repetición.");
+//           RequestFrame(ResetFullReplayRecording, GetClientSerial(client));
+//         }
+//       }
 
-      MaybeWriteNewReplayData();
-    }
-    return;
-  }
+//       MaybeWriteNewReplayData();
+//     }
+//     return;
+//   }
 
-  PM_Message(client, "saved: current: %d, file %s", g_CurrentSavedGrenadeId[client], file);
-  SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
-  MaybeWriteNewGrenadeData();
-}
-
+//   PM_Message(client, "saved: current: %d, file %s", g_CurrentSavedGrenadeId[client], file);
+//   SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
+//   MaybeWriteNewGrenadeData();
+// }
+/* ResetFullDemoRecording
+*/
 public void ResetFullReplayRecording(int serial) {
   g_RecordingFullReplay = false;
   g_RecordingFullReplayClient = -1;

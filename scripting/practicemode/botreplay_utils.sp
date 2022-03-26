@@ -30,7 +30,7 @@ public int GetLargestBotUserId() {
   for (int i = 1; i <= MaxClients; i++) {
     if (IsValidClient(i) && IsFakeClient(i) && !IsClientSourceTV(i)) {
       int userid = GetClientUserId(i);
-      if (userid > largestUserid && !IsReplayBot(i)) {
+      if (userid > largestUserid && !IsReplayBot(i) && !IsDemoBot(i) && !g_IsRetakeBot[i] && !g_IsPMBot[i]) {
         largestUserid = userid;
       }
     }
@@ -55,6 +55,8 @@ public int GetLiveBot(const char[] name) {
   return bot;
 }
 
+/*RunDemo
+ */
 stock void RunReplay(const char[] id, int exclude = -1) {
   if (IsReplayPlaying()) {
     LogError("Called RunReplay with an active replay!");
@@ -82,6 +84,8 @@ public void KillBot(int client) {
 }
 
 // Starts a replay.
+/*PlayDemoRole
+ */
 void ReplayRole(const char[] id, int client, int role) {
   if (!IsValidClient(client)) {
     return;

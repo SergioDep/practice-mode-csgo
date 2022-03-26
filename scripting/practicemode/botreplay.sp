@@ -54,7 +54,8 @@ public void BotReplay_MapEnd() {
   MaybeWriteNewReplayData();
   GarbageCollectReplays();
 }
-
+/* Demos_OnThrowGrenade
+*/
 public void Replays_OnThrowGrenade(int client, int entity, GrenadeType grenadeType, const float origin[3],
                             const float velocity[3]) {
   if (!g_BotMimicLoaded) {
@@ -117,7 +118,8 @@ public Action Timer_GetReplayBots(Handle timer) {
 
   return Plugin_Handled;
 }
-
+/*InitDemoFunctions
+ */
 void InitReplayFunctions() {
   ResetData();
   for (int i = 0; i < MAX_REPLAY_CLIENTS; i++) {
@@ -136,7 +138,8 @@ void InitReplayFunctions() {
 
   PM_MessageToAll("Modo repetición activado.");
 }
-
+/*ExitDemoMode
+ */
 public void ExitReplayMode() {
   ServerCommand("bot_kick");
   g_BotReplayInit = false;
@@ -150,7 +153,8 @@ public void ExitReplayMode() {
 
   PM_MessageToAll("Modo repetición desactivado.");
 }
-
+/*GetDemoBots
+ */
 public void GetReplayBots() {
   ServerCommand("bot_quota_mode normal");
   for (int i = 0; i < MAX_REPLAY_CLIENTS; i++) {
@@ -198,6 +202,8 @@ public Action Command_Replay(int client, int args) {
   return Plugin_Handled;
 }
 
+/* GiveDemoMenuInContext
+*/
 void GiveReplayMenuInContext(int client) {
   if (HasActiveReplay(client)) {
     if (g_CurrentEditingRole[client] >= 0) {
@@ -353,6 +359,8 @@ public Action Command_PlayRecording(int client, int args) {
   return Plugin_Handled;
 }
 
+/*ResetDemoClientsData
+ */
 public void ResetData() {
   for (int i = 0; i < MAX_REPLAY_CLIENTS; i++) {
     g_StopBotSignal[i] = false;
@@ -363,26 +371,26 @@ public void ResetData() {
   }
 }
 
-public void BotMimic_OnPlayerMimicLoops(int client) {
-  if (!g_InPracticeMode || g_InRetakeMode) {
-    return;
-  }
+// public void BotMimic_OnPlayerMimicLoops(int client) {
+//   if (!g_InPracticeMode || g_InRetakeMode) {
+//     return;
+//   }
 
-  if (g_StopBotSignal[client]) {
-    if(!versusMode){
-      BotMimic_ResetPlayback(client);
-      BotMimic_StopPlayerMimic(client);
-      RequestFrame(Timer_DelayKillBot, GetClientSerial(client));
-    }
-  } else {
-    g_StopBotSignal[client] = true;
-  }
+//   if (g_StopBotSignal[client]) {
+//     if(!versusMode){
+//       BotMimic_ResetPlayback(client);
+//       BotMimic_StopPlayerMimic(client);
+//       RequestFrame(Timer_DelayKillBot, GetClientSerial(client));
+//     }
+//   } else {
+//     g_StopBotSignal[client] = true;
+//   }
 
-  // if (g_IsHoloNadeBot[client]) {
-  //   BotMimic_StopPlayerMimic(client);
-  //   KickClient(client);
-  // }
-}
+//   // if (g_IsHoloNadeBot[client]) {
+//   //   BotMimic_StopPlayerMimic(client);
+//   //   KickClient(client);
+//   // }
+// }
 
 public Action Timer_CleanupLivingBots(Handle timer) {
   if (!g_InPracticeMode || g_InRetakeMode) {
@@ -419,78 +427,78 @@ public Action Event_ReplayBotDamageDealtEvent(Event event, const char[] name, bo
 }
 
 public void GrenadeReplay_PauseGrenades() {
-    int lastEnt = GetMaxEntities();
-    for (int entity = MaxClients + 1; entity <= lastEnt; entity++) {
-        if (!IsValidEntity(entity)) {
-            continue;
-        }
-        char classnameEnt[64];
-        GetEntityClassname(entity, classnameEnt, sizeof(classnameEnt));
-        if (IsGrenadeProjectile(classnameEnt)) {
-            int GrenadeEntity = GetEntProp(entity, Prop_Data, "m_iTeamNum");
-            if (ExplodeNadeTimer[GrenadeEntity] != INVALID_HANDLE) {
-                KillTimer(ExplodeNadeTimer[GrenadeEntity]);
-                ExplodeNadeTimer[GrenadeEntity] = INVALID_HANDLE;
-            }
-            int client = Entity_GetOwner(entity);
-            if(!IsReplayBot(client)){
-                continue;
-            }
-            g_ReplayGrenadeLastPausedTime = GetEngineTime();
-            SetEntityMoveType(entity, MOVETYPE_NONE);
-            SetEntProp(entity, Prop_Data, "m_nNextThinkTick", -1);
-        }
-    } 
+  int lastEnt = GetMaxEntities();
+  for (int entity = MaxClients + 1; entity <= lastEnt; entity++) {
+    if (!IsValidEntity(entity)) {
+        continue;
+    }
+    char classnameEnt[64];
+    GetEntityClassname(entity, classnameEnt, sizeof(classnameEnt));
+    if (IsGrenadeProjectile(classnameEnt)) {
+      int GrenadeEntity = GetEntProp(entity, Prop_Data, "m_iTeamNum");
+      if (ExplodeNadeTimer[GrenadeEntity] != INVALID_HANDLE) {
+          KillTimer(ExplodeNadeTimer[GrenadeEntity]);
+          ExplodeNadeTimer[GrenadeEntity] = INVALID_HANDLE;
+      }
+      int client = Entity_GetOwner(entity);
+      if(!IsReplayBot(client)){
+          continue;
+      }
+      g_ReplayGrenadeLastPausedTime = GetEngineTime();
+      SetEntityMoveType(entity, MOVETYPE_NONE);
+      SetEntProp(entity, Prop_Data, "m_nNextThinkTick", -1);
+    }
+  } 
 }
 
 public void GrenadeReplay_ResumeGrenades() {
-    int lastEnt = GetMaxEntities();
-    for (int entity = MaxClients + 1; entity <= lastEnt; entity++) {
-        if (!IsValidEntity(entity)) {
-            continue;
-        }
-        char classnameEnt[64];
-        GetEntityClassname(entity, classnameEnt, sizeof(classnameEnt));
-        if (IsGrenadeProjectile(classnameEnt)) {
-            int client = Entity_GetOwner(entity);
-            if(!IsReplayBot(client)){
-                continue;
-            }
-            SetEntityMoveType(entity, MOVETYPE_FLYGRAVITY);
-            if(GrenadeFromProjectileName(classnameEnt) == GrenadeType_Smoke || GrenadeFromProjectileName(classnameEnt) == GrenadeType_Decoy) {
-                SetEntProp(entity, Prop_Data, "m_nNextThinkTick", 1);
-                continue;
-            } 
-            else {
-                int GrenadeEntity = GetEntProp(entity, Prop_Data, "m_iTeamNum");
-                g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] = g_ReplayGrenadeLastResumedTime[GrenadeEntity];
-                if(g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] <= 0.0) {
-                    g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] = g_ClientReplayGrenadeThrowTime[GrenadeEntity];
-                }
-                g_ReplayGrenadeLastResumedTime[GrenadeEntity] = GetEngineTime();
-                g_TiempoRecorrido[GrenadeEntity] += (g_ReplayGrenadeLastPausedTime - g_ReplayGrenadeLastLastResumedTime[GrenadeEntity]);
-                if(GrenadeFromProjectileName(classnameEnt) == GrenadeType_Flash || GrenadeFromProjectileName(classnameEnt) == GrenadeType_HE) {
-                    float RemainingTime = GRENADE_DETONATE_FLASH_TIME - g_TiempoRecorrido[GrenadeEntity];
-                    ExplodeNadeTimer[GrenadeEntity] = CreateTimer(RemainingTime, Timer_ForceExplodeNade, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
-                } else {
-                    float RemainingTime = GRENADE_DETONATE_MOLOTOV_TIME - g_TiempoRecorrido[GrenadeEntity];
-                    ExplodeNadeTimer[GrenadeEntity] = CreateTimer(RemainingTime, Timer_ForceExplodeNade, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
-                }
-            }
-        }
+  int lastEnt = GetMaxEntities();
+  for (int entity = MaxClients + 1; entity <= lastEnt; entity++) {
+    if (!IsValidEntity(entity)) {
+      continue;
     }
+    char classnameEnt[64];
+    GetEntityClassname(entity, classnameEnt, sizeof(classnameEnt));
+    if (IsGrenadeProjectile(classnameEnt)) {
+      int client = Entity_GetOwner(entity);
+      if(!IsReplayBot(client)){
+        continue;
+      }
+      SetEntityMoveType(entity, MOVETYPE_FLYGRAVITY);
+      if(GrenadeFromProjectileName(classnameEnt) == GrenadeType_Smoke || GrenadeFromProjectileName(classnameEnt) == GrenadeType_Decoy) {
+        SetEntProp(entity, Prop_Data, "m_nNextThinkTick", 1);
+        continue;
+      } 
+      else {
+        int GrenadeEntity = GetEntProp(entity, Prop_Data, "m_iTeamNum");
+        g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] = g_ReplayGrenadeLastResumedTime[GrenadeEntity];
+        if(g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] <= 0.0) {
+          g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] = g_ClientReplayGrenadeThrowTime[GrenadeEntity];
+        }
+        g_ReplayGrenadeLastResumedTime[GrenadeEntity] = GetEngineTime();
+        g_TiempoRecorrido[GrenadeEntity] += (g_ReplayGrenadeLastPausedTime - g_ReplayGrenadeLastLastResumedTime[GrenadeEntity]);
+        if(GrenadeFromProjectileName(classnameEnt) == GrenadeType_Flash || GrenadeFromProjectileName(classnameEnt) == GrenadeType_HE) {
+          float RemainingTime = GRENADE_DETONATE_FLASH_TIME - g_TiempoRecorrido[GrenadeEntity];
+          ExplodeNadeTimer[GrenadeEntity] = CreateTimer(RemainingTime, Timer_ForceExplodeNade, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+        } else {
+          float RemainingTime = GRENADE_DETONATE_MOLOTOV_TIME - g_TiempoRecorrido[GrenadeEntity];
+          ExplodeNadeTimer[GrenadeEntity] = CreateTimer(RemainingTime, Timer_ForceExplodeNade, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+        }
+      }
+    }
+  }
 }
 
 public Action Timer_ForceExplodeNade(Handle timer, int ref) {
   int entity = EntRefToEntIndex(ref);
   if(entity != -1) {
-      int GrenadeEntity = GetEntProp(entity, Prop_Data, "m_iTeamNum");
-      g_TiempoRecorrido[GrenadeEntity] = 0.0;
-      g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] = -1.0;
-      g_ReplayGrenadeLastResumedTime[GrenadeEntity] = -1.0;
-      SetEntProp(entity, Prop_Data, "m_nNextThinkTick", 1);
-      SDKHooks_TakeDamage(entity, entity, entity, 1.0);
-      ExplodeNadeTimer[GrenadeEntity] = INVALID_HANDLE;
+    int GrenadeEntity = GetEntProp(entity, Prop_Data, "m_iTeamNum");
+    g_TiempoRecorrido[GrenadeEntity] = 0.0;
+    g_ReplayGrenadeLastLastResumedTime[GrenadeEntity] = -1.0;
+    g_ReplayGrenadeLastResumedTime[GrenadeEntity] = -1.0;
+    SetEntProp(entity, Prop_Data, "m_nNextThinkTick", 1);
+    SDKHooks_TakeDamage(entity, entity, entity, 1.0);
+    ExplodeNadeTimer[GrenadeEntity] = INVALID_HANDLE;
   }
   return Plugin_Handled;
 }

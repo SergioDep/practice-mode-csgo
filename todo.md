@@ -4,7 +4,12 @@
 
 
 ## Enhancements
-- [ ] Fix Replays Menu
+- [ ] Botmimic doesnt loop
+- [ ] Replays to Demos
+  - [ ] Fix Replays Menu
+  - [ ] Delete Replays
+  - [ ] 
+
 
 set delay key when released
 nothing else

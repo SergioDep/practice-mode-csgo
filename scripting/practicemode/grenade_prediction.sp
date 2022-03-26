@@ -53,10 +53,10 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
       SetClientViewEntity(client, client);
       Client_SetFOV(client, 90);
       g_Predict_ViewEndpoint[client] = false;
-      if (!(Math_VectorsEqual(g_Predict_LastClientPos[client], {0.0,0.0,0.0}) && Math_VectorsEqual(g_Predict_LastClientAng[client], {0.0,0.0,0.0}))) {
-        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , {0.0,0.0,0.0});
+      if (!(Math_VectorsEqual(g_Predict_LastClientPos[client], ZERO_VECTOR) && Math_VectorsEqual(g_Predict_LastClientAng[client], ZERO_VECTOR))) {
+        TeleportEntity(client, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client] , ZERO_VECTOR);
       } else {
-        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , {0.0,0.0,0.0});
+        TeleportEntity(client, g_LastGrenadePinPulledOrigin[client], g_LastGrenadePinPulledAngles[client] , ZERO_VECTOR);
       }
     }
     g_Predict_HoldingReload[client] = false;

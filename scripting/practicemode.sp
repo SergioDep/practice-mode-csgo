@@ -100,7 +100,7 @@ ConVar g_VersionCvar;
 #define AUTH_LENGTH 64
 #define GRENADE_CODE_LENGTH 256
 
-
+bool g_WaitForDemoSave[MAXPLAYERS + 1] = {false, ...};
 int g_nadeBotRecord[MAXPLAYERS + 1] = {0, ...}; // 0 = not recording/canceled, 1 = recording, 2 = not recording/saved
 bool g_WaitForSaveNade[MAXPLAYERS + 1] = {false, ...};
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
@@ -110,6 +110,7 @@ int g_CurrentSavedGrenadeId[MAXPLAYERS + 1];
 bool g_UpdatedGrenadeKv = false;  // whether there has been any changed the kv structure this map
 int g_NextID = 0;
 int g_currentReplayGrenade = -1;
+int g_currentDemoGrenade = -1;
 
 // Grenade Holograms
 ArrayList g_HoloNadeEntities;
@@ -145,6 +146,7 @@ float g_LastGrenadeOrigin[MAXPLAYERS + 1][3];
 float g_LastGrenadeVelocity[MAXPLAYERS + 1][3];
 float g_LastGrenadeDetonationOrigin[MAXPLAYERS + 1][3];
 float g_ClientReplayGrenadeThrowTime[MAX_SIM_REPLAY_NADES];
+float g_ClientDemoGrenadeThrowTime[MAX_SIM_REPLAY_NADES];
 float g_TiempoRecorrido[MAX_SIM_REPLAY_NADES] = {0.0, ...};
 Handle ExplodeNadeTimer[MAX_SIM_REPLAY_NADES] = {INVALID_HANDLE, ...};
 #define GRENADE_DETONATE_FLASH_TIME 1.658
@@ -153,7 +155,6 @@ float g_ReplayGrenadeLastPausedTime = -1.0;
 float g_ReplayGrenadeLastResumedTime[MAX_SIM_REPLAY_NADES] = {-1.0, ...};
 float g_ReplayGrenadeLastLastResumedTime[MAX_SIM_REPLAY_NADES] ={ -1.0, ...};
 int g_LastGrenadeEntity[MAXPLAYERS + 1];
-
 
 ArrayList g_GrenadeDetonationSaveQueue; 
 #define GRENADE_DETONATION_FIX_PHASE_BREAKGLASS 3
@@ -189,7 +190,9 @@ float g_BotDeathTime[MAXPLAYERS + 1];
 
 bool g_BotReplayInit = false;
 bool g_InBotReplayMode = false;
+bool g_InBotDemoMode = false;
 KeyValues g_ReplaysKv;
+KeyValues g_DemosKv;
 
 bool versusMode, pauseMode;
 
@@ -241,12 +244,15 @@ Handle g_OnPracticeModeSettingsRead = INVALID_HANDLE;
 
 #include "practicemode/grenade_iterators.sp"
 
-//#include "practicemode/demoreplay.sp"
-
 #include "practicemode/botreplay.sp"
 #include "practicemode/botreplay_data.sp"
 #include "practicemode/botreplay_editor.sp"
 #include "practicemode/botreplay_utils.sp"
+
+#include "practicemode/demos.sp"
+#include "practicemode/demos_data.sp"
+#include "practicemode/demos_menu.sp"
+#include "practicemode/demos_utils.sp"
 
 #include "practicemode/backups.sp"
 #include "practicemode/bots.sp"
@@ -382,7 +388,7 @@ public void OnPluginStart() {
     PM_AddChatAlias(".rethrow", "sm_throw");
   }
 
-  // spawns.
+  // Spawns.
   {
     RegConsoleCmd("sm_gotospawn", Command_GotoSpawn);
     PM_AddChatAlias(".spawn", "sm_gotospawn");
@@ -422,35 +428,55 @@ public void OnPluginStart() {
     PM_AddChatAlias(".prueba", "sm_prueba");
   }
 
-  // Bot replay commands
+  // // Bot replay commands
+  // {
+  //   RegConsoleCmd("sm_replay", Command_Replay);
+  //   PM_AddChatAlias(".replay", "sm_replay");
+
+  //   RegConsoleCmd("sm_replays", Command_Replays);
+  //   PM_AddChatAlias(".replays", "sm_replays");
+
+  //   RegConsoleCmd("sm_replaymode", CommandToggleReplayMode);
+  //   PM_AddChatAlias(".versus", "sm_replaymode");
+  //   PM_AddChatAlias(".replaymode", "sm_replaymode");
+
+  //   RegConsoleCmd("sm_pausemode", CommandTogglePauseMode);
+  //   PM_AddChatAlias(".pause", "sm_pausemode");
+
+  //   RegConsoleCmd("sm_namereplay", Command_NameReplay);
+  //   PM_AddChatAlias(".namereplay", "sm_namereplay");
+
+  //   RegConsoleCmd("sm_namerole", Command_NameRole);
+  //   PM_AddChatAlias(".namerole", "sm_namerole");
+
+  //   RegConsoleCmd("sm_cancel", Command_Cancel);
+  //   PM_AddChatAlias(".cancel", "sm_cancel");
+
+  //   RegConsoleCmd("sm_finishrecording", Command_FinishRecording);
+  //   PM_AddChatAlias(".finish", "sm_finishrecording");
+
+  //   RegConsoleCmd("sm_playrecording", Command_PlayRecording);
+  //   PM_AddChatAlias(".play", "sm_playrecording");
+  // }
+
+  // Bot Demo commands
   {
-    RegConsoleCmd("sm_replay", Command_Replay);
-    PM_AddChatAlias(".replay", "sm_replay");
+    RegConsoleCmd("sm_demo", Command_Demos);
+    PM_AddChatAlias(".demo", "sm_demo");
+    PM_AddChatAlias(".demos", "sm_demo");
 
-    RegConsoleCmd("sm_replays", Command_Replays);
-    PM_AddChatAlias(".replays", "sm_replays");
+    // RegConsoleCmd("sm_demomode", CommandToggleReplayMode);
+    // PM_AddChatAlias(".versus", "sm_demomode");
+    // PM_AddChatAlias(".replaymode", "sm_demomode");
 
-    RegConsoleCmd("sm_replaymode", CommandToggleReplayMode);
-    PM_AddChatAlias(".versus", "sm_replaymode");
-    PM_AddChatAlias(".replaymode", "sm_replaymode");
+    // RegConsoleCmd("sm_pausemode", CommandTogglePauseMode);
+    // PM_AddChatAlias(".pause", "sm_pausemode");
 
-    RegConsoleCmd("sm_pausemode", CommandTogglePauseMode);
-    PM_AddChatAlias(".pause", "sm_pausemode");
-
-    RegConsoleCmd("sm_namereplay", Command_NameReplay);
-    PM_AddChatAlias(".namereplay", "sm_namereplay");
-
-    RegConsoleCmd("sm_namerole", Command_NameRole);
-    PM_AddChatAlias(".namerole", "sm_namerole");
-
-    RegConsoleCmd("sm_cancel", Command_Cancel);
+    RegConsoleCmd("sm_cancel", Command_DemoCancel);
     PM_AddChatAlias(".cancel", "sm_cancel");
 
-    RegConsoleCmd("sm_finishrecording", Command_FinishRecording);
+    RegConsoleCmd("sm_finishrecording", Command_FinishRecordingDemo);
     PM_AddChatAlias(".finish", "sm_finishrecording");
-
-    RegConsoleCmd("sm_playrecording", Command_PlayRecording);
-    PM_AddChatAlias(".play", "sm_playrecording");
   }
 
   // Saved grenade location commands
@@ -643,6 +669,7 @@ public void OnPluginStart() {
   // CreateTimer(1.0, Timer_CleanupLivingBots, _, TIMER_REPEAT);
 
   CommandsBlocker_PluginStart();
+  Demos_PluginStart();
   HoloNade_PluginStart();
   GrenadeAccuracy_PluginStart();
   Breakables_PluginStart();
@@ -673,11 +700,7 @@ public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBr
       SetEventBroadcast(event, true);
       return Plugin_Continue;
     }
-    if (IsPMBot(client)) {
-      SetEventBroadcast(event, true);
-      return Plugin_Continue;
-    }
-    if (IsReplayBot(client)) {
+    if (IsPMBot(client) || IsReplayBot(client)) {
       SetEventBroadcast(event, true);
       return Plugin_Continue;
     }
@@ -818,6 +841,10 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     Client_SetArmor(client, 100);
     SetEntData(client, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), true);
   }
+  if (g_InBotDemoMode && g_BotMimicLoaded && IsDemoBot(client)) {
+    Client_SetArmor(client, 100);
+    SetEntData(client, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), true);
+  }
 
   return Plugin_Continue;
 }
@@ -839,6 +866,7 @@ public void OnClientConnected(int client) {
   g_LastGrenadeEntity[client] = -1;
   g_CurrentEditingRole[client] = -1;
   g_ReplayId[client] = "";
+  g_SelectedDemoId[client] = "";
   CheckAutoStart();
 }
 
@@ -875,6 +903,8 @@ public void OnMapStart() {
   EnforceDirectoryExists("data/practicemode/entries/backups");
   EnforceDirectoryExists("data/practicemode/replays");
   EnforceDirectoryExists("data/practicemode/replays/backups");
+  EnforceDirectoryExists("data/practicemode/demos");
+  EnforceDirectoryExists("data/practicemode/demos/backups");
 
   // This supports backwards compatability for grenades saved in the old location
   // data/practicemode_grenades. The data is transferred to the new
@@ -906,7 +936,8 @@ public void OnMapStart() {
   MaybeCorrectGrenadeIds();
 
   Spawns_MapStart();
-  BotReplay_MapStart();
+  // BotReplay_MapStart();
+  Demos_MapStart();
   HoloNade_MapStart();
   GrenadeAccuracy_MapStart();
   Breakables_MapStart();
@@ -990,7 +1021,8 @@ public void OnMapEnd() {
   }
 
   Spawns_MapEnd();
-  BotReplay_MapEnd();
+  // BotReplay_MapEnd();
+  Demos_MapEnd();
   HoloNade_MapEnd();
   Retakes_MapEnd();
   delete g_GrenadeLocationsKv;
@@ -1075,26 +1107,26 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         g_ClientPulledPinButtons[client] = buttons;
         g_ClientPulledPin[client] = false;
         if (g_nadeBotRecord[client] == 1) {
-          if (BotMimic_IsPlayerRecording(client)) {
-            PM_Message(client, "lastbuttons: %d", buttons);
-            int serial = GetClientSerial(client);
-            CreateTimer(0.5, Timer_HoloNadeBot_PauseRecording, serial);
-          }
+          // if (BotMimic_IsPlayerRecording(client)) {
+          //   PM_Message(client, "lastbuttons: %d", buttons);
+          //   int serial = GetClientSerial(client);
+          //   CreateTimer(0.5, Timer_HoloNadeBot_PauseRecording, serial);
+          // }
         }
     }
     if (g_ClientPulledPin[client]) {
       if (g_nadeBotRecord[client] == 0) {
-        if (BotMimic_IsPlayerRecording(client)) {
-          BotMimic_StopRecording(client, false); // delete
-        }
+        // if (BotMimic_IsPlayerRecording(client)) {
+        //   BotMimic_StopRecording(client, false); // delete
+        // }
         char recordName[128];
         Format(recordName, sizeof(recordName), "player %N %s", client, weaponName);
         // char clientAuth[AUTH_LENGTH];
         // GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
         // ReplaceString(clientAuth, sizeof(clientAuth), ":", "_"); // windows file
-        g_CurrentRecordingStartTime[client] = GetGameTime();
-        BotMimic_StartRecording(client, recordName, "practicemode", _, 600);
-        g_nadeBotRecord[client] = 1;
+        // g_CurrentRecordingStartTime[client] = GetGameTime();
+        // BotMimic_StartRecording(client, recordName, "practicemode", _, 600);
+        // g_nadeBotRecord[client] = 1;
       }
       float exxvel[3];
       Entity_GetAbsVelocity(client, exxvel);
@@ -1106,9 +1138,9 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     }
   } else {
     if (g_nadeBotRecord[client] == 1) {
-      if (BotMimic_IsPlayerRecording(client)) {
-        BotMimic_StopRecording(client, false); // delete
-      }
+      // if (BotMimic_IsPlayerRecording(client)) {
+      //   BotMimic_StopRecording(client, false); // delete
+      // }
       g_nadeBotRecord[client] = 0;
     }
   }
@@ -1135,6 +1167,9 @@ public Action Command_TeamJoin(int client, const char[] command, int argc) {
 
     // Since we force respawns off during bot replay, make teamswitches respawn players.
     if (g_InBotReplayMode && team != CS_TEAM_SPECTATOR && team != CS_TEAM_NONE) {
+      CS_RespawnPlayer(client);
+    }
+    if (g_InBotDemoMode && team != CS_TEAM_SPECTATOR && team != CS_TEAM_NONE) {
       CS_RespawnPlayer(client);
     }
 
@@ -1197,6 +1232,9 @@ public void PerformNoclipAction(int client) {
   // Stop recording if we are.
   if (g_BotMimicLoaded && g_InBotReplayMode) {
     FinishRecording(client, false);
+  }
+  if (g_BotMimicLoaded && g_InBotDemoMode) {
+    FinishRecordingDemo(client, false);
   }
 
   g_LastNoclipCommand[client] = GetGameTickCount();
@@ -1447,6 +1485,12 @@ public void DelayedOnEntitySpawned(int entity) {
       g_currentReplayGrenade++;
       SetEntProp(entity, Prop_Data, "m_iTeamNum", g_currentReplayGrenade);
       g_ClientReplayGrenadeThrowTime[g_currentReplayGrenade] = GetEngineTime();
+    }
+    if (IsDemoBot(client) && g_InPracticeMode &&
+    (GrenadeFromProjectileName(className) != GrenadeType_None || GrenadeFromProjectileName(className) != GrenadeType_Smoke)) {
+      g_currentDemoGrenade++;
+      SetEntProp(entity, Prop_Data, "m_iTeamNum", g_currentDemoGrenade);
+      g_ClientDemoGrenadeThrowTime[g_currentDemoGrenade] = GetEngineTime();
     }
 
     if (IsValidEntity(entity)) {
@@ -1779,6 +1823,16 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
       PM_Message(client, "{ORANGE}Retake \"%s\" (retake_%s) creado.", chatCommand, g_SelectedRetakeId);
       SingleRetakeEditorMenu(client);
     }
+  } else if (g_WaitForDemoSave[client]) {
+    g_WaitForDemoSave[client] = false;
+    if(StrEqual(chatCommand, "!no")) {
+      PM_Message(client, "{ORANGE}Cancelado.");
+    } else {
+      IntToString(GetDemosNextId(), g_SelectedDemoId[client], DEMO_ID_LENGTH);
+      SetDemoName(g_SelectedDemoId[client], chatCommand);
+      PM_Message(client, "{ORANGE}Demo \"%s\" (demo_%s) creado.", chatCommand, g_SelectedDemoId[client]);
+      SingleDemoEditorMenu(client);
+    }
   }
 }
 
@@ -1995,6 +2049,7 @@ public void CSU_OnThrowGrenade(int client, int entity, GrenadeType grenadeType, 
   g_LastGrenadeDetonationOrigin[client] = view_as<float>({0.0, 0.0, 0.0});
   g_LastGrenadeEntity[client] = entity;
   Replays_OnThrowGrenade(client, entity, grenadeType, origin, velocity);
+  Demos_OnThrowGrenade(client, entity, grenadeType, origin, velocity);
   GrenadeAccuracy_OnThrowGrenade(client, entity);
 }
 
