@@ -170,12 +170,12 @@ public Action Command_Respawn(int client, int args) {
     return Plugin_Handled;
   }
 
-  g_SavedRespawnActive[client] = true;
-  GetClientAbsOrigin(client, g_SavedRespawnOrigin[client]);
-  GetClientEyeAngles(client, g_SavedRespawnAngles[client]);
-  PM_Message(
-      client,
-      "Saved respawn point. When you die will you respawn here, use {GREEN}.stop {NORMAL}to cancel.");
+  // g_SavedRespawnActive[client] = true;
+  // GetClientAbsOrigin(client, g_SavedRespawnOrigin[client]);
+  // GetClientEyeAngles(client, g_SavedRespawnAngles[client]);
+  // PM_Message(
+  //     client,
+  //     "Saved respawn point. When you die will you respawn here, use {GREEN}.stop {NORMAL}to cancel.");
   return Plugin_Handled;
 }
 
@@ -229,9 +229,8 @@ public Action Command_StopAll(int client, int args) {
   if (g_RunningTimeCommand[client]) {
     StopClientTimer(client);
   }
-  if (g_BotMimicLoaded && IsReplayPlaying()) {
-    //CancelAllReplays();
-    ExitReplayMode();
+  if (g_BotMimicLoaded && IsDemoPlaying()) {
+    CancelAllDemos();
   }
   if (g_BotMimicLoaded && BotMimic_IsPlayerRecording(client)) {
     BotMimic_StopRecording(client, false /* save */);
@@ -256,47 +255,36 @@ public Action Command_ClearNades(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
-  g_LastGrenadeEntity[client] = -1;
   CEffectData smokeData;
   smokeData.m_nEntIndex = 0;
   smokeData.m_nHitBox = GetParticleSystemIndex("explosion_smokegrenade_fallback");
-  DispatchEffect("ParticleEffectStop", smokeData);
+  DispatchEffect(client, "ParticleEffectStop", smokeData);
   int smokeEnt = -1;
   while ((smokeEnt = FindEntityByClassname(smokeEnt, "smokegrenade_projectile")) != -1) {
-    StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
-    StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/smokegrenade/smoke_emit.wav");
-    AcceptEntityInput(smokeEnt, "Kill");
+    // TODO: get only detonated grenades?
+    int owner = GetEntPropEnt(smokeEnt, Prop_Send, "m_hThrower");
+    if (owner == client || owner == -1) {
+      StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
+      StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/smokegrenade/smoke_emit.wav");
+      AcceptEntityInput(smokeEnt, "Kill");
+    }
   }
 
   int infernoEnt = -1;
   CEffectData infernoData;
   infernoData.m_nEntIndex = 0;
   infernoData.m_nHitBox = GetParticleSystemIndex("molotov_groundfire_fallback2");
-  DispatchEffect("ParticleEffectStop", infernoData);
+  DispatchEffect(client, "ParticleEffectStop", infernoData);
   while ((infernoEnt = FindEntityByClassname(infernoEnt, "inferno")) != -1) {
-    StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
-    StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
+    // TODO: get inferno owner?
+    StopSound(infernoEnt, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
+    StopSound(infernoEnt, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
     AcceptEntityInput(infernoEnt, "Kill");
   }
 
-  // ??
+  g_LastGrenadeEntity[client] = -1;
   g_GrenadeDetonationSaveQueue.Clear();
   
-  return Plugin_Handled;
-}
-
-public Action Timer_ResetTimescale(Handle timer) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  SetCvar("host_timescale", 1);
-
-  for (int i = 1; i <= MaxClients; i++) {
-    if (IsPlayer(i)) {
-      SetEntityMoveType(i, g_PreFastForwardMoveTypes[i]);
-    }
-  }
   return Plugin_Handled;
 }
 
@@ -393,6 +381,11 @@ public int KickPlayerMenuHandler(Menu menu, MenuAction action, int client, int i
   return 0;
 }
 
+static char _mapNames[][] = {"Dust2", "Inferno", "Mirage",
+                              "Nuke", "Overpass", "Train", "Vertigo", "Cache", "Cobble"};
+static char _mapCodes[][] = {"de_dust2", "de_inferno", "de_mirage",
+                              "de_nuke", "de_overpass", "de_train", "de_vertigo", "de_cache", "de_cbble"};
+
 public Action Command_Map(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -404,25 +397,16 @@ public Action Command_Map(int client, int args) {
   if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
     // Before trying to change to the arg first, check to see if
     // there's a clear match in the maplist
-    for (int i = 0; i < g_MapList.Length; i++) {
-      char map[PLATFORM_MAX_PATH];
-      g_MapList.GetString(i, map, sizeof(map));
-      if (StrContains(map, arg, false) >= 0) {
-        ChangeMap(map);
-        return Plugin_Handled;
-      }
-    }
+    int mapIndex = FindStringInArray2(_mapNames, sizeof(_mapNames), arg, false);
+    ChangeMap(_mapCodes[mapIndex]);
+    return Plugin_Handled;
   }
   Menu menu = new Menu(ChangeMapHandler);
   menu.ExitButton = true;
   menu.ExitBackButton = true;
   menu.SetTitle("Selecciona un mapa:");
-  for (int i = 0; i < g_MapList.Length; i++) {
-    char map[PLATFORM_MAX_PATH];
-    g_MapList.GetString(i, map, sizeof(map));
-    char cleanedMapName[PLATFORM_MAX_PATH];
-    CleanMapName(map, cleanedMapName, sizeof(cleanedMapName));
-    AddMenuInt(menu, i, cleanedMapName);
+  for (int i = 0; i < sizeof(_mapNames); i++) {
+    AddMenuInt(menu, i, _mapNames[i]);
   }
   DisplayMenu(menu, client, MENU_TIME_FOREVER);
 
@@ -432,25 +416,13 @@ public Action Command_Map(int client, int args) {
 public int ChangeMapHandler(Menu menu, MenuAction action, int param1, int param2) {
   if (action == MenuAction_Select) {
     int index = GetMenuInt(menu, param2);
-    char map[PLATFORM_MAX_PATH];
-    g_MapList.GetString(index, map, sizeof(map));
-    ChangeMap(map);
+    ChangeMap(_mapCodes[index]);
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
     PracticeSetupMenu(param1);
   } else if (action == MenuAction_End) {
     delete menu;
   }
   return 0;
-}
-
-public void ChangeSettingById(const char[] id, bool setting) {
-  for (int i = 0; i < g_BinaryOptionIds.Length; i++) {
-    char name[OPTION_NAME_LENGTH];
-    g_BinaryOptionIds.GetString(i, name, sizeof(name));
-    if (StrEqual(name, id, false)) {
-      ChangeSetting(i, setting);
-    }
-  }
 }
 
 public Action Command_DryRun(int client, int args) {
@@ -472,19 +444,24 @@ public Action Command_DryRun(int client, int args) {
         roundTime = StringToFloat(roundTimeStr);
       }
     }
-    SetConVarInt(FindConVar("mp_startmoney"), startMoney);
-    SetConVarFloat(FindConVar("mp_roundtime_defuse"), roundTime);
 
-    SetCvar("mp_freezetime", g_DryRunFreezeTimeCvar.IntValue);
-    ChangeSettingById("allradar", false);
-    ChangeSettingById("glowbots", false);
-    ChangeSettingById("blockroundendings", false);
-    ChangeSettingById("grenadetrajectory", false);
-    ChangeSettingById("infiniteammo", false);
-    ChangeSettingById("noclip", false);
-    ChangeSettingById("respawning", false);
-    ChangeSettingById("showimpacts", false);
-    ChangeSettingById("showspawns", false);
+    SetCvarIntSafe("mp_startmoney", startMoney);
+    SetConVarFloatSafe("mp_roundtime_defuse", roundTime);
+
+    SetCvarIntSafe("mp_freezetime", g_DryRunFreezeTimeCvar.IntValue);
+    SetCvarIntSafe("mp_radar_showall", 0);
+    SetCvarIntSafe("sm_glow_pmbots", 0);
+    SetCvarIntSafe("sv_grenade_trajectory", 0);
+    SetCvarIntSafe("mp_ignore_round_win_conditions", 0);
+    SetCvarIntSafe("sv_grenade_trajectory", 0);
+    SetCvarIntSafe("sv_infinite_ammo", 2);
+    SetCvarIntSafe("sm_allow_noclip", 0);
+    SetCvarIntSafe("mp_respawn_on_death_ct", 0);
+    SetCvarIntSafe("mp_respawn_on_death_t", 0);
+    // SetCvarIntSafe("mp_buy_anywhere", 0);
+    // SetCvarIntSafe("mp_buytime", 40);
+    SetCvarIntSafe("sv_showimpacts", 0);
+    SetCvarIntSafe("sm_holo_spawns", 0);
 
     for (int i = 1; i <= MaxClients; i++) {
       g_TestingFlash[i] = false;
@@ -494,73 +471,26 @@ public Action Command_DryRun(int client, int args) {
         SetEntityMoveType(i, MOVETYPE_WALK);
       }
     }
+    PM_Message(client, "{ORANGE}.dry <dinero ${GREEN}%d{NORMAL}> <duración de ronda {GREEN}%d{NORMAL} min.>");
   } else {
-    SetConVarFloat(FindConVar("mp_roundtime_defuse"), 60.0);
-    SetCvar("mp_freezetime", 0);
-    ChangeSettingById("allradar", true);
-    ChangeSettingById("glowbots", true);
-    ChangeSettingById("blockroundendings", true);
-    ChangeSettingById("grenadetrajectory", true);
-    ChangeSettingById("infiniteammo", true);
-    ChangeSettingById("noclip", true);
-    ChangeSettingById("respawning", true);
-    ChangeSettingById("showimpacts", true);
-    ChangeSettingById("showspawns", true);
+    SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
+    SetCvarIntSafe("mp_freezetime", 0);
+    SetCvarIntSafe("mp_radar_showall", 1);
+    SetCvarIntSafe("sm_glow_pmbots", 1);
+    SetCvarIntSafe("sv_grenade_trajectory", 1);
+    SetCvarIntSafe("mp_ignore_round_win_conditions", 1);
+    SetCvarIntSafe("sv_grenade_trajectory", 1);
+    SetCvarIntSafe("sv_infinite_ammo", 1);
+    SetCvarIntSafe("sm_allow_noclip", 1);
+    SetCvarIntSafe("mp_respawn_on_death_ct", 1);
+    SetCvarIntSafe("mp_respawn_on_death_t", 1);
+    // SetCvarIntSafe("mp_buy_anywhere", 1);
+    // SetCvarIntSafe("mp_buytime", 99999);
+    SetCvarIntSafe("sv_showimpacts", 1);
+    SetCvarIntSafe("sm_holo_spawns", 1);
   }
 
   ServerCommand("mp_restartgame 1");
-  return Plugin_Handled;
-}
-
-static void ChangeSettingArg(int client, const char[] arg, bool enabled) {
-  if (StrEqual(arg, "all", false)) {
-    for (int i = 0; i < g_BinaryOptionIds.Length; i++) {
-      ChangeSetting(i, enabled);
-    }
-    return;
-  }
-
-  ArrayList indexMatches = new ArrayList();
-  for (int i = 0; i < g_BinaryOptionIds.Length; i++) {
-    char name[OPTION_NAME_LENGTH];
-    g_BinaryOptionNames.GetString(i, name, sizeof(name));
-    if (StrContains(name, arg, false) >= 0) {
-      indexMatches.Push(i);
-    }
-  }
-
-  if (indexMatches.Length == 0) {
-    PM_Message(client, "No settings matched \"%s\"", arg);
-  } else if (indexMatches.Length == 1) {
-    if (!ChangeSetting(indexMatches.Get(0), enabled)) {
-      PM_Message(client, "That is already enabled.");
-    }
-  } else {
-    PM_Message(client, "Multiple settings matched \"%s\"", arg);
-  }
-
-  delete indexMatches;
-}
-
-public Action Command_Enable(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  char arg[128];
-  GetCmdArgString(arg, sizeof(arg));
-  ChangeSettingArg(client, arg, true);
-  return Plugin_Handled;
-}
-
-public Action Command_Disable(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  char arg[128];
-  GetCmdArgString(arg, sizeof(arg));
-  ChangeSettingArg(client, arg, false);
   return Plugin_Handled;
 }
 
@@ -596,7 +526,7 @@ public Action Command_Restart(int client, int args){
   char argString[256];
   GetCmdArgString(argString, sizeof(argString));
   int freezeTime = StringToInt(argString);
-  SetCvar("mp_freezetime", freezeTime);
+  SetCvarIntSafe("mp_freezetime", freezeTime);
 
   for (int i = 1; i <= MaxClients; i++) {
     g_TestingFlash[i] = false;

@@ -1,4 +1,8 @@
 public Action PMBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
+  if (!IsPlayerAlive(client)) {
+    return Plugin_Continue;
+  }
+
   if (g_BotMindControlOwner[client] > 0) {
     int controller = g_BotMindControlOwner[client];
     if (IsPlayer(controller)) {
@@ -83,16 +87,11 @@ public Action Timer_GetPMBots(Handle timer, DataPack botPack) {
   ReadPackString(botPack, name, sizeof(name));
 
   if(IsPlayer(client)){
-    int largestUserid = GetLargestBotUserId();
-    if (largestUserid == -1) {
+    int bot = GetLiveBot();
+    if (bot < 0) {
       return Plugin_Handled;
     }
-
-    int bot = GetClientOfUserId(largestUserid);
-    if (!IsValidClient(bot)) {
-      return Plugin_Handled;
-    }
-    GetClientName(bot, g_PMBotStartName[bot], MAX_NAME_LENGTH);
+    GetClientName(bot, g_BotOriginalName[bot], MAX_NAME_LENGTH);
     SetupPMBot(client, bot, name, botNumberTaken);
 
     GiveBotParams(bot);
@@ -216,7 +215,7 @@ public void KickAllClientBots(int client) {
   for (int i = 0; i < g_ClientBots[client].Length; i++) {
     int bot = g_ClientBots[client].Get(i);
     if (IsPMBot(bot)) {
-      ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
+      ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
       g_IsPMBot[bot] = false;
       g_BotMindControlOwner[bot] = -1;
     }
@@ -241,7 +240,7 @@ public void KickAllBotsInServer() {
       if (IsPMBot(bot)) {
         g_IsPMBot[bot] = false;
         g_BotMindControlOwner[bot] = -1;
-        ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
+        ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
       }
     }
     g_ClientBots[client].Clear();

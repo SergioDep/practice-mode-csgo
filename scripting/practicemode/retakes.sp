@@ -11,6 +11,8 @@ int g_RetakeBotDuck[MAXPLAYERS + 1];
 int g_RetakeDeathPlayersCount = 0;
 
 ArrayList g_RetakePlayers;
+int g_RetakePlayers_Points[MAXPLAYERS + 1] = {0, ...};
+
 ArrayList g_RetakeBots;
 ArrayList g_RetakeRetakes;
 char g_RetakePlayId[RETAKE_ID_LENGTH];
@@ -103,9 +105,9 @@ public void Retakes_MapEnd() {
   RemoveHoloRetakeEntities();
 }
 
-stock void StartRetakes(int client) {
+stock void InitRetakes(int client) {
   if (g_InRetakeMode) {
-    PM_Message(client, "{ORANGE}Retake Ya Empezado.");
+    PM_Message(client, "{ORANGE}Retakes Ya Activo.");
     return;
   }
   // Get Retakes
@@ -124,10 +126,10 @@ stock void StartRetakes(int client) {
     return;
   }
   // Setup Retake
-  StartSetupRetake(client);
+  StartSingleRetake(client);
 }
 
-stock void StartSetupRetake(int client, int retakePos = 0) {
+stock void StartSingleRetake(int client, int retakePos = 0) {
   g_RetakeRetakes.GetString(retakePos, g_RetakePlayId, RETAKE_ID_LENGTH);
   char retakeName[RETAKE_NAME_LENGTH];
   GetRetakeName(g_RetakePlayId, retakeName, RETAKE_NAME_LENGTH);
@@ -148,13 +150,13 @@ stock void StartSetupRetake(int client, int retakePos = 0) {
   GetRetakeSpawnVectorKV(g_RetakePlayId, KV_BOMBSPAWN, randomSpawnId, "origin", bombPosition);
   PlantBomb(client, bombPosition);
 
-
-  g_RetakePlayers.Clear();
-  g_RetakeBots.Clear();
   CreateTimer(0.2, Timer_StartRetake, GetClientSerial(client));
 }
 
 public Action Timer_StartRetake(Handle timer, int serial) {
+  g_RetakePlayers.Clear();
+  g_RetakeBots.Clear();
+
   int client = GetClientFromSerial(serial);
   g_RetakePlayers.Push(client);
   // Choose N random clients
@@ -252,14 +254,17 @@ public Action Timer_StartRetake(Handle timer, int serial) {
   delete enabledPlayers;
 
   // Success
-  ChangeSettingById("allradar", false);
-  ChangeSettingById("glowbots", false);
-  ChangeSettingById("blockroundendings", false);
-  ChangeSettingById("grenadetrajectory", false);
-  ChangeSettingById("infiniteammo", false);
-  ChangeSettingById("noclip", false);
-  ChangeSettingById("respawning", false);
-  ChangeSettingById("showimpacts", false);
+  SetCvarIntSafe("mp_forcecamera", 0);
+  SetCvarIntSafe("mp_radar_showall", 0);
+  SetCvarIntSafe("sm_glow_pmbots", 0);
+  SetCvarIntSafe("mp_ignore_round_win_conditions", 0);
+  SetCvarIntSafe("sv_grenade_trajectory", 0);
+  SetCvarIntSafe("sv_infinite_ammo", 2);
+  SetCvarIntSafe("sm_allow_noclip", 0);
+  SetCvarIntSafe("mp_respawn_on_death_ct", 0);
+  SetCvarIntSafe("mp_respawn_on_death_t", 0);
+  SetCvarIntSafe("sv_showimpacts", 0);
+  SetCvarIntSafe("sm_holo_spawns", 0);
   g_InRetakeMode = true;
   return Plugin_Handled;
 }
@@ -268,33 +273,18 @@ public Action Timer_GetRetakeBots(Handle timer, DataPack pack) {
   pack.Reset();
   char spawnId[RETAKE_ID_LENGTH];
   pack.ReadString(spawnId, RETAKE_ID_LENGTH);
-  int largestUserid = -1;
-  for (int i = 1; i <= MaxClients; i++) {
-    if (IsValidClient(i) && IsFakeClient(i) && !IsClientSourceTV(i)) {
-      int userid = GetClientUserId(i);
-      if (userid > largestUserid && !g_IsRetakeBot[i]) {
-        largestUserid = userid;
-      }
-    }
-  }
-  if (largestUserid == -1) {
-    LogError("(Timer_GetRetakeBots->largestUserid) Error getting bot %s from %s", spawnId, g_RetakePlayId);
+  
+  int bot = GetLiveBot(CS_TEAM_T);
+  if (bot < 0) {
     return Plugin_Handled;
   }
-  int bot = GetClientOfUserId(largestUserid);
-  if (!IsValidClient(bot)) {
-    LogError("(Timer_GetRetakeBots->IsValidClient) Error getting bot %s from %s", spawnId, g_RetakePlayId);
-    return Plugin_Handled;
-  }
+
   char name[MAX_NAME_LENGTH];
   GetClientName(bot, name, MAX_NAME_LENGTH);
   Format(name, MAX_NAME_LENGTH, "[RETAKE]%s", name);
   SetClientName(bot, name);
   g_IsRetakeBot[bot] = true;
   g_RetakeBots.Push(bot);
-  ChangeClientTeam(bot, CS_TEAM_T);
-  KillBot(bot);
-  CS_RespawnPlayer(bot);
 
   // Weapons
   Client_RemoveAllWeapons(bot);
@@ -325,7 +315,7 @@ public Action Timer_GetRetakeBots(Handle timer, DataPack pack) {
   return Plugin_Handled;
 }
 
-public void EndSetupRetake(bool win) {
+public void EndSingleRetake(bool win) {
   ServerCommand("bot_kick");
   g_RetakeBots.Clear();
   char retakeName[RETAKE_NAME_LENGTH];
@@ -342,9 +332,9 @@ public void EndSetupRetake(bool win) {
         int currentRetakeIndex = g_RetakeRetakes.FindString(g_RetakePlayId);
         if (currentRetakeIndex < g_RetakeRetakes.Length - 1) {
           currentRetakeIndex++;
-          StartSetupRetake(i, currentRetakeIndex);
+          StartSingleRetake(i, currentRetakeIndex);
         } else {
-          StopRetakes();
+          StopRetakesMode();
         }
       }
     } else {
@@ -355,30 +345,287 @@ public void EndSetupRetake(bool win) {
       if (i == 0) {
         // repeat round
         int currentRetakeIndex = g_RetakeRetakes.FindString(g_RetakePlayId);
-        StartSetupRetake(i, currentRetakeIndex);
+        StartSingleRetake(player, currentRetakeIndex);
       }
     }
   }
   g_RetakeDeathPlayersCount = 0;
 }
 
-public void StopRetakes() {
+public void StopRetakesMode() {
   GameRules_SetProp("m_bBombPlanted", 0);
   ServerCommand("bot_kick");
   // ServerCommand("mp_restartgame 1"); // test
   g_RetakePlayers.Clear();
   g_RetakeBots.Clear();
+  g_RetakeRetakes.Clear();
   g_InRetakeMode = false;
   
-  ChangeSettingById("allradar", true);
-  ChangeSettingById("glowbots", true);
-  ChangeSettingById("blockroundendings", true);
-  ChangeSettingById("grenadetrajectory", true);
-  ChangeSettingById("infiniteammo", true);
-  ChangeSettingById("noclip", true);
-  ChangeSettingById("respawning", true);
-  ChangeSettingById("showimpacts", true);
+  SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
+  SetCvarIntSafe("mp_forcecamera", 2);
+  SetCvarIntSafe("mp_radar_showall", 1);
+  SetCvarIntSafe("sm_glow_pmbots", 1);
+  SetCvarIntSafe("mp_ignore_round_win_conditions", 1);
+  SetCvarIntSafe("sv_grenade_trajectory", 1);
+  SetCvarIntSafe("sv_infinite_ammo", 1);
+  SetCvarIntSafe("sm_allow_noclip", 1);
+  SetCvarIntSafe("mp_respawn_on_death_ct", 1);
+  SetCvarIntSafe("mp_respawn_on_death_t", 1);
+  SetCvarIntSafe("sv_showimpacts", 1);
+  SetCvarIntSafe("sm_holo_spawns", 1);
   g_RetakeDeathPlayersCount = 0;
+}
+
+// TODO: Use Timer for calculating the closest player, store it in global -> g_retakeBotTarget[bot] = me
+public Action RetakeBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
+  if (!g_InRetakeMode) {
+    return Plugin_Continue;
+  }
+
+  if (!IsPlayerAlive(client)) {
+    return Plugin_Continue;
+  }
+
+  float m_bData = GetEntPropFloat(client, Prop_Data, "m_flDuckSpeed");
+  if (m_bData < 7.0) {
+    SetEntPropFloat(client, Prop_Send, "m_flDuckSpeed", 7.0, 0);
+  }
+
+  // always look at closest player (otherwise bot overrides its angles(maybe create global variable and update that through timer function?))
+  int nearestTarget = -1;
+  int nearestNonVisibleTarget = -1;
+
+  float nearestDistance = -1.0;
+  float distance;
+  for (int i = 0; i < g_RetakePlayers.Length; i++) {
+    int target = g_RetakePlayers.Get(i);
+    if (IsPlayer(target)) {
+      if (!IsPlayerAlive(target)) {
+        continue;
+      }
+      distance = Entity_GetDistance(client, target);
+      if (distance > nearestDistance && nearestDistance > -1.0) {
+        continue;
+      }
+      if (!IsAbleToSee(client, target)) {
+        if (distance < 500.0) {
+          nearestNonVisibleTarget = -1; //target
+        }
+        continue;
+      }
+      // if (!ClientCanSeeClient(client, target)) {
+      //   if (distance < 500.0) {
+      //     nearestNonVisibleTarget = target;
+      //   }
+      //   continue;
+      // }
+      nearestDistance = distance;
+      nearestTarget = target;
+    }
+  }
+  if (nearestTarget > 0) {
+    float clientEyepos[3], viewTarget[3];
+    GetClientEyePosition(client, clientEyepos);
+    GetClientEyePosition(nearestTarget, viewTarget);
+    viewTarget[2] -= 0.0; // headshot or bodyshot(30.0) ?
+    SubtractVectors(viewTarget, clientEyepos, viewTarget);
+    GetVectorAngles(viewTarget, viewTarget);
+    TeleportEntity(client, NULL_VECTOR, viewTarget, NULL_VECTOR);
+    // Strafe movement perpendicular to player->bot vector
+    // bot will stop and attack every g_RKBot_ReactTimeCvar.IntValue frames
+    if (g_RKBot_Time[client] >= g_RKBot_ReactTimeCvar.IntValue &&
+        g_RKBot_Time[client] <= (g_RKBot_ReactTimeCvar.IntValue+g_RKBot_AttackTimeCvar.IntValue)) { // bot will attack for (2 + 1) frames
+      vel[1] = 0.0;
+      if (nearestTarget == -1 && nearestNonVisibleTarget > 0) {
+        // doesnt see anybody but has a close target
+      }
+      buttons |= IN_ATTACK;
+      // buttons &= ~IN_SPEED;
+      if (g_RKBot_Time[client] == (g_RKBot_ReactTimeCvar.IntValue+g_RKBot_AttackTimeCvar.IntValue)) {
+        g_RetakeBotDuck[client] = GetRandomInt(0, 1);
+        g_RKBot_Time[client] = 0;
+      }
+      else g_RKBot_Time[client]++;
+    } else {
+      buttons &= ~IN_ATTACK;
+      buttons &= ~IN_DUCK;
+      // buttons &= ~IN_SPEED;
+      if (g_RKBot_Time[client] == g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue) { // the bot will be moving RKBOT_MOVEDISTANCE frames
+        g_RetakeBotDirection[client] = GetRandomInt(0, 1);
+        g_RetakeBotDuck[client] = GetRandomInt(0, 1);
+        // g_RetakeBotWalk[client] = GetRandomInt(0, 1);
+      } else {
+        if (g_RKBot_Time[client] > g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue) { // while the bot is moving
+          if (g_RetakeBotDirection[client] == 1) vel[1] = 250.0;
+          else vel[1] = -250.0;
+          if (g_RetakeBotDuck[client] == 1) buttons |= IN_DUCK;
+
+          // if (g_RetakeBotWalk[client]) buttons |= IN_SPEED;
+          if (g_RKBot_Time[client] == g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue + 5) { // just after the bot started moving to check if IS STUCK
+            float fAbsVel[3];
+            Entity_GetAbsVelocity(client, fAbsVel);
+            if (GetVectorLength(fAbsVel) < 5.0) {
+              // PrintToChatAll("block detected");
+              // Jump to Attack Time ?
+              // g_RKBot_Time[client] = g_RKBot_ReactTimeCvar.IntValue;
+              // PrintToChatAll("direction changed from %d to %d", g_RetakeBotDirection[client], 1 - g_RetakeBotDirection[client]);
+              g_RetakeBotDirection[client] = 1 - g_RetakeBotDirection[client];
+            }
+          }
+        } else {
+          // unknown status (bot is standing?)
+        }
+      }
+      g_RKBot_Time[client]++;
+    }
+  } else if (nearestNonVisibleTarget > 0) {
+    float clientEyepos[3], viewTarget[3];
+    GetClientEyePosition(client, clientEyepos);
+    GetClientEyePosition(nearestNonVisibleTarget, viewTarget);
+    SubtractVectors(viewTarget, clientEyepos, viewTarget);
+    GetVectorAngles(viewTarget, viewTarget);
+    viewTarget[2] -= 3.0; //headshot
+    TeleportEntity(client, NULL_VECTOR, viewTarget, NULL_VECTOR);
+  }
+
+  return Plugin_Continue;
+}
+
+//////////////////////
+////////EVENTS////////
+//////////////////////
+
+public Action Event_BombPlant(Event event, const char[] name, bool dontBroadcast) {
+  // go to next retake
+
+  return Plugin_Continue;
+}
+
+public Action Event_BombExplode(Event event, const char[] name, bool dontBroadcast) {
+  if (!g_InRetakeMode) {
+    return Plugin_Continue;
+  }
+  EndSingleRetake(false);
+  return Plugin_Continue;
+}
+
+public Action Event_BombDefuse(Event event, const char[] name, bool dontBroadcast) {
+  if (!g_InRetakeMode) {
+    return Plugin_Continue;
+  }
+  EndSingleRetake(true);
+  return Plugin_Continue;
+}
+
+public Action Event_Retakes_RoundStart(Event event, const char[] name, bool dontBroadcast) {
+  return Plugin_Continue;
+}
+
+// This Always get Executed when finished a Retake
+public Action Event_Retakes_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
+  // EndSingleRetake();
+  return Plugin_Continue;
+}
+
+public Action Event_RetakeBot_Death(int victim, Event event, const char[] name, bool dontBroadcast) {
+  // TODO: Respawn in next pos?
+  int killer = GetClientOfUserId(GetEventInt(event, "attacker"));
+  if (!IsValidClient(killer) || killer == victim) {
+    return Plugin_Continue;
+  }
+  int index = -1;
+  if((index = g_RetakeBots.FindValue(victim)) != -1) {
+    int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
+    CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
+    g_RKBot_Time[index] = 0;
+    if (g_RetakePlayers.FindValue(killer) != -1) {
+      g_RetakePlayers_Points[killer] += 5; // 5 points per kill
+    }
+    g_RetakeBots.Erase(index);
+  }
+  // if (g_RetakeBots.Length == 0) {
+  //   // all bots are dead
+  // }
+  return Plugin_Continue;
+}
+
+////////////////////////
+////////COMMANDS////////
+////////////////////////
+
+public Action Command_RetakesSetupMenu(int client, int args) {
+  if (!IsPlayer(client)) {
+    return Plugin_Handled;
+  }
+  RetakesSetupMenu(client);
+  return Plugin_Handled;
+}
+
+public Action Command_RetakesEditorMenu(int client, int args) {
+  if (g_InRetakeMode) {
+    PM_Message(client, "{ORANGE}Retake Ya Empezado.");
+    return Plugin_Continue;
+  }
+  if (!IsRetakesEditor(client)) {
+    PM_Message(client, "{ORANGE}No tienes permisos de editor.");
+    return Plugin_Handled;
+  }
+  PM_Message(client, "{ORANGE}Modo Edición Activado.");
+  RetakesEditorMenu(client);
+  return Plugin_Handled;
+}
+
+public bool IsRetakesEditor(int client) {
+  return true;
+}
+
+public bool IsRetakeBot(int client) {
+  return client > 0 && g_IsRetakeBot[client] && IsClientInGame(client) && IsFakeClient(client);
+}
+
+/////////////////////
+////////UTILS////////
+/////////////////////
+
+public void PlantBomb(int client, float bombPosition[3]) {
+  int bombEntity = CreateEntityByName("planted_c4");
+  // cacacacacac guardar bombEntity Entidad Global
+  GameRules_SetProp("m_bBombPlanted", 1);
+  SetEntData(bombEntity, bombTicking, 1, 1, true);
+  Event event = CreateEvent("bomb_planted");
+  if (event != null) {
+    event.SetInt("userid", GetClientUserId(client));
+    event.SetInt("site", GetNearestBombsite(bombPosition));
+    event.Fire();
+  }
+
+  if (DispatchSpawn(bombEntity)) {
+    ActivateEntity(bombEntity);
+
+    SendVectorToGround(bombPosition);
+    TeleportEntity(bombEntity, bombPosition, NULL_VECTOR, NULL_VECTOR)
+  }
+  else {
+    CS_TerminateRound(1.0, CSRoundEnd_Draw);
+  }
+}
+
+stock int GetNearestBombsite(float start[3]) {
+  int playerResource = GetPlayerResourceEntity();
+  if (playerResource == -1) {
+    return -1;
+  }
+
+  float aCenter[3], bCenter[3];
+  GetEntPropVector(playerResource, Prop_Send, "m_bombsiteCenterA", aCenter);
+  GetEntPropVector(playerResource, Prop_Send, "m_bombsiteCenterB", bCenter);
+  float aDist = GetVectorDistance(aCenter, start, true);
+  float bDist = GetVectorDistance(bCenter, start, true);
+  if (aDist < bDist) {
+    return 0; //A
+  }
+  
+  return 1; //B
 }
 
 public bool IsAbleToSee(int entity, int client) {
@@ -544,241 +791,4 @@ stock bool IsRectangleVisible(const float start[3], const float end[3], const fl
   }
 
   return false;
-}
-
-// TODO: Use Timer for calculating the closest player, store it in global -> g_retakeBotTarget[bot] = me
-public Action RetakeBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
-  if (!g_InRetakeMode) {
-    return Plugin_Continue;
-  }
-
-  if(!IsPlayerAlive(client)) {
-    return Plugin_Continue;
-  }
-
-  float m_bData = GetEntPropFloat(client, Prop_Data, "m_flDuckSpeed");
-  if (m_bData < 7.0) {
-    SetEntPropFloat(client, Prop_Send, "m_flDuckSpeed", 7.0, 0);
-  }
-
-  // always look at closest player (otherwise bot overrides its angles(maybe create global variable and update that through timer function?))
-  int nearestTarget = -1;
-  int nearestNonVisibleTarget = -1;
-
-  float nearestDistance = -1.0;
-  float distance;
-  for (int i = 0; i < g_RetakePlayers.Length; i++) {
-    int target = g_RetakePlayers.Get(i);
-    if (IsPlayer(target)) {
-      if (!IsPlayerAlive(target)) {
-        continue;
-      }
-      distance = Entity_GetDistance(client, target);
-      if (distance > nearestDistance && nearestDistance > -1.0) {
-        continue;
-      }
-      if (!IsAbleToSee(client, target)) {
-        if (distance < 500.0) {
-          nearestNonVisibleTarget = -1; //target
-        }
-        continue;
-      }
-      // if (!ClientCanSeeClient(client, target)) {
-      //   if (distance < 500.0) {
-      //     nearestNonVisibleTarget = target;
-      //   }
-      //   continue;
-      // }
-      nearestDistance = distance;
-      nearestTarget = target;
-    }
-  }
-  if (nearestTarget > 0) {
-    float clientEyepos[3], viewTarget[3];
-    GetClientEyePosition(client, clientEyepos);
-    GetClientEyePosition(nearestTarget, viewTarget);
-    viewTarget[2] -= 30.0; // headshot or bodyshot ?
-    SubtractVectors(viewTarget, clientEyepos, viewTarget);
-    GetVectorAngles(viewTarget, viewTarget);
-    TeleportEntity(client, NULL_VECTOR, viewTarget, NULL_VECTOR);
-    // Strafe movement perpendicular to player->bot vector
-    // bot will stop and attack every g_RKBot_ReactTimeCvar.IntValue frames
-    if (g_RKBot_Time[client] >= g_RKBot_ReactTimeCvar.IntValue &&
-        g_RKBot_Time[client] <= (g_RKBot_ReactTimeCvar.IntValue+g_RKBot_AttackTimeCvar.IntValue)) { // bot will attack for (2 + 1) frames
-      vel[1] = 0.0;
-      if (nearestTarget == -1 && nearestNonVisibleTarget > 0) {
-        // doesnt see anybody but has a close target
-      }
-      buttons |= IN_ATTACK;
-      // buttons &= ~IN_SPEED;
-      if (g_RKBot_Time[client] == (g_RKBot_ReactTimeCvar.IntValue+g_RKBot_AttackTimeCvar.IntValue)) {
-        g_RetakeBotDuck[client] = GetRandomInt(0, 1);
-        g_RKBot_Time[client] = 0;
-      }
-      else g_RKBot_Time[client]++;
-    } else {
-      buttons &= ~IN_ATTACK;
-      buttons &= ~IN_DUCK;
-      // buttons &= ~IN_SPEED;
-      if (g_RKBot_Time[client] == g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue) { // the bot will be moving RKBOT_MOVEDISTANCE frames
-        g_RetakeBotDirection[client] = GetRandomInt(0, 1);
-        g_RetakeBotDuck[client] = GetRandomInt(0, 1);
-        // g_RetakeBotWalk[client] = GetRandomInt(0, 1);
-      } else {
-        if (g_RKBot_Time[client] > g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue) { // while the bot is moving
-          if (g_RetakeBotDirection[client] == 1) vel[1] = 250.0;
-          else vel[1] = -250.0;
-          if (g_RetakeBotDuck[client] == 1) buttons |= IN_DUCK;
-
-          // if (g_RetakeBotWalk[client]) buttons |= IN_SPEED;
-          if (g_RKBot_Time[client] == g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue + 5) { // just after the bot started moving to check if IS STUCK
-            float fAbsVel[3];
-            Entity_GetAbsVelocity(client, fAbsVel);
-            if (GetVectorLength(fAbsVel) < 5.0) {
-              // PrintToChatAll("block detected");
-              // Jump to Attack Time ?
-              // g_RKBot_Time[client] = g_RKBot_ReactTimeCvar.IntValue;
-              // PrintToChatAll("direction changed from %d to %d", g_RetakeBotDirection[client], 1 - g_RetakeBotDirection[client]);
-              g_RetakeBotDirection[client] = 1 - g_RetakeBotDirection[client];
-            }
-          }
-        } else {
-          // unknown status (bot is standing?)
-        }
-      }
-      g_RKBot_Time[client]++;
-    }
-  } else if (nearestNonVisibleTarget > 0) {
-    float clientEyepos[3], viewTarget[3];
-    GetClientEyePosition(client, clientEyepos);
-    GetClientEyePosition(nearestNonVisibleTarget, viewTarget);
-    SubtractVectors(viewTarget, clientEyepos, viewTarget);
-    GetVectorAngles(viewTarget, viewTarget);
-    viewTarget[2] -= 3.0; //headshot
-    TeleportEntity(client, NULL_VECTOR, viewTarget, NULL_VECTOR);
-  }
-
-  return Plugin_Continue;
-}
-
-public Action Event_BombPlant(Event event, const char[] name, bool dontBroadcast) {
-  // go to next retake
-
-  return Plugin_Continue;
-}
-
-public Action Event_BombExplode(Event event, const char[] name, bool dontBroadcast) {
-  if (!g_InRetakeMode) {
-    return Plugin_Continue;
-  }
-  EndSetupRetake(false);
-  return Plugin_Continue;
-}
-
-public Action Event_BombDefuse(Event event, const char[] name, bool dontBroadcast) {
-  if (!g_InRetakeMode) {
-    return Plugin_Continue;
-  }
-  EndSetupRetake(true);
-  return Plugin_Continue;
-}
-
-public Action Event_Retakes_RoundStart(Event event, const char[] name, bool dontBroadcast) {
-  return Plugin_Continue;
-}
-
-// This Always get Executed when finished a Retake
-public Action Event_Retakes_RoundEnd(Event event, const char[] name, bool dontBroadcast) {
-  // EndSetupRetake();
-  return Plugin_Continue;
-}
-
-public Action Event_RetakeBot_Death(int victim, Event event, const char[] name, bool dontBroadcast) {
-  // TODO: Respawn in next pos?
-  int killer = GetClientOfUserId(GetEventInt(event, "attacker"));
-  if (!IsValidClient(killer) || killer == victim) {
-    return Plugin_Continue;
-  }
-  int index = -1;
-  if((index = g_RetakeBots.FindValue(victim)) != -1) {
-    int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
-    CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
-    g_RKBot_Time[index] = 0;
-    g_RetakeBots.Erase(index);
-  }
-  if (g_RetakeBots.Length == 0) {
-    EndSetupRetake(true);
-  }
-  return Plugin_Continue;
-}
-
-public void PlantBomb(int client, float bombPosition[3]) {
-  int bombEntity = CreateEntityByName("planted_c4");
-  // cacacacacac guardar bombEntity Entidad Global
-  GameRules_SetProp("m_bBombPlanted", 1);
-  SetEntData(bombEntity, bombTicking, 1, 1, true);
-  Event event = CreateEvent("bomb_planted");
-  if (event != null) {
-    event.SetInt("userid", GetClientUserId(client));
-    event.SetInt("site", GetNearestBombsite(bombPosition));
-    event.Fire();
-  }
-
-  if (DispatchSpawn(bombEntity)) {
-    ActivateEntity(bombEntity);
-
-    SendVectorToGround(bombPosition);
-    TeleportEntity(bombEntity, bombPosition, NULL_VECTOR, NULL_VECTOR)
-  }
-  else {
-    CS_TerminateRound(1.0, CSRoundEnd_Draw);
-  }
-}
-
-stock int GetNearestBombsite(float start[3]) {
-  int playerResource = GetPlayerResourceEntity();
-  if (playerResource == -1) {
-    return -1;
-  }
-
-  float aCenter[3], bCenter[3];
-  GetEntPropVector(playerResource, Prop_Send, "m_bombsiteCenterA", aCenter);
-  GetEntPropVector(playerResource, Prop_Send, "m_bombsiteCenterB", bCenter);
-  float aDist = GetVectorDistance(aCenter, start, true);
-  float bDist = GetVectorDistance(bCenter, start, true);
-  if (aDist < bDist) {
-    return 0; //A
-  }
-  
-  return 1; //B
-}
-
-public Action Command_RetakesSetupMenu(int client, int args) {
-  if (!IsPlayer(client)) {
-    return Plugin_Handled;
-  }
-  RetakesSetupMenu(client);
-  return Plugin_Handled;
-}
-
-public Action Command_RetakesEditorMenu(int client, int args) {
-  if (g_InRetakeMode) {
-    PM_Message(client, "{ORANGE}Retake Ya Empezado.");
-    return Plugin_Continue;
-  }
-  if (!IsRetakesEditor(client)) {
-    PM_Message(client, "{ORANGE}No tienes permisos de editor.");
-    return Plugin_Handled;
-  }
-  PM_Message(client, "{ORANGE}Modo Edición Activado.");
-  RetakesEditorMenu(client);
-  return Plugin_Handled;
-}
-
-public bool IsRetakesEditor(int client) {
-  return true;
-}
-
-public bool IsRetakeBot(int client) {
-  return client > 0 && g_IsRetakeBot[client] && IsClientInGame(client) && IsFakeClient(client);
 }

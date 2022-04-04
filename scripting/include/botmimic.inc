@@ -123,7 +123,7 @@ native void BotMimic_GetRecordPlayerMimics(int client, char[] path, int maxlen);
  * @param path		The path to a .rec recording file
  * @return			BM_NoError if all went smooth, see BMError definition.
  */
-native BMError BotMimic_PlayRecordFromFile(int client, const char[] path);
+native BMError BotMimic_PlayRecordFromFile(int client, const char[] path, float startDelay = 0.0);
 
 /**
  * Let a client start to mimic a record by providing the record name.
@@ -133,7 +133,7 @@ native BMError BotMimic_PlayRecordFromFile(int client, const char[] path);
  * @param name		The name of the record to play.
  * @return			BM_NoError if all went smooth, see BMError definition.
  */
-native BMError BotMimic_PlayRecordByName(int client, const char[] name);
+native BMError BotMimic_PlayRecordByName(int client, const char[] name, float startDelay = 0.0);
 
 /**
  * Have a bot restart the record he's currently playing from the beginning.
@@ -304,8 +304,9 @@ forward void BotMimic_OnPlayerStopsMimicing(int client, char[] name, char[] cate
  * when he was teleported back to the start.
  *
  * @param client		The mimicing client
+ * @return 					>= Plugin_Handled to stop the player from mimicing, Plugin_Continue to allow
  */
-forward void BotMimic_OnPlayerMimicLoops(int client);
+forward Action BotMimic_OnPlayerMimicLoops(int client);
 
 /**
  * Called when a bookmark is reached during playback of a record.

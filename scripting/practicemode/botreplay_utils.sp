@@ -25,36 +25,6 @@ public int GetReplayRoleNumber(int client) {
   return -1;
 }
 
-public int GetLargestBotUserId() {
-  int largestUserid = -1;
-  for (int i = 1; i <= MaxClients; i++) {
-    if (IsValidClient(i) && IsFakeClient(i) && !IsClientSourceTV(i)) {
-      int userid = GetClientUserId(i);
-      if (userid > largestUserid && !IsReplayBot(i) && !IsDemoBot(i) && !g_IsRetakeBot[i] && !g_IsPMBot[i]) {
-        largestUserid = userid;
-      }
-    }
-  }
-  return largestUserid;
-}
-
-public int GetLiveBot(const char[] name) {
-  int largestUserid = GetLargestBotUserId();
-  if (largestUserid == -1) {
-    return -1;
-  }
-
-  int bot = GetClientOfUserId(largestUserid);
-  if (!IsValidClient(bot)) {
-    return -1;
-  }
-
-  SetClientName(bot, name);
-  CS_SwitchTeam(bot, CS_TEAM_T);
-  KillBot(bot);
-  return bot;
-}
-
 /*RunDemo
  */
 stock void RunReplay(const char[] id, int exclude = -1) {

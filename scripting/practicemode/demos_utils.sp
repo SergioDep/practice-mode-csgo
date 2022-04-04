@@ -22,9 +22,9 @@ stock bool IsDemoPlaying(int role = -1) {
   return false;
 }
 
-stock void RunDemo(const char[] demoId, int exclude = -1) {
+stock void PlayDemo(const char[] demoId, int exclude = -1) {
   if (IsDemoPlaying()) {
-    LogError("Called RunDemo with an active demo!");
+    PrintToServer("Called PlayDemo with an active demo!");
     return;
   }
   g_currentDemoGrenade = -1;
@@ -35,22 +35,28 @@ stock void RunDemo(const char[] demoId, int exclude = -1) {
     }
     int bot = g_DemoBots.Get(i);
     if (IsDemoBot(bot) && CheckDemoRoleKVString(demoId, i, "file")) {
-      PlayDemoRole(bot, demoId, i);
+      PlayRoleFromDemo(bot, demoId, i);
     }
   }
 }
 
-// Delayed Demo start until after the respawn is done to prevent crashes.
-// TOOD: see if we really need this.
-public void StartDemo(DataPack pack) {
+/**
+ * Delayed Demo start until after the respawn is done to prevent crashes.
+ *
+ * @param client          Mimic Client Index.
+ * @param filepath        Path for .rec File.
+ * @param startDelay      Delay before starting the actual mimic.
+ * @error          Not enough variables in datapack.
+ * @noreturn
+ */
+public void StartBotMimicDemo(DataPack pack) {
   pack.Reset();
   int client = pack.ReadCell();
   char filepath[PLATFORM_MAX_PATH];
   pack.ReadString(filepath, sizeof(filepath));
-  PrintToChatAll("read filepath %s", filepath);
+  float startDelay = pack.ReadFloat();
 
-  BMError err = BotMimic_PlayRecordFromFile(client, filepath);
-  PrintToChatAll("errortttttype on client %d %N = %d", client, client, err);
+  BMError err = BotMimic_PlayRecordFromFile(client, filepath, startDelay);
   if (err != BM_NoError) {
     char errString[128];
     BotMimic_GetErrorString(err, errString, sizeof(errString));
@@ -60,20 +66,19 @@ public void StartDemo(DataPack pack) {
   delete pack;
 }
 
-public void PlayDemoRole(int client, const char[] demoId, int roleId) {
+public void PlayRoleFromDemo(int client, const char[] demoId, int roleId) {
   if (!IsDemoBot(client)) {
-    PrintToServer("[ERROR] Called PlayDemoRole on non-demo bot %L", client);
+    PrintToServer("[ERROR] Called PlayRoleFromDemo on non-demo bot %L", client);
     return;
   }
   if (BotMimic_IsPlayerMimicing(client)) {
-    PrintToServer("[ERROR] Called PlayDemoRole on already-demo-playing bot %L", client);
+    PrintToServer("[ERROR] Called PlayRoleFromDemo on already-demo-playing bot %L", client);
     return;
   }
   char roleIdStr[DEMO_ID_LENGTH];
   IntToString(roleId, roleIdStr, sizeof(roleIdStr));
   char filepath[PLATFORM_MAX_PATH + 1];
   GetDemoRoleKVString(demoId, roleIdStr, "file", filepath, sizeof(filepath));
-  PrintToChatAll("%s got filepath %s end", roleIdStr, filepath);
   GetDemoRoleKVNades(client, demoId, roleIdStr);
 
   char roleName[DEMO_NAME_LENGTH];
@@ -87,13 +92,25 @@ public void PlayDemoRole(int client, const char[] demoId, int roleId) {
   char roleTeamStr[DEMO_ID_LENGTH];
   GetDemoRoleKVString(demoId, roleIdStr, "team", roleTeamStr, sizeof(roleTeamStr));
   roleTeam = view_as<int>(StrEqual(roleTeamStr, "CT")) + 2; // 0 + 2 = 2 = cs_team_t 1 + 2 = 3 = cs_team_ct
-  CS_SwitchTeam(client, roleTeam);
-  CS_RespawnPlayer(client);
+  // CS_SwitchTeam(client, roleTeam);
+  // CS_RespawnPlayer(client);
+  
+  if (GetClientTeam(client) != roleTeam) {
+    PrintToServer("LOG: Switched Client %d from %d to roleTeam %d", client, GetClientTeam(client), roleTeam);
+    CS_SwitchTeam(client, roleTeam);
+  } else {
+    PrintToServer("LOG: Client %d is same team(CT = 3, TT = 2) as roleTeam = %d", client, roleTeam);
+  }
+  if (!IsPlayerAlive(client)) {
+    CS_RespawnPlayer(client);
+  } else {
+    PrintToServer("ERROR: Client %d was alive in PlayRoleFromDemo, prevented crash.", client);
+  }
   DataPack pack = new DataPack();
   pack.WriteCell(client);
   pack.WriteString(filepath);
-  PrintToChatAll("requestframe client %d filepath %s end", client, filepath);
-  RequestFrame(StartDemo, pack);
+  pack.WriteFloat(0.0);
+  RequestFrame(StartBotMimicDemo, pack);
   g_DemoBotStopped[client] = false;
   g_CurrentDemoNadeIndex[client] = 0;
 }

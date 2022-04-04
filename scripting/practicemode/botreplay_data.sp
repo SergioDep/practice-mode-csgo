@@ -18,7 +18,7 @@ stock void GiveMainReplaysMenu(int client, int pos = 0) {
       g_ReplaysKv.GetSectionName(demo_id, sizeof(demo_id));
       g_ReplaysKv.GetString("name", demo_name, sizeof(demo_name));
       char display[128];
-      Format(display, sizeof(display), "Demo N-%s: %s", demo_id, demo_name);
+      Format(display, sizeof(display), "Demo %s", demo_name);
       menu.AddItem(demo_id, display);
     } while (g_ReplaysKv.GotoNextKey());
     g_ReplaysKv.GoBack();

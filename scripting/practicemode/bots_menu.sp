@@ -41,7 +41,7 @@ public int BotsMenuHandler(Menu menu, MenuAction action, int client, int param2)
           int owner = GetBotsOwner(bot);
           if (owner > 0){
             g_CurrentBotControl[owner] = -1; // In case another player is using this bot in menu
-            ServerCommand("bot_kick %s", g_PMBotStartName[bot]);
+            ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
             FindAndErase(g_ClientBots[client], bot);
             GiveBotsMenu(client);
           }
@@ -88,6 +88,7 @@ stock void GiveBotEditorMenu(int client) {
     menu.AddItem("boost", "Boost");
     menu.AddItem("jump", "Saltar");
     menu.AddItem("runboost", "Run Boost");
+    // menu.AddItem("test", "test"); //testtestets
 
     menu.ExitBackButton = true;
 
@@ -154,10 +155,22 @@ public int BotEditorMenuHandler(Menu menu, MenuAction action, int client, int pa
       else if (StrEqual(buffer, "togglecrouch")) {
         g_BotCrouch[bot] = !g_BotCrouch[bot];
       }
+      else if (StrEqual(buffer, "test")) {
+        float eyepos[3], eyeang[3], endpos[3];
+        GetClientEyePosition(client, eyepos);
+        GetClientEyeAngles(client, eyeang);
+        Handle testTrace = TR_TraceRayFilterEx(eyepos, eyeang, MASK_ALL, RayType_Infinite, Trace_BaseFilter, client);
+        TR_GetEndPosition(endpos, testTrace);
+        int huevo = CreateInvisibleEnt();
+        TeleportEntity(huevo, endpos, NULL_VECTOR, ZERO_VECTOR);
+        SetEntityRenderMode(huevo, RENDER_NORMAL);
+        SetEntProp(huevo, Prop_Send, "m_bShouldGlow", true, true);
+        SetEntProp(huevo, Prop_Send, "m_nGlowStyle", 0);
+        SetEntPropFloat(huevo, Prop_Send, "m_flGlowMaxDist", 2500.0);
+        CreateTimer(3.0, Timer_DeleteHuevo, huevo);
+      }
     }
-    
     GiveBotEditorMenu(client);
-
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
     GiveBotsMenu(client);
   } else if (action == MenuAction_End) {
@@ -165,4 +178,11 @@ public int BotEditorMenuHandler(Menu menu, MenuAction action, int client, int pa
   }
 
   return 0;
+}
+
+public Action Timer_DeleteHuevo(Handle timer, int huevo) {
+  if (IsValidEntity(huevo)) {
+    AcceptEntityInput(huevo, "kill");
+  }
+  return Plugin_Stop;
 }

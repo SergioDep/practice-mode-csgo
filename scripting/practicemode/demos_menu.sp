@@ -1,7 +1,7 @@
-public void DemosEditorMenu(int client) {
+public void DemosMainMenu(int client) {
   strcopy(g_SelectedDemoId[client], DEMO_ID_LENGTH, "");
 
-  Menu menu = new Menu(DemosEditorMenuHandler);
+  Menu menu = new Menu(DemosMainMenuHandler);
   menu.SetTitle("Lista de Demos");
   menu.AddItem("add_new", "Grabar Nueva Demo");
 
@@ -22,7 +22,7 @@ public void DemosEditorMenu(int client) {
   menu.DisplayAt(client, 0, MENU_TIME_FOREVER);
 }
 
-public int DemosEditorMenuHandler(Menu menu, MenuAction action, int client, int item) {
+public int DemosMainMenuHandler(Menu menu, MenuAction action, int client, int item) {
   if (action == MenuAction_Select) {
     char buffer[DEMO_ID_LENGTH + 1];
     menu.GetItem(item, buffer, sizeof(buffer));
@@ -30,7 +30,8 @@ public int DemosEditorMenuHandler(Menu menu, MenuAction action, int client, int 
       g_WaitForDemoSave[client] = true;
       PM_Message(client, "{ORANGE}Ingrese el nombre de la Demo a guardar. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
     } else if (StrEqual(buffer, "exit_edit")) {
-      PM_Message(client, "{ORANGE}Modo Demos Descativado.");
+      ExitDemoMode();
+      PM_Message(client, "{ORANGE}Modo Demos Desactivado.");
     } else {
       strcopy(g_SelectedDemoId[client], DEMO_ID_LENGTH, buffer);
       SingleDemoEditorMenu(client);
@@ -43,6 +44,8 @@ public int DemosEditorMenuHandler(Menu menu, MenuAction action, int client, int 
 
 stock void SingleDemoEditorMenu(int client, int pos = 0) {
   g_SelectedRoleId[client] = -1;
+
+  ServerCommand("sm_botmimic_snapshotinterval 64");
 
   Menu menu = new Menu(SingleDemoEditorMenuHandler);
   char demo_name[DEMO_NAME_LENGTH];
@@ -90,6 +93,7 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
       for (int i = 0; i < g_DemoBots.Length; i++) {
         int bot = g_DemoBots.Get(i);
         if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) {
+          // TEST CACA PEDO HERE ERROR FIX HERE RESETPLAYBACK
           PM_Message(client, "{ORANGE}Espera que termine la demo actual primero.");
           SingleDemoEditorMenu(client, GetMenuSelectionPosition());
           return 0;
@@ -98,7 +102,7 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
       char demo_name[DEMO_NAME_LENGTH];
       GetDemoName(g_SelectedDemoId[client], demo_name, sizeof(demo_name));
       PM_MessageToAll("{ORANGE}Reproduciendo demo: {PURPLE}\"%s\"", demo_name);
-      RunDemo(g_SelectedDemoId[client]);
+      PlayDemo(g_SelectedDemoId[client]);
     } else if (StrEqual(buffer, "stop")) {
       // CancelAllDemos(); inside play
       CancelAllDemos();
@@ -121,7 +125,7 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
         SingleDemoEditorMenu(client, GetMenuSelectionPosition());
         return 0;
       } else if (IsDemoPlaying()) {
-        PM_Message(client, "Termina tu repetición actual primero.");
+        PM_Message(client, "Termina tu demo actual primero.");
         SingleDemoEditorMenu(client, GetMenuSelectionPosition());
         return 0;
       } else {
@@ -168,7 +172,7 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
       }
     }
   } else if (action == MenuAction_Cancel && item == MenuCancel_ExitBack) {
-    DemosEditorMenu(client);
+    DemosMainMenu(client);
   } else if (action == MenuAction_End) {
     delete menu;
   }
@@ -204,8 +208,8 @@ public int DemoDeletionMenuHandler(Menu menu, MenuAction action, int client, int
       char demoName[DEMO_NAME_LENGTH];
       GetDemoName(g_SelectedDemoId[client], demoName, sizeof(demoName));
       DeleteDemo(g_SelectedDemoId[client]);
-      PM_MessageToAll("{ORANGE}Demo \"{PURPLE}%s\" {ORANGE}eliminado.", demoName);
-      DemosEditorMenu(client);
+      PM_MessageToAll("{ORANGE}Demo {PURPLE}\"%s\" {ORANGE}eliminado.", demoName);
+      DemosMainMenu(client);
     } else {
       SingleDemoEditorMenu(client);
     }
@@ -257,7 +261,7 @@ public int SingleDemoRoleMenuHandler(Menu menu, MenuAction action, int client, i
         PM_Message(client, "{ORANGE}Termina tu Demo actual primero!");
       } else {
         StartDemoRecording(client, roleId);
-        RunDemo(g_SelectedDemoId[client], roleId);
+        PlayDemo(g_SelectedDemoId[client], roleId);
         return 0;
       }
     } else if (StrEqual(buffer, "spawn")) {
@@ -265,12 +269,12 @@ public int SingleDemoRoleMenuHandler(Menu menu, MenuAction action, int client, i
     } else if (StrEqual(buffer, "play")) {
       if (IsDemoPlaying()) {
         PM_Message(client, "{ORANGE}Termina tu Demo actual primero!");
-        DemosEditorMenu(client);
+        DemosMainMenu(client);
         return 0;
       }
       int bot = g_DemoBots.Get(roleId); // g_ReplayBotClients[roleId];
       if (IsDemoBot(bot) && CheckDemoRoleKVString(g_SelectedDemoId[client], roleId, "file")) {
-        PlayDemoRole(bot, g_SelectedDemoId[client], roleId);
+        PlayRoleFromDemo(bot, g_SelectedDemoId[client], roleId);
       }
     } else if (StrEqual(buffer, "name")) {
       PM_Message(client, "{ORANGE}(FIX)Usa .namerole <nombre> para nombrar este Rol.");

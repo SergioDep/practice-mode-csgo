@@ -106,7 +106,7 @@ public void GetDemoRoleKVNades(int client, const char[] demoId, const char[] rol
             g_DemosKv.GetVector("grenadeOrigin", demoNadeData.grenadeOrigin);
             g_DemosKv.GetVector("grenadeVelocity", demoNadeData.grenadeVelocity);
 
-            char typeString[DEFAULT_KEY_LENGTH];
+            char typeString[GRENADE_NAME_LENGTH];
             g_DemosKv.GetString("grenadeType", typeString, sizeof(typeString));
             demoNadeData.grenadeType = GrenadeTypeFromString(typeString);
             demoNadeData.delay = g_DemosKv.GetFloat("delay");
@@ -131,7 +131,7 @@ public void SetDemoRoleKVNades(int client, const char[] demoId, const char[] rol
             DemoNadeData demoNadeData;
             g_DemoNadeData[client].GetArray(i, demoNadeData, sizeof(demoNadeData));
             
-            char grenadeTypeStr[DEFAULT_KEY_LENGTH];
+            char grenadeTypeStr[GRENADE_NAME_LENGTH];
             GrenadeTypeString(demoNadeData.grenadeType, grenadeTypeStr, sizeof(grenadeTypeStr));
             g_DemosKv.SetVector("origin", demoNadeData.origin);
             g_DemosKv.SetVector("angles", demoNadeData.angles);

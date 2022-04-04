@@ -124,12 +124,21 @@ stock void Colorize(char[] msg, int size, bool stripColor = false) {
   }
 }
 
-public void SetCvar(const char[] name, int value) {
+public void SetCvarIntSafe(const char[] name, int value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    LogError("cvar \"%s\" could not be found", name);
+    LogError("Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarInt(cvar, value);
+  }
+}
+
+public void SetConVarFloatSafe(const char[] name, float value) {
+  Handle cvar = FindConVar(name);
+  if (cvar == INVALID_HANDLE) {
+    LogError("Failed to find cvar: \"%s\"", name);
+  } else {
+    SetConVarFloat(cvar, value);
   }
 }
 
@@ -140,19 +149,6 @@ stock void SetConVarStringSafe(const char[] name, const char[] value) {
   } else {
     SetConVarString(cvar, value);
   }
-}
-
-/**
- * Closes a nested adt-array.
- */
-stock void CloseNestedArray(ArrayList array, bool closeOuterArray = true) {
-  for (int i = 0; i < array.Length; i++) {
-    ArrayList h = view_as<ArrayList>(array.Get(i));
-    delete h;
-  }
-
-  if (closeOuterArray)
-    delete array;
 }
 
 stock void ClearNestedArray(ArrayList array) {
@@ -193,23 +189,20 @@ stock int GetCvarIntSafe(const char[] cvarName, int defaultValue = 0) {
   }
 }
 
+stock void GetCvarStringSafe(const char[] cvarName, char[] buffer, int size, char[] defaultValue = "") {
+  Handle cvar = FindConVar(cvarName);
+  if (cvar == INVALID_HANDLE) {
+    LogError("Failed to find cvar \"%s\"", cvar);
+    strcopy(buffer, size, defaultValue);
+  } else {
+    GetConVarString(cvar, buffer, size);
+  }
+}
+
 stock int FindStringInArray2(const char[][] array, int len, const char[] string,
                              bool caseSensitive = true) {
   for (int i = 0; i < len; i++) {
     if (StrEqual(string, array[i], caseSensitive)) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-stock int FindStringInList(ArrayList list, int len, const char[] string,
-                           bool caseSensitive = true) {
-  char[] buffer = new char[len];
-  for (int i = 0; i < list.Length; i++) {
-    list.GetString(i, buffer, len);
-    if (StrEqual(string, buffer, caseSensitive)) {
       return i;
     }
   }
@@ -237,31 +230,6 @@ stock void RemoveCvarFlag(Handle cvar, int flag) {
   SetConVarFlags(cvar, GetConVarFlags(cvar) & ~flag);
 }
 
-stock int minValue(int x, int y) {
-  return (x < y) ? x : y;
-}
-
-stock bool SplitOnSpaceFirstPart(const char[] str, char[] buf1, int len1) {
-  for (int i = 0; i < strlen(str); i++) {
-    if (str[i] == ' ') {
-      strcopy(buf1, minValue(len1, i + 1), str);
-      return true;
-    }
-  }
-  return false;
-}
-
-stock bool SplitOnSpace(const char[] str, char[] buf1, int len1, char[] buf2, int len2) {
-  for (int i = 0; i < strlen(str); i++) {
-    if (str[i] == ' ') {
-      strcopy(buf1, minValue(len1, i + 1), str);
-      strcopy(buf2, len2, str[i + 1]);
-      return true;
-    }
-  }
-  return false;
-}
-
 stock ArrayList SplitStringToList(const char[] str, const char[] split, int maxlen) {
   ArrayList list = new ArrayList(maxlen);
   int index = 0;
@@ -287,20 +255,6 @@ stock ConVar GetCvar(const char[] name) {
   return cvar;
 }
 
-stock int AttemptFindTarget(const char[] target) {
-  char target_name[MAX_TARGET_LENGTH];
-  int target_list[1];
-  bool tn_is_ml;
-  int flags = COMMAND_FILTER_NO_MULTI | COMMAND_FILTER_NO_BOTS | COMMAND_FILTER_NO_IMMUNITY;
-
-  if (ProcessTargetString(target, 0, target_list, 1, flags, target_name, sizeof(target_name),
-                          tn_is_ml) > 0) {
-    return target_list[0];
-  } else {
-    return -1;
-  }
-}
-
 stock void LowerString(char[] string) {
   int len = strlen(string);
   for (int i = 0; i < len; i++) {
@@ -313,47 +267,6 @@ stock void UpperString(char[] string) {
   for (int i = 0; i < len; i++) {
     string[i] = CharToUpper(string[i]);
   }
-}
-
-stock void SetCookieInt(int client, Handle cookie, int value) {
-  char buffer[32];
-  IntToString(value, buffer, sizeof(buffer));
-  SetClientCookie(client, cookie, buffer);
-}
-
-stock int GetCookieInt(int client, Handle cookie, int defaultValue = 0) {
-  char buffer[32];
-  GetClientCookie(client, cookie, buffer, sizeof(buffer));
-  if (StrEqual(buffer, "")) {
-    return defaultValue;
-  }
-
-  return StringToInt(buffer);
-}
-
-stock void SetCookieBool(int client, Handle cookie, bool value) {
-  int convertedInt = value ? 1 : 0;
-  SetCookieInt(client, cookie, convertedInt);
-}
-
-stock bool GetCookieBool(int client, Handle cookie, bool defaultValue = false) {
-  return GetCookieInt(client, cookie, defaultValue) != 0;
-}
-
-stock void SetCookieFloat(int client, Handle cookie, float value) {
-  char buffer[32];
-  FloatToString(value, buffer, sizeof(buffer));
-  SetClientCookie(client, cookie, buffer);
-}
-
-stock float GetCookieFloat(int client, Handle cookie, float defaultValue = 0.0) {
-  char buffer[32];
-  GetClientCookie(client, cookie, buffer, sizeof(buffer));
-  if (StrEqual(buffer, "")) {
-    return defaultValue;
-  }
-
-  return StringToFloat(buffer);
 }
 
 public bool EnforceDirectoryExists(const char[] smPath) {
@@ -514,11 +427,12 @@ stock int GetRoundTimeSeconds() {
   return RoundFloat(cvar_value * 60);
 }
 
-public void DispatchEffect(const char[] effectName, CEffectData data) {
+public void DispatchEffect(int client, const char[] effectName, CEffectData data) {
     data.m_iEffectName = GetEffectIndex(effectName);
 
     TE_SetupEffectDispatch(data);
-    TE_SendToAll();
+    TE_SendToClient(client);
+    // TE_SendToAll();
 }
 
 int GetEffectIndex(const char[] effectName) {

@@ -13,7 +13,7 @@ stock void GiveNadesMenu(int client) {
   : 1;
   grenadeString[0] = CharToUpper(grenadeString[0]);
   Format(buffer, sizeof(buffer), "Filtro de Granadas: (%s)", grenadeString);
-  menu.AddItem("filternades", buffer); //flashes humos molos?
+  menu.AddItem("filternades", buffer);
   
   GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
   Format(buffer, sizeof(buffer), "Mis granadas(%s) [%i/%i]\n "

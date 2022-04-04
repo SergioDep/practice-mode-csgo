@@ -88,8 +88,8 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         GetClientEyeAngles(client, g_Predict_LastClientAng[client]);
         float endPoint[3];
         if (g_PredictMode[client] == GRENADEPREDICT_NONE) {
-          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, true);
-          TeleportEntity(g_Predict_FinalDestinationEnt[client], endPoint, NULL_VECTOR, NULL_VECTOR);
+          // CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, true);
+          // TeleportEntity(g_Predict_FinalDestinationEnt[client], endPoint, NULL_VECTOR, NULL_VECTOR);
         } else {
           CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, false);
           if (!g_Predict_ViewEndpoint[client]) {
@@ -122,7 +122,9 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
           g_Predict_ObservingGrenade[client] = WatchFlyingGrenade(client, true);
         }
     } else if (g_Predict_HoldingReload[client]) {
-      CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true);
+      if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
+        CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true);
+      }
       if (GetEntityMoveType(client) == MOVETYPE_NONE && g_Predict_ObservingGrenade[client] > 1) {
         SetClientObserveEntity(client, g_Predict_ObservingGrenade[client]);
       }
@@ -413,7 +415,7 @@ public void SetClientObserveEntity(int client, int entity) {
   SetEntProp(client, Prop_Send, "m_iObserverMode", 5);
   SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", entity);
   SetEntityRenderMode(client, RENDER_NONE);
-  PrintHintText(client, "Suelta R para regresar");
+  // PrintHintText(client, "Suelta R para regresar");
 }
 
 public void ClientStopObserveEntities(int client) {

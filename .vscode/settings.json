@@ -174,7 +174,7 @@
         "**/scripting/tests/": true
     },
     "sourcepawn.GithubName": "sergioDep",
-    "sourcepawn.MainPath": "c:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\botmimic.sp",
+    "sourcepawn.MainPath": "c:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\practicemode.sp",
     "sourcepawn.MainPathCompilation": false,
     "sourcepawn.outputDirectoryPath": "D:\\csgoserver\\csgo\\addons\\sourcemod\\plugins\\"
 }

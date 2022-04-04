@@ -1,6 +1,10 @@
+int ctSpawnsLength;
+
 public void Spawns_MapStart() {
   g_Spawns.Clear();
+  ctSpawnsLength = 0;
   AddMapSpawnsForTeam("info_player_counterterrorist");
+  ctSpawnsLength = g_Spawns.Length;
   AddMapSpawnsForTeam("info_player_terrorist");
 }
 
@@ -27,54 +31,60 @@ public void AddMapSpawnsForTeam(const char[] spawnClassName) {
   }
 }
 
-stock Action GotoTeamSpawn(int client, int args, int team) {
-  int spawnEnts[6];
-  float fOrigin[3], fAngles[3];
+stock Action TeleportToSpawn(int client, int args, int team) {
+  float spawnOrigin[3], spawnAngles[3];
+  int index;
   if (args >= 1) {
-    char arg[128];
-    GetCmdArg(1, arg, sizeof(arg));
-    int spawnNumber = StringToInt(arg);
-    if (spawnNumber == 0) {
-      return Plugin_Handled;
+    char arg[16];
+    GetCmdArg(args, arg, sizeof(arg));
+    index = StringToInt(arg) - 1; // Actual index
+    int spawnEnt = -1;
+    if (team == CS_TEAM_CT) {
+      if (0 <= index < ctSpawnsLength) {
+        spawnEnt = g_Spawns.Get(index, 0);
+        PM_Message(client, "{ORANGE}Teletransportado a Spawn CT {GREEN}%d", index + 1);
+      } else {
+        PM_Message(client, "{ORANGE}Numero de Spawn no Válido {GREEN}[%d-%d]", 1, ctSpawnsLength);
+        return Plugin_Handled;
+      }
+    } else {
+      index += ctSpawnsLength;
+      if (ctSpawnsLength <= index < g_Spawns.Length) {
+        spawnEnt = g_Spawns.Get(index, 0);
+        PM_Message(client, "{ORANGE}Teletransportado a Spawn T {GREEN}%d", index + 1 - ctSpawnsLength);
+      } else {
+        PM_Message(client, "{ORANGE}Numero de Spawn no Válido {GREEN}[%d-%d]", 1, g_Spawns.Length - ctSpawnsLength);
+        return Plugin_Handled;
+      }
     }
-    int currentSpawnIndex;
-    for (int i = 0; i < g_Spawns.Length; i++) {
-      g_Spawns.GetArray(i, spawnEnts, sizeof(spawnEnts));
-      char entClassname[CLASS_LENGTH];
-      GetEntityClassname(spawnEnts[0], entClassname, sizeof(entClassname));
-      if (StrEqual(entClassname, "info_player_counterterrorist") && team == CS_TEAM_T) {
-        continue;
-      }
-      if (StrEqual(entClassname, "info_player_terrorist") && team == CS_TEAM_CT) {
-        continue;
-      }
-      currentSpawnIndex++;
-      if (currentSpawnIndex == spawnNumber) {
-        Entity_GetAbsOrigin(spawnEnts[0], fOrigin);
-        Entity_GetAbsAngles(spawnEnts[0], fAngles);
-        break;
-      }
+    if (!IsValidEntity(spawnEnt)) {
+      return Plugin_Handled;
+    } else {
+      Entity_GetAbsOrigin(spawnEnt, spawnOrigin);
+      Entity_GetAbsAngles(spawnEnt, spawnAngles);
     }
   } else {
-    // no args, get to closest spawn
-    float clientOrigin[3];
-    GetClientAbsOrigin(client, clientOrigin);
-    GetNearestSpawnEntsIndex(clientOrigin, fOrigin, fAngles, GetClientTeam(client));
+    float fOrigin[3];
+    GetClientAbsOrigin(client, fOrigin);
+    index = GetNearestSpawnEntsIndex(fOrigin, spawnOrigin, spawnAngles, team);
   }
-  TeleportEntity(client, fOrigin, fAngles, {0.0, 0.0, 0.0});
+  TeleportEntity(client, spawnOrigin, spawnAngles, {0.0, 0.0, 0.0});
   return Plugin_Handled;
 }
 
 public Action Command_GotoSpawn(int client, int args) {
-  return GotoTeamSpawn(client, args, GetClientTeam(client));
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  return TeleportToSpawn(client, args, GetClientTeam(client));
 }
 
 public Action Command_GotoCTSpawn(int client, int args) {
-  return GotoTeamSpawn(client, args, CS_TEAM_CT);
+  return TeleportToSpawn(client, args, CS_TEAM_CT);
 }
 
 public Action Command_GotoTSpawn(int client, int args) {
-  return GotoTeamSpawn(client, args, CS_TEAM_T);
+  return TeleportToSpawn(client, args, CS_TEAM_T);
 }
 
 public void Spawns_MapEnd() {

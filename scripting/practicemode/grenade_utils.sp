@@ -274,15 +274,6 @@ public bool DeleteGrenadeFromKv(const char[] nadeIdStr) {
   return deleted;
 }
 
-public bool FindTargetNameByAuth(const char[] inputAuth, char[] name, int nameLen) {
-  if (g_GrenadeLocationsKv.JumpToKey(inputAuth, false)) {
-    g_GrenadeLocationsKv.GetString("name", name, nameLen);
-    g_GrenadeLocationsKv.GoBack();
-    return true;
-  }
-  return false;
-}
-
 public void AddGrenadeToHistory(int client) {
   int max_grenades = g_MaxHistorySizeCvar.IntValue;
   if (max_grenades > 0 && GetArraySize(g_GrenadeHistoryPositions[client]) >= max_grenades) {
@@ -296,40 +287,11 @@ public void AddGrenadeToHistory(int client) {
   g_GrenadeHistoryIndex[client] = g_GrenadeHistoryPositions[client].Length;
 }
 
-public bool FindTargetInGrenadesKvByName(const char[] inputName, char[] name, int nameLen, char[] auth,
-                                  int authLen) {
-  if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
-    do {
-      g_GrenadeLocationsKv.GetSectionName(auth, authLen);
-      g_GrenadeLocationsKv.GetString("name", name, nameLen);
-
-      if (StrContains(name, inputName, false) != -1) {
-        g_GrenadeLocationsKv.GoBack();
-        return true;
-      }
-
-    } while (g_GrenadeLocationsKv.GotoNextKey());
-    g_GrenadeLocationsKv.GoBack();
-  }
-  return false;
-}
-
 public void SetGrenadeData(const char[] auth, const char[] id, const char[] key, const char[] value) {
   g_UpdatedGrenadeKv = true;
   if (g_GrenadeLocationsKv.JumpToKey(auth)) {
     if (g_GrenadeLocationsKv.JumpToKey(id)) {
       g_GrenadeLocationsKv.SetString(key, value);
-      g_GrenadeLocationsKv.GoBack();
-    }
-    g_GrenadeLocationsKv.GoBack();
-  }
-}
-
-public void SetGrenadeInt(const char[] auth, const char[] id, const char[] key, int value) {
-  g_UpdatedGrenadeKv = true;
-  if (g_GrenadeLocationsKv.JumpToKey(auth)) {
-    if (g_GrenadeLocationsKv.JumpToKey(id)) {
-      g_GrenadeLocationsKv.SetNum(key, value);
       g_GrenadeLocationsKv.GoBack();
     }
     g_GrenadeLocationsKv.GoBack();
@@ -356,18 +318,6 @@ public void GetGrenadeData(const char[] auth, const char[] id, const char[] key,
     }
     g_GrenadeLocationsKv.GoBack();
   }
-}
-
-public int GetGrenadeInt(const char[] auth, const char[] id, const char[] key) {
-  int value = 0;
-  if (g_GrenadeLocationsKv.JumpToKey(auth)) {
-    if (g_GrenadeLocationsKv.JumpToKey(id)) {
-      value = g_GrenadeLocationsKv.GetNum(key);
-      g_GrenadeLocationsKv.GoBack();
-    }
-    g_GrenadeLocationsKv.GoBack();
-  }
-  return value;
 }
 
 public float GetGrenadeFloat(const char[] auth, const char[] id, const char[] key) {
@@ -403,33 +353,6 @@ public void SetGrenadeVector(const char[] auth, const char[] id, const char[] ke
   }
 }
 
-public void SetGrenadeParameters(const char[] auth, const char[] id, GrenadeType type,
-                          const float grenadeOrigin[3], const float grenadeVelocity[3],
-                          const int grenadeEntity, const float grenadeDetonationOrigin[3]) {
-  if (!IsGrenade(type)) {
-    return;
-  }
-
-  g_UpdatedGrenadeKv = true;
-  if (g_GrenadeLocationsKv.JumpToKey(auth)) {
-    if (g_GrenadeLocationsKv.JumpToKey(id)) {
-      char typeString[32];
-      GrenadeTypeString(type, typeString, sizeof(typeString));
-      g_GrenadeLocationsKv.SetString("grenadeType", typeString);
-      g_GrenadeLocationsKv.SetVector("grenadeOrigin", grenadeOrigin);
-      g_GrenadeLocationsKv.SetVector("grenadeVelocity", grenadeVelocity);
-      if (grenadeDetonationOrigin[0] || grenadeDetonationOrigin[1] || grenadeDetonationOrigin[2]) {
-        g_GrenadeLocationsKv.SetVector("grenadeDetonationOrigin", grenadeDetonationOrigin);
-      } else {
-        g_GrenadeLocationsKv.DeleteKey("grenadeDetonationOrigin");
-        ScheduleSaveGrenadeDetonation(auth, id, grenadeEntity, grenadeDetonationOrigin);
-      }
-      g_GrenadeLocationsKv.GoBack();
-    }
-    g_GrenadeLocationsKv.GoBack();
-  }
-}
-
 public void SetClientGrenadeData(int id, const char[] key, const char[] value) {
   char auth[AUTH_LENGTH];
   char nadeId[GRENADE_ID_LENGTH];
@@ -444,22 +367,6 @@ public void GetClientGrenadeData(int id, const char[] key, char[] value, int val
   IntToString(id, nadeId, sizeof(nadeId));
   FindId(nadeId, auth, sizeof(auth));
   GetGrenadeData(auth, nadeId, key, value, valueLength);
-}
-
-public void SetClientGrenadeInt(int id, const char[] key, int value) {
-  char auth[AUTH_LENGTH];
-  char nadeId[GRENADE_ID_LENGTH];
-  IntToString(id, nadeId, sizeof(nadeId));
-  FindId(nadeId, auth, sizeof(auth));
-  SetGrenadeInt(auth, nadeId, key, value);
-}
-
-public int GetClientGrenadeInt(int id, const char[] key) {
-  char auth[AUTH_LENGTH];
-  char nadeId[GRENADE_ID_LENGTH];
-  IntToString(id, nadeId, sizeof(nadeId));
-  FindId(nadeId, auth, sizeof(auth));
-  return GetGrenadeInt(auth, nadeId, key);
 }
 
 public void SetClientGrenadeFloat(int id, const char[] key, float value) {
@@ -484,35 +391,6 @@ public void GetClientGrenadeVector(int id, const char[] key, float vector[3]) {
   IntToString(id, nadeId, sizeof(nadeId));
   FindId(nadeId, auth, sizeof(auth));
   GetGrenadeVector(auth, nadeId, key, vector);
-}
-
-public void SetClientGrenadeVectors(int id, const float origin[3], const float angles[3]) {
-  char auth[AUTH_LENGTH];
-  char nadeId[GRENADE_ID_LENGTH];
-  IntToString(id, nadeId, sizeof(nadeId));
-  FindId(nadeId, auth, sizeof(auth));
-  SetGrenadeVector(auth, nadeId, "origin", origin);
-  SetGrenadeVector(auth, nadeId, "angles", angles);
-}
-
-public void SetClientGrenadeParameters(int id, GrenadeType type, const float grenadeOrigin[3],
-                                const float grenadeVelocity[3], const int grenadeEntity, 
-                                const float grenadeDetonationOrigin[3]) {
-  char auth[AUTH_LENGTH];
-  char nadeId[GRENADE_ID_LENGTH];
-  IntToString(id, nadeId, sizeof(nadeId));
-  FindId(nadeId, auth, sizeof(auth));
-  SetGrenadeParameters(auth, nadeId, type, grenadeOrigin, grenadeVelocity, grenadeEntity, grenadeDetonationOrigin);
-}
-
-public bool FindGrenadeTarget(const char[] nameInput, char[] name, int nameLen, char[] auth, int authLen) {
-  int target = AttemptFindTarget(nameInput);
-  if (IsPlayer(target) && GetClientAuthId(target, AuthId_Steam2, auth, authLen) &&
-      GetClientName(target, name, nameLen)) {
-    return true;
-  } else {
-    return FindTargetInGrenadesKvByName(nameInput, name, nameLen, auth, authLen);
-  }
 }
 
 stock int CountGrenadesForPlayer(const char[] auth, GrenadeType grenadeType = GrenadeType_None) {
@@ -608,7 +486,7 @@ public Action IsCorrectionNeededHelper(
     g_RepeatIdSeen = true;
   }
   g_AllIds.Push(id);
-  return Plugin_Handled;
+  return Plugin_Continue;
 }
 
 public void CorrectGrenadeIds() {
@@ -655,7 +533,7 @@ public Action CorrectGrenadeIdsHelper(
     }
   }
   g_NewKv.Rewind();
-  return Plugin_Handled;
+  return Plugin_Continue;
 }
 
 // Rethrows all grenades, and uses the CSU managed explosion forward to save grenade data.
@@ -695,14 +573,14 @@ public Action _CorrectGrenadeDetonations_Iterator(
     || (grenadeType == GrenadeType_Smoke && g_ManagedGrenadeDetonationsToFixPhase == GRENADE_DETONATION_FIX_PHASE_NONSMOKES)
     || (grenadeType != GrenadeType_Smoke && g_ManagedGrenadeDetonationsToFixPhase == GRENADE_DETONATION_FIX_PHASE_SMOKES) 
   ) {
-    return Plugin_Handled;
+    return Plugin_Continue;
   }
 
   // TODO: throw in 3 phases to break glass on some maps?
   int thrownEntity = CSU_ThrowGrenade(initiatingClient, grenadeType, grenadeOrigin, grenadeVelocity);
   if (thrownEntity == -1) {
     LogError("Tried to throw grenade %s for fixing detonations but failed to capture the entity.", grenadeID);
-    return Plugin_Handled;
+    return Plugin_Continue;
   } 
   
   DataPack p = new DataPack();
@@ -713,7 +591,7 @@ public Action _CorrectGrenadeDetonations_Iterator(
   char key[128];
   IntToString(thrownEntity, key, sizeof(key));
   g_ManagedGrenadeDetonationsToFix.SetValue(key, p);
-  return Plugin_Handled;
+  return Plugin_Continue;
 }
 
 public bool CanEditGrenade(int client, int id) {
@@ -732,28 +610,28 @@ public bool CanEditGrenade(int client, int id) {
 public void GetGrenadeExecutionType(int btns, char[] buffer, int size) {
   char execution[GRENADE_EXECUTION_LENGTH-1];
   if (btns & IN_SPEED) {
-    strcopy(execution, sizeof(execution), "Walk ");
+    strcopy(execution, sizeof(execution), "Walk + ");
   }
   if (btns & IN_DUCK) {
-    StrCat(execution, sizeof(execution), "Crouch ");
+    StrCat(execution, sizeof(execution), "Crouch + ");
   }
   if (btns & IN_FORWARD) {
-    StrCat(execution, sizeof(execution), "W ");
+    StrCat(execution, sizeof(execution), "W + ");
   }
   if (btns & IN_MOVELEFT) {
-    StrCat(execution, sizeof(execution), "A ");
+    StrCat(execution, sizeof(execution), "A + ");
   }
   if (btns & IN_MOVERIGHT) {
-    StrCat(execution, sizeof(execution), "D ");
+    StrCat(execution, sizeof(execution), "D + ");
   }
   if (btns & IN_BACK) {
-    StrCat(execution, sizeof(execution), "S ");
+    StrCat(execution, sizeof(execution), "S + ");
   }
   if (btns & IN_ATTACK) {
-    StrCat(execution, sizeof(execution), "Mouse1 ");
+    StrCat(execution, sizeof(execution), "Mouse1 + ");
   }
   if (btns & IN_ATTACK2) {
-    StrCat(execution, sizeof(execution), "Mouse2 ");
+    StrCat(execution, sizeof(execution), "Mouse2 + ");
   }
   if (btns & IN_JUMP) {
     StrCat(execution, sizeof(execution), "Jump");
@@ -971,23 +849,22 @@ public void SaveClientNade(int client, char[] name) {
           execution
         );
         g_CurrentSavedGrenadeId[client] = nadeId;
+        int authIndex = g_EnabledHoloNadeAuth.FindString(auth);
+        if(authIndex == -1) {
+          g_EnabledHoloNadeAuth.PushString(auth);
+        }
         PM_Message(client, "{ORANGE}Granada {PURPLE}%s {ORANGE}guardada.", name);
         OnGrenadeKvMutate();
         g_UpdatedGrenadeKv = true;
         MaybeWriteNewGrenadeData();
-        if (g_nadeBotRecord[client] == 2) {
+        if (!g_InBotDemoMode && g_recordingNadeDemoStatus[client] > 0) { //1 or 2
+          g_recordingNadeDemoStatus[client] = 0;
+          g_savedNewNadeDemo[client] = true;
           if (BotMimic_IsPlayerRecording(client)) {
-            BotMimic_StopRecording(client, true); // save
-          }
-          g_nadeBotRecord[client] = 0;
-        } else if (g_nadeBotRecord[client] == 1) {
-          LogError("client %N tried to save nade while recording...", client);
-          if (BotMimic_IsPlayerRecording(client)) {
-            BotMimic_StopRecording(client, false); // delete
-            LogError("..recording of %N canceled.", client);
+            BotMimic_StopRecording(client, true);
           }
         }
-      }
+    }
     }
   }
   g_LastGrenadeType[client] = GrenadeType_None;

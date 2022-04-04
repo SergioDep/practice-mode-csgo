@@ -174,10 +174,10 @@
 // ) {
 //   GrenadeType type = GrenadeTypeFromString(grenadeType);
 //   if (type == GrenadeType_None) {
-//     return Plugin_Handled;
+//     return Plugin_Continue;
 //   }
 //   arr.Push(StringToInt(grenadeId, 10));
-//   return Plugin_Handled;
+//   return Plugin_Continue;
 // }
 
 // public void LearnStop(const int client, const char[] message) {

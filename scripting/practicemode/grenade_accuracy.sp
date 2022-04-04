@@ -387,7 +387,7 @@ public Action _FindNearestGrenadeToVector_Iterator(
     ResetPack(p);
     PushArrayCell(nades, p);
   }
-  return Plugin_Handled;
+  return Plugin_Continue;
 }
 
 public int _FindNearestGrenadeToVector_Sort(int a, int b, Handle arr, Handle hndl) {

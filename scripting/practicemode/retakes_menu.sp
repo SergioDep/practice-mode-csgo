@@ -17,9 +17,9 @@ public int RetakesSetupMenuHandler(Menu menu, MenuAction action, int client, int
     char buffer[128];
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "start")) {
-      StartRetakes(client);
+      InitRetakes(client);
     } else if (StrEqual(buffer, "stop")) {
-      StopRetakes();
+      StopRetakesMode();
     } else if (StrEqual(buffer, "edit")) {
       RetakesEditorMenu(client);
     }
@@ -64,7 +64,7 @@ public int RetakesEditorMenuHandler(Menu menu, MenuAction action, int client, in
       g_WaitForRetakeSave[client] = true;
       PM_Message(client, "{ORANGE}Ingrese el nombre del retake a guardar. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
     } else if (StrEqual(buffer, "exit_edit")) {
-      PM_Message(client, "{ORANGE}Modo Edición Descativado.");
+      PM_Message(client, "{ORANGE}Modo Edición Desactivado.");
       RemoveHoloRetakeEntities();
     } else {
       strcopy(g_SelectedRetakeId, RETAKE_ID_LENGTH, buffer);

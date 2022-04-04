@@ -19,7 +19,6 @@
 #define GRENADE_COLOR_HE "250 7 7"
 #define GRENADE_COLOR_DEFAULT "180 180 180"
 
-bool g_HoloNadeClientInUse[MAXPLAYERS + 1] = {false, ...};
 int g_CurrentNadeControl[MAXPLAYERS + 1] = {-1, ...};
 int g_CurrentNadeGroupControl[MAXPLAYERS + 1] = {-1, ...};
 
@@ -93,45 +92,16 @@ public void HoloNade_EntityDestroyed(int entity) {
   }
 }
 
-// fix
-// use always, remove noclip, remove func_rot_button, is 2 ents in arraylist necesary?
-public Action HoloNade_PlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon) {	
-  if ((buttons & IN_USE) && !g_HoloNadeClientInUse[client]) {
-    g_HoloNadeClientInUse[client] = true;
-    float eyeOrigin[3], eyeForward[3];
-    GetClientEyePosition(client, eyeOrigin);
-    GetClientEyeAngles(client, eyeForward);
-    GetAngleVectors(eyeForward, eyeForward, NULL_VECTOR, NULL_VECTOR);
-    NormalizeVector(eyeForward, eyeForward);
-    ScaleVector(eyeForward, MAX_NADE_INTERACT_DISTANCE);
-    float eyeEnd[3];
-    AddVectors(eyeOrigin, eyeForward, eyeEnd);
-    float distance, entOrigin[3];
-    int ents = GetNearestNadeGroupIndex(eyeOrigin, distance, entOrigin);
-    if (PointInsideViewRange(entOrigin, eyeOrigin, eyeEnd)) {
-      GiveNadeGroupMenu(client, ents);
-      return Plugin_Handled;
-    }
-    if (GetCvarIntSafe("sm_holo_spawns") == 1) {
-      ScaleVector(eyeForward, 3.0);
-      AddVectors(eyeOrigin, eyeForward, eyeEnd);
-      float entAngles[3];
-      int spawnEnts[6];
-      int spawnEntsIndex = GetNearestSpawnEntsIndex(eyeOrigin, entOrigin, entAngles);
-      g_Spawns.GetArray(spawnEntsIndex, spawnEnts, sizeof(spawnEnts));
-      int colors[4];
-      Entity_GetRenderColor(spawnEnts[2], colors);
-      if (colors[0] == 0 && colors[1] == 255) {
-        if (PointInsideViewRange(entOrigin, eyeOrigin, eyeEnd)) {
-          TeleportEntity(client, entOrigin, entAngles, ZERO_VECTOR);
-        }
-      }
-    }
+public Action NadeDemoBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
+  if (!IsPlayerAlive(client)) {
+    return Plugin_Continue;
   }
-  if (g_HoloNadeClientInUse[client] && !(buttons & IN_USE)) {
-    g_HoloNadeClientInUse[client] = false;
+  if (BotMimic_IsPlayerMimicing(client)) {
+    return Plugin_Continue;
   }
-  return Plugin_Handled;
+  // after spawn, before mimicing
+  TeleportEntity(client, NULL_VECTOR, g_BotSpawnAngles[client], NULL_VECTOR);
+  return Plugin_Continue;
 }
 
 //https://stackoverflow.com/questions/47932955/how-to-check-if-a-3d-point-is-inside-a-cylinder
@@ -156,7 +126,6 @@ public bool PointInsideViewRange(float q[3], float p1[3], float p2[3]) {
 // check
 // resets all player settings, am i missing something?
 public void InitHoloNadeClientSettings(int client) {
-  g_HoloNadeClientInUse[client] = false;
   g_HoloNadeClientEnabled[client] = true;
   g_HoloNadeClientAllowed[client] = true;
   g_HoloNadeClientWhitelist[client] = -1;
@@ -359,7 +328,8 @@ public Action GiveNadeMenu(int client, int NadeId) {
     Format(name, sizeof(name), "Granada: %s", name);
     menu.SetTitle(name);
     menu.AddItem("goto", "Ir a Lineup");
-    menu.AddItem("throw", "Lanzar esta granada(a través de un bot)");
+    menu.AddItem("preview", "Ver Demo de Esta granada(con bot)");
+    menu.AddItem("throw", "Lanzar esta granada");
     menu.AddItem("exportcode", "Compartir el Codigo de esta Granada\n ");
     
     menu.AddItem("delete", "Eliminar\n "
@@ -400,10 +370,11 @@ public int NadeMenuHandler(Menu menu, MenuAction action, int client, int param2)
       GiveNadeDeleteConfirmationMenu(client);
     } else if (StrEqual(buffer, "exportcode")) {
       ExportClientNade(client, NadeIdStr);
+    } else if (StrEqual(buffer, "preview")) {
+      PM_Message(client, "{ORANGE}Starting Demo...");
+      InitHoloNadeDemo(client, NadeId);
     } else if (StrEqual(buffer, "throw")) {
-      PM_Message(client, "{ORANGE}Start Recording...");
-      HoloNade_ReplayStart(client, NadeIdStr);
-      // ThrowGrenade(client, NadeIdStr);
+      ThrowGrenade(client, NadeIdStr);
     }
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
     if (g_ClientLastMenuType[client] == GrenadeMenuType_NadeGroup) {
@@ -417,85 +388,82 @@ public int NadeMenuHandler(Menu menu, MenuAction action, int client, int param2)
   return 0;
 }
 
-public void HoloNade_ReplayStart(int client, const char[] idStr) {
-  int nadeId = StringToInt(idStr);
-
+public void InitHoloNadeDemo(int client, int nadeId) {
   ServerCommand("bot_quota_mode normal");
   ServerCommand("bot_add");
-  CreateTimer(0.2, Timer_GetHoloNadeBot, nadeId);
+  DataPack pack = new DataPack();
+  CreateDataTimer(0.1, Timer_GetHoloNadeBot, pack, TIMER_FLAG_NO_MAPCHANGE);
+  pack.WriteCell(client);
+  pack.WriteCell(nadeId);
 }
 
-public Action Timer_HoloNadeBot_PauseRecording(Handle timer, int serial) {
-  int client = GetClientFromSerial(serial);
-  if (BotMimic_IsPlayerRecording(client)) {
-    BotMimic_PauseRecording(client);
-    g_nadeBotRecord[client] = 2;
+public Action Timer_GetHoloNadeBot(Handle timer, DataPack pack) {
+  pack.Reset();
+  int client = pack.ReadCell();
+  int nadeId = pack.ReadCell();
+  int bot = GetLiveBot(CS_TEAM_T);
+  if (bot < 0) {
+    return Plugin_Handled;
   }
-  return Plugin_Handled;
-}
+  SetClientName(bot, "DEMO");
 
-public Action Timer_GetHoloNadeBot(Handle timer, int nadeId) {
-  int largestUserid = -1;
-  for (int i = 1; i <= MaxClients; i++) {
-    if (IsValidClient(i) && IsFakeClient(i) && !IsClientSourceTV(i)) {
-      int userid = GetClientUserId(i);
-      if (userid > largestUserid && !g_IsRetakeBot[i] && !IsReplayBot(i) && !g_IsPMBot[i] && !g_IsHoloNadeBot[i]) {
-        largestUserid = userid;
-      }
-    }
-  }
-  if (largestUserid == -1) {
-    LogError("(Timer_GetHoloNadeBot->largestUserid) Error getting bot from nade %d", nadeId);
-    return Plugin_Handled;
-  }
-  int bot = GetClientOfUserId(largestUserid);
-  if (!IsValidClient(bot)) {
-    LogError("(Timer_GetHoloNadeBot->IsValidClient) Error getting bot from nade %d", nadeId);
-    return Plugin_Handled;
-  }
-  char name[MAX_NAME_LENGTH];
-  GetClientName(bot, name, MAX_NAME_LENGTH);
-  Format(name, MAX_NAME_LENGTH, "[GRENADEBOT]%s", name);
-  SetClientName(bot, name);
-  g_IsHoloNadeBot[bot] = true;
-  ChangeClientTeam(bot, CS_TEAM_T);
-  KillBot(bot);
-  CS_RespawnPlayer(bot);
+  g_IsNadeDemoBot[bot] = true;
+  g_DemoNadeData[bot].Clear();
 
   // Weapons
   Client_RemoveAllWeapons(bot);
 
+  char auth[AUTH_LENGTH], nadeIdStr[GRENADE_ID_LENGTH];
+  IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
+  FindId(nadeIdStr, auth, sizeof(auth));
   char filepath[PLATFORM_MAX_PATH + 1];
-  GetClientGrenadeData(nadeId, "record", filepath, sizeof(filepath));
-  // GetRoleNades(id, role, client);
-  DataPack pack = new DataPack();
-  pack.WriteCell(bot);
-  pack.WriteString(filepath);
-  g_CurrentReplayNadeIndex[bot] = 0;
-  RequestFrame(StartHoloNadeBotReplay, pack);
+  GetGrenadeData(auth, nadeIdStr, "record", filepath, sizeof(filepath));
 
-  // float botOrigin[3], botAngles[3];
-  // TeleportEntity(bot, botOrigin, botAngles, ZERO_VECTOR);
+  DemoNadeData demoNadeData;
+  GetGrenadeVector(auth, nadeIdStr, "origin", demoNadeData.origin);
+  GetGrenadeVector(auth, nadeIdStr, "angles", demoNadeData.angles);
+  GetGrenadeVector(auth, nadeIdStr, "grenadeOrigin", demoNadeData.grenadeOrigin);
+  GetGrenadeVector(auth, nadeIdStr, "grenadeVelocity", demoNadeData.grenadeVelocity);
+  char grenadeTypeStr[GRENADE_NAME_LENGTH];
+  GetGrenadeData(auth, nadeIdStr, "grenadeType", grenadeTypeStr, sizeof(grenadeTypeStr));
+  demoNadeData.grenadeType = GrenadeTypeFromString(grenadeTypeStr);
+  demoNadeData.delay = GetGrenadeFloat(auth, nadeIdStr, "delay");
+
+  g_DemoNadeData[bot].PushArray(demoNadeData, sizeof(demoNadeData));
+
+  if (!IsPlayerAlive(bot)) {
+    CS_RespawnPlayer(bot);
+  }
+
+  BMFileHeader header;
+  BMError error = BotMimic_GetFileHeaders(filepath, header, sizeof(header));
+  if (error != BM_NoError) {
+    char errorString[128];
+    BotMimic_GetErrorString(error, errorString, sizeof(errorString));
+    LogError("Failed to get %s headers: %s", filepath, errorString);
+    return Plugin_Handled;
+  }
+  g_BotSpawnAngles[bot] = header.BMFH_initialAngles;
+  char sAlias[64];
+  GetGrenadeWeapon(demoNadeData.grenadeType, sAlias, sizeof(sAlias));
+  GivePlayerItem(bot, sAlias);
+  TeleportEntity(bot, header.BMFH_initialPosition, g_BotSpawnAngles[bot], {0.0, 0.0, 0.0});
+  // wait some time so client can see lineup
+  DataPack demoPack = new DataPack();
+  RequestFrame(StartBotMimicDemo, demoPack);
+  demoPack.WriteCell(bot);
+  demoPack.WriteString(filepath);
+  demoPack.WriteFloat(1.5);
+  g_DemoBotStopped[bot] = false;
+  g_CurrentDemoNadeIndex[bot] = 0;
+  g_ClientSpecBot[bot] = client;
+  g_LastSpecPlayerTeam[client] = GetClientTeam(client);
+  GetClientAbsOrigin(client, g_LastSpecPlayerPos[client]);
+  GetClientEyeAngles(client, g_LastSpecPlayerAng[client]);
+  ChangeClientTeam(client, TEAM_SPECTATOR);
+  SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", bot);
 
   return Plugin_Handled;
-}
-
-public void StartHoloNadeBotReplay(DataPack pack) {
-  pack.Reset();
-  int client = pack.ReadCell();
-  char filepath[PLATFORM_MAX_PATH];
-  pack.ReadString(filepath, sizeof(filepath));
-
-  BMError err = BotMimic_PlayRecordFromFile(client, filepath);
-  if (err != BM_NoError) {
-    char errString[128];
-    BotMimic_GetErrorString(err, errString, sizeof(errString));
-    LogError("Error playing record %s on client %d: %s", filepath, client, errString);
-    PrintToChatAll("status2 %s", filepath);
-  }
-  PrintToChatAll("status1 %s", filepath);
-
-  delete pack;
 }
 
 public Action GiveNadeDeleteConfirmationMenu(int client) {

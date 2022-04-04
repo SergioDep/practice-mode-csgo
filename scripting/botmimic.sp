@@ -1,14 +1,3 @@
-/**
- * Bot Mimic - Record your movments and have bots playing it back.
- * by Peace-Maker
- * visit http://wcfan.de
- * 
- * Changelog:
- * 2.0   - 22.07.2013: Released rewrite
- * 2.0.1 - 01.08.2013: Actually made DHooks an optional dependency.
- * 2.1   - 02.10.2014: Added bookmarks and pausing/resuming while recording. Fixed crashes and problems with CS:GO.
- */
-
 #pragma semicolon 1
 #include <sourcemod>
 #include <sdktools>
@@ -33,9 +22,9 @@
 #define DEFAULT_RECORD_FOLDER "data/botmimic/"
 
 // Flags set in FramInfo.additionalFields to inform, that there's more info afterwards.
-#define ADDITIONAL_FIELD_TELEPORTED_ORIGIN (1<<0)
-#define ADDITIONAL_FIELD_TELEPORTED_ANGLES (1<<1)
-#define ADDITIONAL_FIELD_TELEPORTED_VELOCITY (1<<2)
+#define ADDFIELD_TP_ORIGIN (1<<0)
+#define ADDFIELD_TP_ANGLES (1<<1)
+#define ADDFIELD_TP_VEL (1<<2)
 
 enum struct FrameInfo {
   int playerButtons;
@@ -84,11 +73,6 @@ enum BookmarkWhileMimicing {
   BWM_index // The index into the FH_bookmarks array in the fileheader for the corresponding bookmark (to get the name)
 };
 
-bool versusMode;
-bool pauseMode = false;
-bool g_hBotMimicShouldStop[MAXPLAYERS + 1] = {false, ...};
-int DelayBeforeShooting[MAXPLAYERS + 1] = {0, ...};
-
 #define REACTION_TIME 10
 #define ONETAP_MOVE_DELAY 110
 
@@ -129,6 +113,7 @@ int g_iBotMimicRecordTickCount[MAXPLAYERS + 1] = {0,...};
 int g_iBotActiveWeapon[MAXPLAYERS + 1] = {-1,...};
 bool g_bBotSwitchedWeapon[MAXPLAYERS + 1];
 bool g_bValidTeleportCall[MAXPLAYERS + 1];
+bool g_bBotWaitingDelay[MAXPLAYERS + 1];
 int g_iBotMimicNextBookmarkTick[MAXPLAYERS + 1][BookmarkWhileMimicing];
 
 Handle g_hfwdOnStartRecording;
@@ -146,7 +131,7 @@ Handle g_hfwdOnPlayerMimicBookmark;
 Handle g_hTeleport;
 
 ConVar g_hCVOriginSnapshotInterval;
-ConVar g_hCVRespawnOnDeath;
+// ConVar g_hCVRespawnOnDeath;
 
 public Plugin myinfo = {
   name = "Bot Mimic",
@@ -173,8 +158,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
   CreateNative("BotMimic_PlayRecordByName", PlayRecordByName);
 
   CreateNative("BotMimic_IsPlayerMimicing", IsPlayerMimicing);
-  CreateNative("BotMimic_StopPlayerMimic", StopPlayerMimic);
   CreateNative("BotMimic_ResetPlayback", ResetPlayback);
+  CreateNative("BotMimic_StopPlayerMimic", StopPlayerMimic);
 
   CreateNative("BotMimic_GetRecordPlayerMimics", GetRecordPlayerMimics);
 
@@ -196,7 +181,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
   g_hfwdOnRecordDeleted = CreateGlobalForward("BotMimic_OnRecordDeleted", ET_Ignore, Param_String, Param_String, Param_String);
 
   g_hfwdOnPlayerStartsMimicing = CreateGlobalForward("BotMimic_OnPlayerStartsMimicing", ET_Hook, Param_Cell, Param_String, Param_String, Param_String);
-  g_hfwdOnPlayerMimicLoops = CreateGlobalForward("BotMimic_OnPlayerMimicLoops", ET_Ignore, Param_Cell);
+  g_hfwdOnPlayerMimicLoops = CreateGlobalForward("BotMimic_OnPlayerMimicLoops", ET_Hook, Param_Cell);
   g_hfwdOnPlayerStopsMimicing = CreateGlobalForward("BotMimic_OnPlayerStopsMimicing", ET_Ignore, Param_Cell, Param_String, Param_String, Param_String);
 
   g_hfwdOnPlayerMimicBookmark = CreateGlobalForward("BotMimic_OnPlayerMimicBookmark", ET_Ignore, Param_Cell, Param_String);
@@ -210,7 +195,7 @@ public void OnPluginStart() {
   // Save the position of clients every 10000 ticks
   // This is to avoid bots getting stuck in walls due to slightly lower jumps, if they don't touch the ground.
   g_hCVOriginSnapshotInterval = CreateConVar("sm_botmimic_snapshotinterval", "10000", "Save the position of clients every x ticks. This is to avoid bots getting stuck in walls during a long playback and lots of jumps.", _, true, 0.0);
-  g_hCVRespawnOnDeath = CreateConVar("sm_botmimic_respawnondeath", "1", "Respawn the bot when he dies during playback?", _, true, 0.0, true, 1.0);
+  // g_hCVRespawnOnDeath = CreateConVar("sm_botmimic_respawnondeath", "1", "Respawn the bot when he dies during playback?", _, true, 0.0, true, 1.0);
 
   AutoExecConfig();
 
@@ -232,16 +217,6 @@ public void OnPluginStart() {
     OnLibraryAdded("dhooks");
   }
 }
-
-public Action CommandToggleReplayMode(int client, int args) {
-  versusMode = !versusMode;
-  return Plugin_Handled;
-}
-public Action CommandTogglePauseMode(int client, int args) {
-  pauseMode = !pauseMode;
-  return Plugin_Handled;
-}
-
 
 public void ConVar_VersionChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
   convar.SetString(PLUGIN_VERSION);
@@ -350,10 +325,10 @@ public void OnClientDisconnect(int client) {
 }
 
 public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float vel[3], const float angles[3], int weapon, int subtype, int cmdnum, int tickcount, int seed, const int mouse[2]) {
-  // Client isn't recording or recording is paused.
-  if (g_hRecording[client] == null || g_bRecordingPaused[client])
+  // Client is recording and recording is not paused.
+  if (g_hRecording[client] == null || g_bRecordingPaused[client]) {
     return;
-
+  }
   FrameInfo iFrame;
   iFrame.playerButtons = buttons;
   iFrame.playerImpulse = impulse;
@@ -362,7 +337,8 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
   Entity_GetAbsVelocity(client, vVel);
   iFrame.actualVelocity = vVel;
   iFrame.predictedVelocity = vel;
-  Array_Copy(angles, iFrame.predictedAngles, 2);
+  iFrame.predictedAngles[0] = angles[0];
+  iFrame.predictedAngles[1] = angles[1];
   iFrame.newWeapon = CSWeapon_NONE;
   iFrame.playerSubtype = subtype;
   iFrame.playerSeed = seed;
@@ -370,28 +346,20 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
   // Save the origin, angles and velocity in this frame.
   if (g_bSaveFullSnapshot[client]) {
     AdditionalTeleport iAT;
-    float fBuffer[3];
-    GetClientAbsOrigin(client, fBuffer);
-    Array_Copy(fBuffer, iAT.atOrigin, 3);
-    GetClientEyeAngles(client, fBuffer);
-    Array_Copy(fBuffer, iAT.atAngles, 3);
-    Entity_GetAbsVelocity(client, fBuffer);
-    Array_Copy(fBuffer, iAT.atVelocity, 3);
+    GetClientAbsOrigin(client, iAT.atOrigin);
+    GetClientEyeAngles(client, iAT.atAngles);
+    Entity_GetAbsVelocity(client, iAT.atVelocity);
     
-    iAT.atFlags = ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY;
+    iAT.atFlags = ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL;
     g_hRecordingAdditionalTeleport[client].PushArray(iAT, sizeof(AdditionalTeleport));
     g_bSaveFullSnapshot[client] = false;
-  }
-  else
-  {
+  }  else {
     // Save the current position 
     int iInterval = g_hCVOriginSnapshotInterval.IntValue;
     if (iInterval > 0 && g_iOriginSnapshotInterval[client] > iInterval) {
       AdditionalTeleport iAT;
-      float origin[3];
-      GetClientAbsOrigin(client, origin);
-      Array_Copy(origin, iAT.atOrigin, 3);
-      iAT.atFlags |= ADDITIONAL_FIELD_TELEPORTED_ORIGIN;
+      GetClientAbsOrigin(client, iAT.atOrigin);
+      iAT.atFlags |= ADDFIELD_TP_ORIGIN;
       g_hRecordingAdditionalTeleport[client].PushArray(iAT, sizeof(AdditionalTeleport));
       g_iOriginSnapshotInterval[client] = 0;
     }
@@ -413,22 +381,21 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
   // Did he change his weapon?
   if (weapon) {
     iNewWeapon = weapon;
-  }
-  // Picked up a new one?
-  else
-  {
+  } else {
+    // Picked up a new one?
     int iWeapon = Client_GetActiveWeapon(client);
+    // (FIX|ENHANCEMENT) SHOW CUSTOM KNIFES
     
     // He's holding a weapon and
-    if (iWeapon != -1 && 
     // we just started recording. Always save the first weapon!
-       (g_iRecordedTicks[client] == 0 ||
-    // This is a new weapon, he didn't held before.
-       g_iRecordPreviousWeapon[client] != iWeapon)) {
+    // or This is a new weapon, he didn't held before.
+    if (iWeapon != -1 && (g_iRecordedTicks[client] == 0 || g_iRecordPreviousWeapon[client] != iWeapon)) {
       iNewWeapon = iWeapon;
     }
   }
 
+  // (FIX|CLEANUP) WHY IS THIS NECCESSARY ?
+  // ONLY SAVE THE g_iRecordPreviousWeapon[client]
   if (iNewWeapon != -1) {
     // Save it
     if (IsValidEntity(iNewWeapon) && IsValidEdict(iNewWeapon)) {
@@ -446,217 +413,164 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
     }
   }
 
+  //(FIX|CHECK) TEST ITS FUNCTIONALITY
   if (g_hRecordingSizeLimit[client] > 0) {
     if (g_hRecording[client].Length > g_hRecordingSizeLimit[client]) {
       g_hRecording[client].Erase(0);
       g_iRecordedTicks[client]--;
     }
   }
-
   g_hRecording[client].PushArray(iFrame, sizeof(FrameInfo));
-
   g_iRecordedTicks[client]++;
 }
 
-// int servertickrate = 128;
-// int demotickrate = 64;
-// int currenttickrate = 64; //set start value as demotickrate
-
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
-  // Bot is mimicing something
-  if (g_hBotMimicsRecord[client] == null)
+  // Is Bot mimicing something ?
+  if (g_hBotMimicsRecord[client] == null) {
     return Plugin_Continue;
-
+  }
   // Is this a valid living bot?
-  if (!IsPlayerAlive(client) || GetClientTeam(client) < CS_TEAM_T)
+  if (!IsPlayerAlive(client) || GetClientTeam(client) <= CS_TEAM_SPECTATOR) {
     return Plugin_Continue;
-
-  if (g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client]) {
-    if (!versusMode) {
-      //watch
-      g_iBotMimicTick[client] = 0; //setting default values
-      g_iCurrentAdditionalTeleportIndex[client] = 0;
-    } else {
-      BotMimic_StopPlayerMimic(client);
-      return Plugin_Continue;
-    }
   }
 
+  if (g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client]) {
+    // Reset Mimic
+    g_iBotMimicTick[client] = 0;
+    g_iCurrentAdditionalTeleportIndex[client] = 0;
+  }
+
+  // Get Info in This Frame
   FrameInfo iFrame;
   g_hBotMimicsRecord[client].GetArray(g_iBotMimicTick[client], iFrame, sizeof(FrameInfo));
 
-  char weaponName[64];
-  GetClientWeapon(client, weaponName, sizeof(weaponName));
+  // The next call to Teleport is ok.
+  g_bValidTeleportCall[client] = true;
 
-  // Playback should be different if player is about to throw a grenade
-  bool holdingGrenade = (
-    StrContains(weaponName, "flashbang", false) >= 0 ||
-    StrContains(weaponName, "molotov", false) >= 0 ||
-    StrContains(weaponName, "grenade", false) >= 0 ||
-    StrContains(weaponName, "decoy", false) >= 0 ||
-    StrContains(weaponName, "knife", false) >= 0 // knife too so it doesnt look bad
-  );
+  if (g_iBotMimicTick[client] == 0) {
+    // This is the first tick. Teleport him to the initial position
+    buttons = iFrame.playerButtons & ~IN_ATTACK;
+    TeleportEntity(client, g_fInitialPosition[client], g_fInitialAngles[client], iFrame.actualVelocity);
 
-  int target = (!versusMode) ? -1 : GetClosestClient(client);
+    if (g_bBotWaitingDelay[client]) {
+      return Plugin_Continue;
+    }
+    // Strip Weapons
+    /* void CSGO_StripAllWeapons(int client) {
+      int weapon;
+      for (int i = 0; i < 3; i++)
+      {
+        if ((weapon = GetPlayerWeaponSlot(client, i)) != -1)
+        {
+          if (GetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity") != client)
+            SetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity", client);
 
-  if (holdingGrenade || !versusMode) {
-    //normal replay
+          SDKHooks_DropWeapon(client, weapon, NULL_VECTOR, NULL_VECTOR);
+          AcceptEntityInput(weapon, "Kill");
+        }
+      }
+    } */
+    // (FIX|REPLACE) CSGO_StripAllWeapons
+    // Client_RemoveAllWeapons(client);
+
+    Action result;
+    Call_StartForward(g_hfwdOnPlayerMimicLoops);
+    Call_PushCell(client);
+    Call_Finish(result);
+
+    // Someone doesn't want this guy to loop (or start) this mimic.
+    if (result >= Plugin_Handled) {
+      BotMimic_StopPlayerMimic(client);
+      return Plugin_Continue;
+    }
+  } else {
+    // All ticks except first one
     buttons = iFrame.playerButtons;
-  } else if (target != -1) {
-    //hay enemigo
-    buttons = 0;
-    
-    // // Lets original shooting state
-    // int shooting = buttons & IN_ATTACK;
-    // //int jumping = buttons & IN_JUMP; int ducking = buttons & IN_DUCK;
-    // buttons = (iFrame[playerButtons] & ~IN_ATTACK) | shooting; // | jumping | ducking;
+    impulse = iFrame.playerImpulse;
+    vel = iFrame.predictedVelocity;
+    angles = iFrame.predictedAngles;
+    subtype = iFrame.playerSubtype;
+    seed = iFrame.playerSeed;
+    weapon = 0;
+
+    // To apply changes and not use plugin_changed <- Not Sure
+    TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
   }
 
-  impulse = iFrame.playerImpulse;
-  Array_Copy(iFrame.predictedVelocity, vel, 3);
-  if ((holdingGrenade || !versusMode) || target == -1)
-    Array_Copy(iFrame.predictedAngles, angles, 2);
-  subtype = iFrame.playerSubtype;
-  seed = iFrame.playerSeed;
-  weapon = 0;
-
-  float fActualVelocity[3];
-  Array_Copy(iFrame.actualVelocity, fActualVelocity, 3);
-
   // We're supposed to teleport stuff?
-  if ((iFrame.additionalFields & (ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY)) && !g_hBotMimicShouldStop[client]) {
-    //PrintToChatAll("error");
+  if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL)) {
     AdditionalTeleport iAT;
     ArrayList hAdditionalTeleport;
     char sPath[PLATFORM_MAX_PATH];
     GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
     g_hLoadedRecordsAdditionalTeleport.GetValue(sPath, hAdditionalTeleport);
-    hAdditionalTeleport.GetArray(g_iCurrentAdditionalTeleportIndex[client], iAT, sizeof(AdditionalTeleport));
-    
-    float fOrigin[3], fAngles[3], fVelocity[3];
-    Array_Copy(iAT.atOrigin, fOrigin, 3);
-    Array_Copy(iAT.atAngles, fAngles, 3);
-    Array_Copy(iAT.atVelocity, fVelocity, 3);
-    
-    // The next call to Teleport is ok.
-    g_bValidTeleportCall[client] = true;
-    
-    // THATS STUPID!
+    if (g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length) {
+      PrintToServer("=============================ERROR=============================");
+      PrintToServer("g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length");
+      PrintToServer("g_hRecording[client].Length = %d", g_hRecording[client].Length);
+      PrintToServer("currenttick: %d index: %d", g_iBotMimicTick[client], g_iCurrentAdditionalTeleportIndex[client]);
+      PrintToServer("============================ENDERROR===========================");
+      BotMimic_StopPlayerMimic(client);
+      return Plugin_Handled;
+    }
+    hAdditionalTeleport.GetArray(g_iCurrentAdditionalTeleportIndex[client], iAT, sizeof(iAT));
+
     // Only pass the arguments, if they were set..
-    if (iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ORIGIN) {
-      if ((iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ANGLES) && ((holdingGrenade || !versusMode) || target == -1))
-      {
-        if (iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_VELOCITY) {
-          TeleportEntity(client, fOrigin, fAngles, fVelocity);
-        }
-        else {
-          TeleportEntity(client, fOrigin, fAngles, NULL_VECTOR);
-        }
-      }
-      else
-      {
-        if (iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_VELOCITY) {
-          TeleportEntity(client, fOrigin, NULL_VECTOR, fVelocity);
-        }
-        else {
-          TeleportEntity(client, fOrigin, NULL_VECTOR, NULL_VECTOR);
-        }
-      }
+    if (!Math_VectorsEqual(iAT.atOrigin, {0.0, 0.0, 0.0})) {
+      TeleportEntity(client, iAT.atOrigin, NULL_VECTOR, NULL_VECTOR);
     }
-    else
-    {
-      if ((iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_ANGLES) && ((holdingGrenade || !versusMode) || target < 0))
-      {
-        if (iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_VELOCITY) {
-          TeleportEntity(client, NULL_VECTOR, fAngles, fVelocity);
-        }
-        else {
-          TeleportEntity(client, NULL_VECTOR, fAngles, NULL_VECTOR);
-        }
-      }
-      else
-      {
-        if (iAT.atFlags & ADDITIONAL_FIELD_TELEPORTED_VELOCITY) {
-          TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, fVelocity);
-        }
-      }
+    if (!Math_VectorsEqual(iAT.atAngles, {0.0, 0.0, 0.0})) {
+      // PrintToChatAll("teleport additional to %f %f %f", iAT.atAngles[0], iAT.atAngles[1], iAT.atAngles[2]);
+      TeleportEntity(client, NULL_VECTOR, iAT.atAngles, NULL_VECTOR);
     }
-    if (!pauseMode) { //Bot Is Playing
-      //goes to next tick
-      g_iCurrentAdditionalTeleportIndex[client]++;
+    if (!Math_VectorsEqual(iAT.atVelocity, {0.0, 0.0, 0.0})) {
+      // PrintToChatAll("teleport additional to %f %f %f", iAT.atVelocity[0], iAT.atVelocity[1], iAT.atVelocity[2]);
+      TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, iAT.atVelocity);
     }
+    g_iCurrentAdditionalTeleportIndex[client]++;
   }
 
-  // This is the first tick. Teleport him to the initial position
-  if (g_iBotMimicTick[client] == 0) {
-    g_bValidTeleportCall[client] = true;
-    TeleportEntity(client, g_fInitialPosition[client], g_fInitialAngles[client], fActualVelocity);
-    Client_RemoveAllWeapons(client);
-    
-    Call_StartForward(g_hfwdOnPlayerMimicLoops);
-    Call_PushCell(client);
-    Call_Finish();
-  } else { //replay running
-    g_bValidTeleportCall[client] = true;
-    if ((holdingGrenade || !versusMode)) {
-      TeleportEntity(client, NULL_VECTOR, angles, fActualVelocity);
-    } else {
-      //tiene un arma normal
-      if (target == -1) {
-        //no hay enemigo
-        g_hBotMimicShouldStop[client] = false;
-        TeleportEntity(client, NULL_VECTOR, angles, fActualVelocity);
-      } else {
-        //hay un enemigo, disparar con aimlock
-        LookAtClient(client, target);
-        g_hBotMimicShouldStop[client] = true;
-        TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, view_as<float>({0.0,0.0,0.0}));
-      }
-    }
-  }
-
+  // Check New Weapon
   if (iFrame.newWeapon != CSWeapon_NONE) {
+    // Try Change Weapon
     char sAlias[64];
-    if (CS_IsValidWeaponID(iFrame.newWeapon)) {
-      CS_WeaponIDToAlias(iFrame.newWeapon, sAlias, sizeof(sAlias));
-      Format(sAlias, sizeof(sAlias), "weapon_%s", sAlias);
-      
-      if (g_iBotMimicTick[client] > 0 && Client_HasWeapon(client, sAlias))
-      {
-        weapon = Client_GetWeapon(client, sAlias);
+    CS_WeaponIDToAlias(iFrame.newWeapon, sAlias, sizeof(sAlias));
+    Format(sAlias, sizeof(sAlias), "weapon_%s", sAlias);
+    // Bot has Weapon, Equip It
+    int checkWeapon = Client_GetWeapon(client, sAlias);
+    if (g_iBotMimicTick[client] > 0 && checkWeapon != INVALID_ENT_REFERENCE
+    || g_iBotMimicTick[client] == 0 && checkWeapon != INVALID_ENT_REFERENCE) {
+      weapon = checkWeapon;
+      g_iBotActiveWeapon[client] = weapon;
+      g_bBotSwitchedWeapon[client] = true;
+    } else {
+      // Bot doesnt have Weapon, Give It
+      weapon = GivePlayerItem(client, sAlias);
+      // PrintToChatAll("client %N doesnt have weapon: %d", client, weapon);
+      if (weapon != INVALID_ENT_REFERENCE) {
         g_iBotActiveWeapon[client] = weapon;
+        // Switch to that new weapon on the next frame.
         g_bBotSwitchedWeapon[client] = true;
-      }
-      else
-      {
-        weapon = GivePlayerItem(client, sAlias);
-        if (weapon != INVALID_ENT_REFERENCE)
-        {
-          g_iBotActiveWeapon[client] = weapon;
-          // Switch to that new weapon on the next frame.
-          g_bBotSwitchedWeapon[client] = true;
 
-          // Grenades shouldn't be equipped.
-          if (StrContains(sAlias, "grenade") == -1 
-          && StrContains(sAlias, "flashbang") == -1 
-          && StrContains(sAlias, "decoy") == -1 
-          && StrContains(sAlias, "molotov") == -1)
-          {
-            EquipPlayerWeapon(client, weapon);
-          }
+        // Grenades shouldn't be equipped.
+        // Otherwise Bot Drops Them Immediatly and doesnt "throw them"
+        // The throw is handled By csutils plugin
+        if (StrContains(sAlias, "grenade") == -1 
+        && StrContains(sAlias, "flashbang") == -1 
+        && StrContains(sAlias, "decoy") == -1 
+        && StrContains(sAlias, "molotov") == -1) {
+          EquipPlayerWeapon(client, weapon);
         }
       }
-    } else{
-      PrintToServer("weaponERRORERRORERROR: %d", view_as<int>(iFrame.newWeapon));
     }
-  }
-  // Switch the weapon on the next frame after it was selected.
-  else if (g_bBotSwitchedWeapon[client]) {
+  } else if (g_bBotSwitchedWeapon[client]) {
+    // Switch the weapon on the next frame after it was selected.
     g_bBotSwitchedWeapon[client] = false;
     SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", g_iBotActiveWeapon[client]);
     Client_SetActiveWeapon(client, g_iBotActiveWeapon[client]);
   }
 
+  // (FIX|CHECK) DONT NEED BOOKMARKS
   // See if there's a bookmark on this tick
   if (g_iBotMimicTick[client] == g_iBotMimicNextBookmarkTick[client][BWM_frame]) {
     // Get the file header of the current playing record.
@@ -668,7 +582,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     Bookmarks iBookmark;
     iFileHeader.FH_bookmarks.GetArray(g_iBotMimicNextBookmarkTick[client][BWM_index], iBookmark, sizeof(Bookmarks));
     
-    // Cache the next tick in which we should fire th e forward.
+    // Cache the next tick in which we should fire the forward.
     UpdateNextBookmarkTick(client);
     
     // Call the forward
@@ -677,136 +591,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     Call_PushString(iBookmark.BKM_name);
     Call_Finish();
   }
-  if (pauseMode) {
-    seed = 0;
-    return Plugin_Handled;
-  } else if (g_hBotMimicShouldStop[client]) {
-    if (target == -1) {
-      //no target, reset
-      g_hBotMimicShouldStop[client] = false;
-      DelayBeforeShooting[client] = 0;
-    } else if (GetEntityFlags(client) & FL_ONGROUND) {
-      if (DelayBeforeShooting[client] > (REACTION_TIME+3)) {
-        if (DelayBeforeShooting[client] >= ((REACTION_TIME+3)+ONETAP_MOVE_DELAY)) {
-          DelayBeforeShooting[client] = 0;
-        }
-        DelayBeforeShooting[client]++;
-      }
-      //only if on ground
-      SetEntPropFloat(client, Prop_Send, "m_vecVelocity[0]", 0.0);
-      SetEntPropFloat(client, Prop_Send, "m_vecVelocity[1]", 0.0);
-      seed = 128; //no recoil test?W
-      if (DelayBeforeShooting[client] == REACTION_TIME) {
-        //wait time then shoot
-        buttons |= IN_ATTACK;
-      } else if (DelayBeforeShooting[client] == (REACTION_TIME+3)) {
-        //wait time then stop shooting
-        buttons &= ~IN_ATTACK;
-      }
-      DelayBeforeShooting[client]++;
-    }
-  } else {
-    //goes to next tick
-    g_iBotMimicTick[client]++;
-  }
-  return Plugin_Changed;
-}
 
-public void LookAtClient(int client, int target) {
-  float TargetPos[3], TargetAngles[3], ClientPos[3], FinalPos[3];
-  GetClientEyePosition(client, ClientPos);
-  GetClientEyePosition(target, TargetPos);
-  GetClientEyeAngles(target, TargetAngles);
+  g_iBotMimicTick[client]++;
 
-  float VecFinal[3];
-  GetFinalOutputVector(TargetPos, TargetAngles, 7.0, VecFinal);
-  MakeVectorFromPoints(ClientPos, VecFinal, FinalPos);
-
-  GetVectorAngles(FinalPos, FinalPos);
-
-  TeleportEntity(client, NULL_VECTOR, FinalPos, view_as<float>({0.0, 0.0, 0.0}));
-}
-
-public int GetClosestClient(int client) {
-  if (!versusMode)
-    return -1;
-  float ClientOrigin[3], TargetOrigin[3];
-
-  GetClientAbsOrigin(client, ClientOrigin);
-
-  int clientTeam = GetClientTeam(client);
-  int ClosestTarget = -1;
-
-  float ClosestDistance = -1.0;
-  float TargetDistance;
-
-  for (int i = 1; i <= MaxClients; i++) {
-    if (isValidClient(i, true)) {
-      if (client == i || GetClientTeam(i) == clientTeam || !IsPlayerAlive(i)) {
-        continue;
-      }
-      GetClientAbsOrigin(i, TargetOrigin);
-      TargetDistance = GetVectorDistance(ClientOrigin, TargetOrigin);
-
-      if (TargetDistance > ClosestDistance && ClosestDistance > -1.0) {
-        continue;
-      }
-      if (!ClientCanSeeTarget(client, i)) {
-        continue;
-      }
-      if (GetEntPropFloat(i, Prop_Send, "m_fImmuneToGunGameDamageTime") > 0.0) {
-        continue;
-      }			
-      ClosestDistance = TargetDistance;
-      ClosestTarget = i;
-    }
-  }
-  return ClosestTarget;
-}
-
-public bool ClientCanSeeTarget(int client, int target) {
-  float ClientPosition[3], TargetPosition[3];
-
-  GetEntPropVector(client, Prop_Send, "m_vecOrigin", ClientPosition);
-  ClientPosition[2] += 50.0;
-
-  GetClientEyePosition(target, TargetPosition);
-
-  Handle hTrace = TR_TraceRayFilterEx(ClientPosition, TargetPosition, MASK_SOLID_BRUSHONLY, RayType_EndPoint, Base_TraceFilter);
-
-  if (TR_DidHit(hTrace)) {
-    delete hTrace;
-    return false;
-  }
-
-  delete hTrace;
-  return true;
-}
-
-public void GetFinalOutputVector(float TargetOrigin[3], float TargetAngles[3], float Units, float VecTOutPut[3]) {
-  float VecTargetView[3];
-  GetViewVector(TargetAngles, VecTargetView);
-
-  VecTOutPut[0] = VecTargetView[0] * Units + TargetOrigin[0];
-  VecTOutPut[1] = VecTargetView[1] * Units + TargetOrigin[1];
-  VecTOutPut[2] = VecTargetView[2] * Units + TargetOrigin[2];
-}
-
-public void GetViewVector(float TargetAngles[3], float VecTOutPut[3]) {
-  VecTOutPut[0] = Cosine(TargetAngles[1] / (180 / FLOAT_PI));
-  VecTOutPut[1] = Sine(TargetAngles[1] / (180 / FLOAT_PI));
-  VecTOutPut[2] = -Sine(TargetAngles[0] / (180 / FLOAT_PI));
-}
-
-stock bool isValidClient(int client, bool allowBot = false) {
-  if ( !( 1 <= client <= MaxClients ) || !IsClientInGame(client) || IsClientSourceTV(client) || (!allowBot && IsFakeClient(client) ) ) {
-    return false;
-  }
-  return true;
-}
-
-public bool Base_TraceFilter(int entity, int ContentsMask, int data) {
-  return entity == data;
+  return Plugin_Continue;
 }
 
 /**
@@ -819,7 +607,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 
   // Restart moving on spawn!
   if (g_hBotMimicsRecord[client] != null) {
-    // g_iBotMimicTick[client] = 0;
+    g_iBotMimicTick[client] = 0;
     g_iCurrentAdditionalTeleportIndex[client] = 0;
   }
 }
@@ -829,29 +617,24 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
   if (!client)
     return;
 
-  // This one has been recording currently
   if (g_hRecording[client] != null) {
+    // This one has been recording currently
     BotMimic_StopRecording(client, true);
-  }
-  // This bot has been playing one
-  else if (g_hBotMimicsRecord[client] != null) {
-    // Respawn the bot after death!
-    if (!versusMode) {
-      // g_iBotMimicTick[client] = 0;
-      g_iCurrentAdditionalTeleportIndex[client] = 0;
-      if (g_hCVRespawnOnDeath.BoolValue && GetClientTeam(client) >= CS_TEAM_T)
-        CreateTimer(1.0, Timer_DelayedRespawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
-    } else {
-      BotMimic_StopPlayerMimic(client);
-    }
-    //todo todo todo.
+  } else if (g_hBotMimicsRecord[client] != null) {
+    // This bot has been mimicing
+    BotMimic_StopPlayerMimic(client);
+    // // Respawn the bot after death! <--- why? (its assuming "respwning" cvar of practicemode is false, maybe wants to respawn sooner?)
+    //   g_iBotMimicTick[client] = 0;
+    //   g_iCurrentAdditionalTeleportIndex[client] = 0;
+    // if (g_hCVRespawnOnDeath.BoolValue && GetClientTeam(client) >= CS_TEAM_T)
+    //   CreateTimer(1.0, Timer_DelayedRespawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
   }
 }
 
 /**
  * Timer Callbacks
  */
-public Action Timer_DelayedRespawn(Handle timer, any userid) {
+/*public Action Timer_DelayedRespawn(Handle timer, any userid) {
   int client = GetClientOfUserId(userid);
   if (!client)
     return Plugin_Stop;
@@ -860,13 +643,14 @@ public Action Timer_DelayedRespawn(Handle timer, any userid) {
     CS_RespawnPlayer(client);
 
   return Plugin_Stop;
-}
+}*/
 
 
 /**
  * SDKHooks Callbacks
  */
 // Don't allow mimicing players any other weapon than the one recorded!!
+// (FIX|CHECK) Does this help for double flash issue?
 public Action Hook_WeaponCanSwitchTo(int client, int weapon) {
   if (g_hBotMimicsRecord[client] == null)
     return Plugin_Continue;
@@ -920,11 +704,11 @@ public MRESReturn DHooks_OnTeleport(int client, Handle hParams) {
 
   // Remember, 
   if (!bOriginNull)
-    iAT.atFlags |= ADDITIONAL_FIELD_TELEPORTED_ORIGIN;
+    iAT.atFlags |= ADDFIELD_TP_ORIGIN;
   if (!bAnglesNull)
-    iAT.atFlags |= ADDITIONAL_FIELD_TELEPORTED_ANGLES;
+    iAT.atFlags |= ADDFIELD_TP_ANGLES;
   if (!bVelocityNull)
-    iAT.atFlags |= ADDITIONAL_FIELD_TELEPORTED_VELOCITY;
+    iAT.atFlags |= ADDFIELD_TP_VEL;
 
   g_hRecordingAdditionalTeleport[client].PushArray(iAT, sizeof(AdditionalTeleport));
 
@@ -991,76 +775,6 @@ public int StartRecording(Handle plugin, int numParams) {
   if (result >= Plugin_Handled)
     BotMimic_StopRecording(client, false);
   return 0;
-}
-
-public int PauseRecording(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return 0;
-  }
-
-  if (g_hRecording[client] == null) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Player is not recording.");
-    return 0;
-  }
-
-  if (g_bRecordingPaused[client]) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Recording is already paused.");
-    return 0;
-  }
-
-  g_bRecordingPaused[client] = true;
-
-  Call_StartForward(g_hfwdOnRecordingPauseStateChanged);
-  Call_PushCell(client);
-  Call_PushCell(true);
-  Call_Finish();
-  return 0;
-}
-
-public int ResumeRecording(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return 0;
-  }
-
-  if (g_hRecording[client] == null) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Player is not recording.");
-    return 0;
-  }
-
-  if (!g_bRecordingPaused[client]) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Recording is not paused.");
-    return 0;
-  }
-
-  // Save the new full position, angles and velocity.
-  g_bSaveFullSnapshot[client] = true;
-
-  g_bRecordingPaused[client] = false;
-
-  Call_StartForward(g_hfwdOnRecordingPauseStateChanged);
-  Call_PushCell(client);
-  Call_PushCell(false);
-  Call_Finish();
-  return 0;
-}
-
-public int IsRecordingPaused(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return false;
-  }
-
-  if (g_hRecording[client] == null) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Player is not recording.");
-    return false;
-  }
-
-  return g_bRecordingPaused[client];
 }
 
 public int StopRecording(Handle plugin, int numParams) {
@@ -1139,17 +853,13 @@ public int StopRecording(Handle plugin, int numParams) {
     if (g_hRecordingBookmarks[client].Length > 0) {
       iHeader.FH_bookmarkCount = g_hRecordingBookmarks[client].Length;
       iHeader.FH_bookmarks = g_hRecordingBookmarks[client];
-    }
-    else
-    {
+    } else {
       delete g_hRecordingBookmarks[client];
     }
     
     if (g_hRecordingAdditionalTeleport[client].Length > 0) {
       g_hLoadedRecordsAdditionalTeleport.SetValue(sPath, g_hRecordingAdditionalTeleport[client]);
-    }
-    else
-    {
+    } else {
       delete g_hRecordingAdditionalTeleport[client];
     }
     
@@ -1169,9 +879,7 @@ public int StopRecording(Handle plugin, int numParams) {
     Call_PushString(g_sRecordSubDir[client]);
     Call_PushString(sPath);
     Call_Finish();
-  }
-  else
-  {
+  } else {
     delete g_hRecording[client];
     delete g_hRecordingAdditionalTeleport[client];
     delete g_hRecordingBookmarks[client];
@@ -1191,6 +899,289 @@ public int StopRecording(Handle plugin, int numParams) {
   g_iOriginSnapshotInterval[client] = 0;
   g_bRecordingPaused[client] = false;
   g_bSaveFullSnapshot[client] = false;
+  return 0;
+}
+
+public int IsPlayerRecording(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return false;
+  }
+
+  return g_hRecording[client] != null;
+}
+
+public int ResumeRecording(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return 0;
+  }
+
+  if (g_hRecording[client] == null) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Player is not recording.");
+    return 0;
+  }
+
+  if (!g_bRecordingPaused[client]) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Recording is not paused.");
+    return 0;
+  }
+
+  // Save the new full position, angles and velocity.
+  g_bSaveFullSnapshot[client] = true;
+
+  g_bRecordingPaused[client] = false;
+
+  Call_StartForward(g_hfwdOnRecordingPauseStateChanged);
+  Call_PushCell(client);
+  Call_PushCell(false);
+  Call_Finish();
+  return 0;
+}
+
+public int PauseRecording(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return 0;
+  }
+
+  if (g_hRecording[client] == null) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Player is not recording.");
+    return 0;
+  }
+
+  if (g_bRecordingPaused[client]) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Recording is already paused.");
+    return 0;
+  }
+
+  g_bRecordingPaused[client] = true;
+
+  Call_StartForward(g_hfwdOnRecordingPauseStateChanged);
+  Call_PushCell(client);
+  Call_PushCell(true);
+  Call_Finish();
+  return 0;
+}
+
+public int IsRecordingPaused(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return false;
+  }
+
+  if (g_hRecording[client] == null) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Player is not recording.");
+    return false;
+  }
+
+  return g_bRecordingPaused[client];
+}
+
+public int DeleteRecord(Handle plugin, int numParams) {
+  int iLen;
+  GetNativeStringLength(1, iLen);
+  char[] sPath = new char[iLen+1];
+  GetNativeString(1, sPath, iLen+1);
+
+  // Do we have this record loaded?
+  FileHeader iFileHeader;
+  if (!g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader))) {
+    if (!FileExists(sPath))
+      return -1;
+    
+    // Try to load it to make sure it's a record file we're deleting here!
+    BMError error = LoadRecordFromFile(sPath, DEFAULT_CATEGORY, iFileHeader, true, false);
+    if (error == BM_FileNotFound || error == BM_BadFile)
+      return -1;
+  }
+
+  int iCount;
+  if (iFileHeader.FH_frames != null) {
+    for(int i=1;i<=MaxClients;i++) {
+      // Stop the bots from mimicing this one
+      if (g_hBotMimicsRecord[i] == iFileHeader.FH_frames) {
+        BotMimic_StopPlayerMimic(i);
+        iCount++;
+      }
+    }
+    
+    // Discard the frames
+    delete iFileHeader.FH_frames;
+  }
+
+  if (iFileHeader.FH_bookmarks != null) {
+    delete iFileHeader.FH_bookmarks;
+  }
+
+  char sCategory[64];
+  g_hLoadedRecordsCategory.GetString(sPath, sCategory, sizeof(sCategory));
+
+  g_hLoadedRecords.Remove(sPath);
+  g_hLoadedRecordsCategory.Remove(sPath);
+  g_hSortedRecordList.Erase(g_hSortedRecordList.FindString(sPath));
+  ArrayList hAT;
+  if (g_hLoadedRecordsAdditionalTeleport.GetValue(sPath, hAT))
+    delete hAT;
+  g_hLoadedRecordsAdditionalTeleport.Remove(sPath);
+
+  // Delete the file
+  if (FileExists(sPath)) {
+    DeleteFile(sPath);
+  }
+
+  Call_StartForward(g_hfwdOnRecordDeleted);
+  Call_PushString(iFileHeader.FH_recordName);
+  Call_PushString(sCategory);
+  Call_PushString(sPath);
+  Call_Finish();
+
+  return iCount;
+}
+
+public int PlayRecordFromFile(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    return view_as<int>(BM_BadClient);
+  }
+
+  int iLen;
+  GetNativeStringLength(2, iLen);
+  char[] sPath = new char[iLen+1];
+  GetNativeString(2, sPath, iLen+1);
+  float startDelay = GetNativeCell(3);
+
+  if (!FileExists(sPath))
+    return view_as<int>(BM_FileNotFound);
+
+  return view_as<int>(PlayRecord(client, sPath, startDelay));
+}
+
+public int PlayRecordByName(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    return view_as<int>(BM_BadClient);
+  }
+
+  int iLen;
+  GetNativeStringLength(2, iLen);
+  char[] sName = new char[iLen+1];
+  GetNativeString(2, sName, iLen+1);
+  float startDelay = GetNativeCell(3);
+
+  char sPath[PLATFORM_MAX_PATH];
+  int iSize = g_hSortedRecordList.Length;
+  FileHeader iFileHeader;
+  int iRecentTimeStamp;
+  char sRecentPath[PLATFORM_MAX_PATH];
+  for(int i=0;i<iSize;i++) {
+    g_hSortedRecordList.GetString(i, sPath, sizeof(sPath));
+    g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
+    if (StrEqual(sName, iFileHeader.FH_recordName)) {
+      if (iRecentTimeStamp == 0 || iRecentTimeStamp < iFileHeader.FH_recordEndTime)
+      {
+        iRecentTimeStamp = iFileHeader.FH_recordEndTime;
+        strcopy(sRecentPath, sizeof(sRecentPath), sPath);
+      }
+    }
+  }
+
+  if (!iRecentTimeStamp || !FileExists(sRecentPath))
+    return view_as<int>(BM_FileNotFound);
+
+  return view_as<int>(PlayRecord(client, sRecentPath, startDelay));
+}
+
+public int IsPlayerMimicing(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return false;
+  }
+
+  return g_hBotMimicsRecord[client] != null;
+}
+
+public int ResetPlayback(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return 0;
+  }
+
+  if (!BotMimic_IsPlayerMimicing(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Player is not mimicing.");
+    return 0;
+  }
+
+  g_iBotMimicTick[client] = 0;
+  g_iCurrentAdditionalTeleportIndex[client] = 0;
+  g_bValidTeleportCall[client] = false;
+  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
+  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
+  UpdateNextBookmarkTick(client);
+  return 0;
+}
+
+public int StopPlayerMimic(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return 0;
+  }
+
+  if (!BotMimic_IsPlayerMimicing(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Player is not mimicing.");
+    return 0;
+  }
+  char sPath[PLATFORM_MAX_PATH];
+  GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
+
+  g_hBotMimicsRecord[client] = null;
+  g_iBotMimicTick[client] = 0;
+  g_iCurrentAdditionalTeleportIndex[client] = 0;
+  g_iBotMimicRecordTickCount[client] = 0;
+  g_bValidTeleportCall[client] = false;
+  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
+  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
+
+  FileHeader iFileHeader;
+  g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
+
+  SDKUnhook(client, SDKHook_WeaponCanSwitchTo, Hook_WeaponCanSwitchTo);
+
+  char sCategory[64];
+  g_hLoadedRecordsCategory.GetString(sPath, sCategory, sizeof(sCategory));
+
+  Call_StartForward(g_hfwdOnPlayerStopsMimicing);
+  Call_PushCell(client);
+  Call_PushString(iFileHeader.FH_recordName);
+  Call_PushString(sCategory);
+  Call_PushString(sPath);
+  Call_Finish();
+  return 0;
+}
+
+public int GetRecordPlayerMimics(Handle plugin, int numParams) {
+  int client = GetNativeCell(1);
+  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
+    return 0;
+  }
+
+  if (!BotMimic_IsPlayerMimicing(client)) {
+    ThrowNativeError(SP_ERROR_NATIVE, "Player is not mimicing.");
+    return 0;
+  }
+
+  int iLen = GetNativeCell(3);
+  char[] sPath = new char[iLen];
+  GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, iLen);
+  SetNativeString(2, sPath, iLen);
   return 0;
 }
 
@@ -1231,7 +1222,7 @@ public int SaveBookmark(Handle plugin, int numParams) {
   Entity_GetAbsVelocity(client, fBuffer);
   Array_Copy(fBuffer, iAT.atVelocity, 3);
 
-  iAT.atFlags = ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY;
+  iAT.atFlags = ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL;
 
   FrameInfo iFrame;
   g_hRecording[client].GetArray(g_iRecordedTicks[client]-1, iFrame, sizeof(FrameInfo));
@@ -1239,9 +1230,7 @@ public int SaveBookmark(Handle plugin, int numParams) {
   if ((iFrame.additionalFields & iAT.atFlags) != 0) {
     // Purge it and replace it with this one as we might have more information.
     g_hRecordingAdditionalTeleport[client].SetArray(g_iCurrentAdditionalTeleportIndex[client]-1, iAT, sizeof(AdditionalTeleport));
-  }
-  else
-  {
+  } else {
     g_hRecordingAdditionalTeleport[client].PushArray(iAT, sizeof(AdditionalTeleport));
     g_iCurrentAdditionalTeleportIndex[client]++;
   }
@@ -1273,107 +1262,6 @@ public int SaveBookmark(Handle plugin, int numParams) {
   Call_PushCell(client);
   Call_PushString(sBookmarkName);
   Call_Finish();
-  return 0;
-}
-
-public int DeleteRecord(Handle plugin, int numParams) {
-  int iLen;
-  GetNativeStringLength(1, iLen);
-  char[] sPath = new char[iLen+1];
-  GetNativeString(1, sPath, iLen+1);
-
-  // Do we have this record loaded?
-  FileHeader iFileHeader;
-  if (!g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader))) {
-    if (!FileExists(sPath))
-      return -1;
-    
-    // Try to load it to make sure it's a record file we're deleting here!
-    BMError error = LoadRecordFromFile(sPath, DEFAULT_CATEGORY, iFileHeader, true, false);
-    if (error == BM_FileNotFound || error == BM_BadFile)
-      return -1;
-  }
-
-  int iCount;
-  if (iFileHeader.FH_frames != null) {
-    for(int i=1;i<=MaxClients;i++) {
-      // Stop the bots from mimicing this one
-      if (g_hBotMimicsRecord[i] == iFileHeader.FH_frames)
-      {
-        BotMimic_StopPlayerMimic(i);
-        iCount++;
-      }
-    }
-    
-    // Discard the frames
-    delete iFileHeader.FH_frames;
-  }
-
-  if (iFileHeader.FH_bookmarks != null) {
-    delete iFileHeader.FH_bookmarks;
-  }
-
-  char sCategory[64];
-  g_hLoadedRecordsCategory.GetString(sPath, sCategory, sizeof(sCategory));
-
-  g_hLoadedRecords.Remove(sPath);
-  g_hLoadedRecordsCategory.Remove(sPath);
-  g_hSortedRecordList.Erase(g_hSortedRecordList.FindString(sPath));
-  ArrayList hAT;
-  if (g_hLoadedRecordsAdditionalTeleport.GetValue(sPath, hAT))
-    delete hAT;
-  g_hLoadedRecordsAdditionalTeleport.Remove(sPath);
-
-  // Delete the file
-  if (FileExists(sPath)) {
-    DeleteFile(sPath);
-  }
-
-  Call_StartForward(g_hfwdOnRecordDeleted);
-  Call_PushString(iFileHeader.FH_recordName);
-  Call_PushString(sCategory);
-  Call_PushString(sPath);
-  Call_Finish();
-
-  return iCount;
-}
-
-public int IsPlayerRecording(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return false;
-  }
-
-  return g_hRecording[client] != null;
-}
-
-public int IsPlayerMimicing(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return false;
-  }
-
-  return g_hBotMimicsRecord[client] != null;
-}
-
-public int GetRecordPlayerMimics(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return 0;
-  }
-
-  if (!BotMimic_IsPlayerMimicing(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Player is not mimicing.");
-    return 0;
-  }
-
-  int iLen = GetNativeCell(3);
-  char[] sPath = new char[iLen];
-  GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, iLen);
-  SetNativeString(2, sPath, iLen);
   return 0;
 }
 
@@ -1425,115 +1313,37 @@ public int GoToBookmark(Handle plugin, int numParams) {
   return 0;
 }
 
-public int StopPlayerMimic(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return 0;
-  }
-
-  if (!BotMimic_IsPlayerMimicing(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Player is not mimicing.");
-    return 0;
-  }
-  char sPath[PLATFORM_MAX_PATH];
-  GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
-
-  g_hBotMimicsRecord[client] = null;
-  g_iBotMimicTick[client] = 0;
-  g_iCurrentAdditionalTeleportIndex[client] = 0;
-  g_iBotMimicRecordTickCount[client] = 0;
-  g_bValidTeleportCall[client] = false;
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
-
-  FileHeader iFileHeader;
-  g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
-
-  SDKUnhook(client, SDKHook_WeaponCanSwitchTo, Hook_WeaponCanSwitchTo);
-
-  char sCategory[64];
-  g_hLoadedRecordsCategory.GetString(sPath, sCategory, sizeof(sCategory));
-
-  Call_StartForward(g_hfwdOnPlayerStopsMimicing);
-  Call_PushCell(client);
-  Call_PushString(iFileHeader.FH_recordName);
-  Call_PushString(sCategory);
-  Call_PushString(sPath);
-  Call_Finish();
-  return 0;
-}
-
-public int PlayRecordFromFile(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    return view_as<int>(BM_BadClient);
-  }
-
+public int GetRecordBookmarks(Handle plugin, int numParams) {
   int iLen;
-  GetNativeStringLength(2, iLen);
+  GetNativeStringLength(1, iLen);
   char[] sPath = new char[iLen+1];
-  GetNativeString(2, sPath, iLen+1);
+  GetNativeString(1, sPath, iLen+1);
 
-  if (!FileExists(sPath))
+  if (!FileExists(sPath)) {
     return view_as<int>(BM_FileNotFound);
-
-  return view_as<int>(PlayRecord(client, sPath));
-}
-
-public int PlayRecordByName(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    return view_as<int>(BM_BadClient);
   }
 
-  int iLen;
-  GetNativeStringLength(2, iLen);
-  char[] sName = new char[iLen+1];
-  GetNativeString(2, sName, iLen+1);
-
-  char sPath[PLATFORM_MAX_PATH];
-  int iSize = g_hSortedRecordList.Length;
   FileHeader iFileHeader;
-  int iRecentTimeStamp;
-  char sRecentPath[PLATFORM_MAX_PATH];
-  for(int i=0;i<iSize;i++) {
-    g_hSortedRecordList.GetString(i, sPath, sizeof(sPath));
-    g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
-    if (StrEqual(sName, iFileHeader.FH_recordName)) {
-      if (iRecentTimeStamp == 0 || iRecentTimeStamp < iFileHeader.FH_recordEndTime)
-      {
-        iRecentTimeStamp = iFileHeader.FH_recordEndTime;
-        strcopy(sRecentPath, sizeof(sRecentPath), sPath);
-      }
-    }
+  if (!g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader))) {
+    char sCategory[64];
+    if (!g_hLoadedRecordsCategory.GetString(sPath, sCategory, sizeof(sCategory)))
+      strcopy(sCategory, sizeof(sCategory), DEFAULT_CATEGORY);
+    BMError error = LoadRecordFromFile(sPath, sCategory, iFileHeader, true, false);
+    if (error != BM_NoError)
+      return view_as<int>(error);
   }
 
-  if (!iRecentTimeStamp || !FileExists(sRecentPath))
-    return view_as<int>(BM_FileNotFound);
-
-  return view_as<int>(PlayRecord(client, sRecentPath));
-}
-
-public int ResetPlayback(Handle plugin, int numParams) {
-  int client = GetNativeCell(1);
-  if (client < 1 || client > MaxClients || !IsClientInGame(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Bad player index %d", client);
-    return 0;
+  ArrayList hBookmarks = new ArrayList(ByteCountToCells(MAX_BOOKMARK_NAME_LENGTH));
+  Bookmarks iBookmark;
+  for(int i=0;i<iFileHeader.FH_bookmarkCount;i++) {
+    iFileHeader.FH_bookmarks.GetArray(i, iBookmark, sizeof(Bookmarks));
+    hBookmarks.PushString(iBookmark.BKM_name);
   }
 
-  if (!BotMimic_IsPlayerMimicing(client)) {
-    ThrowNativeError(SP_ERROR_NATIVE, "Player is not mimicing.");
-    return 0;
-  }
-
-  g_iBotMimicTick[client] = 0;
-  g_iCurrentAdditionalTeleportIndex[client] = 0;
-  g_bValidTeleportCall[client] = false;
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
-  UpdateNextBookmarkTick(client);
-  return 0;
+  Handle hClone = CloneHandle(hBookmarks, plugin);
+  delete hBookmarks;
+  SetNativeCellRef(2, hClone);
+  return view_as<int>(BM_NoError);
 }
 
 public int GetFileHeaders(Handle plugin, int numParams) {
@@ -1613,12 +1423,12 @@ public int ChangeRecordName(Handle plugin, int numParams) {
   return view_as<int>(BM_NoError);
 }
 
-public int GetLoadedRecordCategoryList(Handle plugin, int numParams) {
-  return view_as<int>(g_hSortedCategoryList);
-}
-
 public int GetLoadedRecordList(Handle plugin, int numParams) {
   return view_as<int>(g_hSortedRecordList);
+}
+
+public int GetLoadedRecordCategoryList(Handle plugin, int numParams) {
+  return view_as<int>(g_hSortedCategoryList);
 }
 
 public int GetFileCategory(Handle plugin, int numParams) {
@@ -1633,39 +1443,6 @@ public int GetFileCategory(Handle plugin, int numParams) {
 
   SetNativeString(2, sCategory, iLen);
   return view_as<int>(bFound);
-}
-
-public int GetRecordBookmarks(Handle plugin, int numParams) {
-  int iLen;
-  GetNativeStringLength(1, iLen);
-  char[] sPath = new char[iLen+1];
-  GetNativeString(1, sPath, iLen+1);
-
-  if (!FileExists(sPath)) {
-    return view_as<int>(BM_FileNotFound);
-  }
-
-  FileHeader iFileHeader;
-  if (!g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader))) {
-    char sCategory[64];
-    if (!g_hLoadedRecordsCategory.GetString(sPath, sCategory, sizeof(sCategory)))
-      strcopy(sCategory, sizeof(sCategory), DEFAULT_CATEGORY);
-    BMError error = LoadRecordFromFile(sPath, sCategory, iFileHeader, true, false);
-    if (error != BM_NoError)
-      return view_as<int>(error);
-  }
-
-  ArrayList hBookmarks = new ArrayList(ByteCountToCells(MAX_BOOKMARK_NAME_LENGTH));
-  Bookmarks iBookmark;
-  for(int i=0;i<iFileHeader.FH_bookmarkCount;i++) {
-    iFileHeader.FH_bookmarks.GetArray(i, iBookmark, sizeof(Bookmarks));
-    hBookmarks.PushString(iBookmark.BKM_name);
-  }
-
-  Handle hClone = CloneHandle(hBookmarks, plugin);
-  delete hBookmarks;
-  SetNativeCellRef(2, hClone);
-  return view_as<int>(BM_NoError);
 }
 
 
@@ -1762,14 +1539,14 @@ void WriteRecordToDisk(const char[] sPath, FileHeader iFileHeader) {
     hFile.Write(iFrame, sizeof(FrameInfo), 4);
     
     // Handle the optional Teleport call
-    if (hAdditionalTeleport != null && iFrame.additionalFields & (ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY)) {
+    if (hAdditionalTeleport != null && iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL)) {
       AdditionalTeleport iAT;
       hAdditionalTeleport.GetArray(iATIndex, iAT, sizeof(AdditionalTeleport));
-      if (iFrame.additionalFields & ADDITIONAL_FIELD_TELEPORTED_ORIGIN)
+      if (iFrame.additionalFields & ADDFIELD_TP_ORIGIN)
         hFile.Write(view_as<int>(iAT.atOrigin), 3, 4);
-      if (iFrame.additionalFields & ADDITIONAL_FIELD_TELEPORTED_ANGLES)
+      if (iFrame.additionalFields & ADDFIELD_TP_ANGLES)
         hFile.Write(view_as<int>(iAT.atAngles), 3, 4);
-      if (iFrame.additionalFields & ADDITIONAL_FIELD_TELEPORTED_VELOCITY)
+      if (iFrame.additionalFields & ADDFIELD_TP_VEL)
         hFile.Write(view_as<int>(iAT.atVelocity), 3, 4);
       iATIndex++;
     }
@@ -1892,15 +1669,15 @@ BMError LoadRecordFromFile(const char[] path, const char[] sCategory, FileHeader
     hFile.Read(iFrame, sizeof(FrameInfo), 4);
     hRecordFrames.PushArray(iFrame, sizeof(FrameInfo));
     
-    if (iFrame.additionalFields & (ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY)) {
+    if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL)) {
       AdditionalTeleport iAT;
-      if (iFrame.additionalFields & ADDITIONAL_FIELD_TELEPORTED_ORIGIN)
+      if (iFrame.additionalFields & ADDFIELD_TP_ORIGIN)
         hFile.Read(view_as<int>(iAT.atOrigin), 3, 4);
-      if (iFrame.additionalFields & ADDITIONAL_FIELD_TELEPORTED_ANGLES)
+      if (iFrame.additionalFields & ADDFIELD_TP_ANGLES)
         hFile.Read(view_as<int>(iAT.atAngles), 3, 4);
-      if (iFrame.additionalFields & ADDITIONAL_FIELD_TELEPORTED_VELOCITY)
+      if (iFrame.additionalFields & ADDFIELD_TP_VEL)
         hFile.Read(view_as<int>(iAT.atVelocity), 3, 4);
-      iAT.atFlags = iFrame.additionalFields & (ADDITIONAL_FIELD_TELEPORTED_ORIGIN|ADDITIONAL_FIELD_TELEPORTED_ANGLES|ADDITIONAL_FIELD_TELEPORTED_VELOCITY);
+      iAT.atFlags = iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL);
       hAdditionalTeleport.PushArray(iAT, sizeof(AdditionalTeleport));
     }
   }
@@ -1935,7 +1712,7 @@ public int SortFuncADT_ByEndTime(int index1, int index2, Handle arrayHndl, Handl
   return header1.FH_recordEndTime - header2.FH_recordEndTime;
 }
 
-BMError PlayRecord(int client, const char[] path) {
+BMError PlayRecord(int client, const char[] path, float startDelay) {
   // He's currently recording. Don't start to play some record on him at the same time.
   if (g_hRecording[client] != null) {
     return BM_BadClient;
@@ -1960,6 +1737,10 @@ BMError PlayRecord(int client, const char[] path) {
   g_iCurrentAdditionalTeleportIndex[client] = 0;
   g_iBotActiveWeapon[client] = INVALID_ENT_REFERENCE;
   g_bBotSwitchedWeapon[client] = false;
+  if (startDelay > 0.0) {
+    g_bBotWaitingDelay[client] = true;
+    CreateTimer(startDelay, Timer_AllowPlayRecord, GetClientSerial(client));
+  }
 
   // Cache at which tick we should fire the first OnPlayerMimicBookmark forward.
   g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
@@ -1995,6 +1776,12 @@ BMError PlayRecord(int client, const char[] path) {
   }
 
   return BM_NoError;
+}
+
+Action Timer_AllowPlayRecord(Handle timer, int serial) {
+  int client = GetClientFromSerial(serial);
+  g_bBotWaitingDelay[client] = false;
+  return Plugin_Handled;
 }
 
 // Find the next frame in which a bookmark was saved, so the OnPlayerMimicBookmark forward can be called.
