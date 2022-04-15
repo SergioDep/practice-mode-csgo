@@ -74,7 +74,7 @@ stock void GetProjectileName(GrenadeType type, char[] buffer, int length) {
     case GrenadeType_Incendiary:
       Format(buffer, length, "molotov_projectile");
     default:
-      LogError("Unknown grenade type: %d", type);
+      PrintToServer("[GetProjectileName]Unknown grenade type: %d", type);
   }
 }
 
@@ -93,7 +93,7 @@ stock void GetGrenadeWeapon(GrenadeType type, char[] buffer, int length) {
     case GrenadeType_Incendiary:
       Format(buffer, length, "weapon_incgrenade");
     default:
-      LogError("Unknown grenade type: %d", type);
+      PrintToServer("[GetGrenadeWeapon]Unknown grenade type: %d", type);
   }
 }
 
@@ -132,7 +132,7 @@ stock void GrenadeTypeString(GrenadeType type, char[] buffer, int length) {
     case GrenadeType_None:
       return;
     default:
-      LogError("Unknown grenade type: %d", type);
+      PrintToServer("[GrenadeTypeString]Unknown grenade type: %d", type);
   }
 }
 

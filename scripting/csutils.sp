@@ -8,7 +8,6 @@
 #include <sourcemod>
 
 #include "include/csutils.inc"
-#include "include/logdebug.inc"
 
 // #include "practicemode/util.sp"
 
@@ -44,9 +43,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 public void OnPluginStart() {
-  InitDebugLog("csutils_debug", "csutils");
-  LogDebug("OnPluginStart version=%s", PLUGIN_VERSION);
-
   g_VersionCvar = CreateConVar("sm_csutils_version", PLUGIN_VERSION, "Current csutils version",
                                FCVAR_NOTIFY | FCVAR_DONTRECORD);
   g_VersionCvar.SetString(PLUGIN_VERSION);
@@ -113,7 +109,7 @@ public int Native_ThrowGrenade(Handle plugin, int numParams) {
   float velocity[3];
   GetNativeArray(4, velocity, sizeof(velocity));
 
-  LogDebug("CSU_ThrowGrenade client=%d, grenadeType=%d, origin=[%f %f %f], velocity=[%f %f %f]",
+  PrintToServer("[Native_ThrowGrenade]CSU_ThrowGrenade client=%d, grenadeType=%d, origin=[%f %f %f], velocity=[%f %f %f]",
            client, grenadeType, origin[0], origin[1], origin[2], velocity[0], velocity[1],
            velocity[2]);
 
@@ -122,7 +118,7 @@ public int Native_ThrowGrenade(Handle plugin, int numParams) {
 
   int entity = CreateEntityByName(classname);
   if (entity == -1) {
-    LogError("Could not create nade %s", classname);
+    PrintToServer("[Native_ThrowGrenade]Could not create nade %s", classname);
     return -1;
   }
 
@@ -141,8 +137,8 @@ public int Native_ThrowGrenade(Handle plugin, int numParams) {
   AcceptEntityInput(entity, "FireUser1", client);
 
   SetEntProp(entity, Prop_Send, "m_iTeamNum", team);
-  SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", client);
-  SetEntPropEnt(entity, Prop_Send, "m_hThrower", client);
+  SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", 0); // client
+  SetEntPropEnt(entity, Prop_Send, "m_hThrower", 0); // client
 
   if (grenadeType == GrenadeType_Incendiary) {
     SetEntProp(entity, Prop_Send, "m_bIsIncGrenade", true, 1);
@@ -349,8 +345,8 @@ public void CaptureEntity(int entity) {
   Call_PushArray(velocity, 3);
   Call_Finish();
 
-  LogDebug(
-      "CSU_OnThrowGrenade client=%d, entity=%d, grenadeType=%d, origin=[%f %f %f], velocity=[%f %f %f]",
+  PrintToServer(
+      "[CaptureEntity]CSU_OnThrowGrenade client=%d, entity=%d, grenadeType=%d, origin=[%f %f %f], velocity=[%f %f %f]",
       client, entity, grenadeType, origin[0], origin[1], origin[2], velocity[0], velocity[1], velocity[2]);
 }
 

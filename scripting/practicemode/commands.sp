@@ -1,21 +1,3 @@
-public Action Command_LaunchPracticeMode(int client, int args) {
-  if (!CanStartPracticeMode(client)) {
-    // PM_Message(client, "You cannot start practice mode right now.");
-    return Plugin_Handled;
-  }
-
-  if (!g_InPracticeMode) {
-    if (g_PugsetupLoaded && PugSetup_GetGameState() >= GameState_Warmup) {
-      return Plugin_Continue;
-    }
-    LaunchPracticeMode();
-    if (IsPlayer(client)) {
-      GivePracticeMenu(client);
-    }
-  }
-  return Plugin_Handled;
-}
-
 public Action Command_ExitPracticeMode(int client, int args) {
   if (g_InPracticeMode) {
     ExitPracticeMode();
@@ -31,11 +13,19 @@ public Action Command_BotsMenu(int client, int args) {
   return Plugin_Handled;
 }
 
+public Action Command_Bot(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  GiveBotsMenu(client);
+  return Plugin_Handled;
+}
+
 public Action Command_NadesMenu(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
-  GiveNadesMenu(client);
+  GiveNadeMenuInContext(client);
   return Plugin_Handled;
 }
 
@@ -170,22 +160,6 @@ public Action Command_Respawn(int client, int args) {
     return Plugin_Handled;
   }
 
-  // g_SavedRespawnActive[client] = true;
-  // GetClientAbsOrigin(client, g_SavedRespawnOrigin[client]);
-  // GetClientEyeAngles(client, g_SavedRespawnAngles[client]);
-  // PM_Message(
-  //     client,
-  //     "Saved respawn point. When you die will you respawn here, use {GREEN}.stop {NORMAL}to cancel.");
-  return Plugin_Handled;
-}
-
-public Action Command_StopRespawn(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
-
-  g_SavedRespawnActive[client] = false;
-  PM_Message(client, "Cancelled respawning at your saved position.");
   return Plugin_Handled;
 }
 
@@ -219,9 +193,6 @@ public Action Command_JoinCT(int client, int args) {
 public Action Command_StopAll(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
-  }
-  if (g_SavedRespawnActive[client]) {
-    Command_StopRespawn(client, 0);
   }
   if (g_TestingFlash[client]) {
     g_TestingFlash[client] = false;
@@ -259,31 +230,32 @@ public Action Command_ClearNades(int client, int args) {
   smokeData.m_nEntIndex = 0;
   smokeData.m_nHitBox = GetParticleSystemIndex("explosion_smokegrenade_fallback");
   DispatchEffect(client, "ParticleEffectStop", smokeData);
-  int smokeEnt = -1;
-  while ((smokeEnt = FindEntityByClassname(smokeEnt, "smokegrenade_projectile")) != -1) {
+  int clearEntity = -1;
+  while ((clearEntity = FindEntityByClassname(clearEntity, "smokegrenade_projectile")) != -1) {
     // TODO: get only detonated grenades?
-    int owner = GetEntPropEnt(smokeEnt, Prop_Send, "m_hThrower");
-    if (owner == client || owner == -1) {
-      StopSound(smokeEnt, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
-      StopSound(smokeEnt, SNDCHAN_STATIC, "weapons/smokegrenade/smoke_emit.wav");
-      AcceptEntityInput(smokeEnt, "Kill");
+    int owner = GetEntPropEnt(clearEntity, Prop_Send, "m_hThrower");
+    if (owner == client || owner <= 0) {
+      StopSound(clearEntity, SNDCHAN_STATIC, "weapons/smokegrenade/smoke_emit.wav");
+      StopSound(clearEntity, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
+      AcceptEntityInput(clearEntity, "Kill");
     }
   }
-
-  int infernoEnt = -1;
+  clearEntity = -1;
   CEffectData infernoData;
   infernoData.m_nEntIndex = 0;
   infernoData.m_nHitBox = GetParticleSystemIndex("molotov_groundfire_fallback2");
   DispatchEffect(client, "ParticleEffectStop", infernoData);
-  while ((infernoEnt = FindEntityByClassname(infernoEnt, "inferno")) != -1) {
-    // TODO: get inferno owner?
-    StopSound(infernoEnt, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
-    StopSound(infernoEnt, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
-    AcceptEntityInput(infernoEnt, "Kill");
+  while ((clearEntity = FindEntityByClassname(clearEntity, "inferno")) != -1) {
+    int owner = GetEntPropEnt(clearEntity, Prop_Data, "m_hOwnerEntity");
+    if (owner == client || owner <= 0) {
+      StopSound(clearEntity, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
+      StopSound(clearEntity, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
+      AcceptEntityInput(clearEntity, "Kill");
+    }
   }
 
   g_LastGrenadeEntity[client] = -1;
-  g_GrenadeDetonationSaveQueue.Clear();
+  g_ClientGrenadeThrowTimes[client].Clear()
   
   return Plugin_Handled;
 }
@@ -299,7 +271,7 @@ public Action Command_Kick(int client, int args) {
   if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
     // Before trying to change to the arg first, check to see if
     // there's a clear match in the players list
-    for (int i = 1; i <= MAXPLAYERS; i++) {
+    for (int i = 1; i <= MaxClients; i++) {
       if (IsPlayer(i)) {
         char playerName[MAX_NAME_LENGTH];
         GetClientName(i, playerName, sizeof(playerName));
@@ -315,7 +287,7 @@ public Action Command_Kick(int client, int args) {
   menu.ExitButton = true;
   menu.ExitBackButton = true;
   menu.SetTitle("Kickear Jugador:");
-  for (int i = 0; i <= MAXPLAYERS; i++) {
+  for (int i = 0; i <= MaxClients; i++) {
     if (IsPlayer(i)) {
       char playerName[MAX_NAME_LENGTH];
       GetClientName(i, playerName, sizeof(playerName));
@@ -351,7 +323,7 @@ public void KickPlayerConfirmationMenu(int client, int kickPlayer) {
 
   char kickIndexStr[16];
   IntToString(kickPlayer, kickIndexStr, sizeof(kickIndexStr));
-  menu.AddItem("", kickIndexStr, ITEMDRAW_IGNORE);
+  menu.AddItem(kickIndexStr, "", ITEMDRAW_IGNORE);
 
   for (int i = 0; i < 6; i++) {
     menu.AddItem("", "", ITEMDRAW_NOTEXT);
@@ -462,10 +434,10 @@ public Action Command_DryRun(int client, int args) {
     // SetCvarIntSafe("mp_buytime", 40);
     SetCvarIntSafe("sv_showimpacts", 0);
     SetCvarIntSafe("sm_holo_spawns", 0);
+    SetCvarIntSafe("sm_bot_collision", 1);
 
     for (int i = 1; i <= MaxClients; i++) {
       g_TestingFlash[i] = false;
-      g_SavedRespawnActive[i] = false;
       g_ClientNoFlash[client] = false;
       if (IsPlayer(i)) {
         SetEntityMoveType(i, MOVETYPE_WALK);
@@ -488,6 +460,7 @@ public Action Command_DryRun(int client, int args) {
     // SetCvarIntSafe("mp_buytime", 99999);
     SetCvarIntSafe("sv_showimpacts", 1);
     SetCvarIntSafe("sm_holo_spawns", 1);
+    SetCvarIntSafe("sm_bot_collision", 0);
   }
 
   ServerCommand("mp_restartgame 1");
@@ -530,7 +503,6 @@ public Action Command_Restart(int client, int args){
 
   for (int i = 1; i <= MaxClients; i++) {
     g_TestingFlash[i] = false;
-    g_SavedRespawnActive[i] = false;
     g_ClientNoFlash[client] = false;
     if (IsPlayer(i)) {
       SetEntityMoveType(i, MOVETYPE_WALK);

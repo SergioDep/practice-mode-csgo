@@ -1,7 +1,7 @@
 #define GRENADE_ACCURACY_MESSAGE_GOOD "{GREEN}lanzaste perfectamente{NORMAL}"
 #define GRENADE_ACCURACY_MESSAGE_CLOSE "{LIGHT_GREEN}lanzaste cerca{NORMAL}"
 #define GRENADE_ACCURACY_MESSAGE_FAR "{LIGHT_RED}fallaste{NORMAL}"
-#define GRENADE_ACCURACY_MESSAGE_MISSING_DATA "{LIGHT_RED}Advertencia:{NORMAL} falta data de detonación para la granada %i. Prueba con el comando \"sm_fixdetonations\"."
+#define GRENADE_ACCURACY_MESSAGE_MISSING_DATA "{LIGHT_RED}Advertencia:{NORMAL} falta data de detonación para la granada %i."
 #define GRENADE_ACCURACY_SCORING_DETONATION 10.0, 50.0, 400.0
 #define GRENADE_ACCURACY_SCORING_ANGLES 5.0, 30.0, 200.0
 #define GRENADE_ACCURACY_SCORING_ORIGIN 0.3, 3.0, 100.0
@@ -39,7 +39,7 @@ public void GrenadeAccuracy_OnThrowGrenade(const int client, const int entity) {
   // Improbably possibility for a race condition here, if the grenade event is slow to fire somehow. 
   int i = g_GrenadeHistoryIndex[client] - 1;
   if (g_GrenadeHistoryIndex[client] == -1) {
-    LogMessage("g_GrenadeHistoryIndex[client] is equal to -1 from client %d with entity %d.", client, entity);
+    PrintToServer("g_GrenadeHistoryIndex[client] is equal to -1 from client %d with entity %d.", client, entity);
     return;
   }
   float angles[3]; 

@@ -68,7 +68,7 @@ stock void IterateGrenades(GrenadeIteratorFunction f, any data = 0) {
           Call_PushCell(data);
           Call_Finish(ret);
 
-          g_GrenadeLocationsKv.SetVector("origin", origin); //why set again?
+          g_GrenadeLocationsKv.SetVector("origin", origin);
           g_GrenadeLocationsKv.SetVector("angles", angles);
           g_GrenadeLocationsKv.SetVector("grenadeOrigin", grenadeOrigin);
           g_GrenadeLocationsKv.SetVector("grenadeVelocity", grenadeVelocity);

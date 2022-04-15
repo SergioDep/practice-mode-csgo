@@ -55,7 +55,7 @@ stock void SingleDemoEditorMenu(int client, int pos = 0) {
   for (int i = 0; i < MAX_DEMO_BOTS; i++) {
     bool recordedLastRole = true;
     if (i > 0) recordedLastRole = CheckDemoRoleKVString(g_SelectedDemoId[client], i-1, "file");
-    int style = EnabledIf(recordedLastRole);
+    int style = recordedLastRole ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED;
     if (CheckDemoRoleKVString(g_SelectedDemoId[client], i, "file")) {
       char roleName[DEMO_NAME_LENGTH];
       char iStr[DEMO_ID_LENGTH];
@@ -90,18 +90,17 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
     menu.GetItem(item, buffer, sizeof(buffer));
 
     if (StrEqual(buffer, "play")) {
+      char demo_name[DEMO_NAME_LENGTH];
+      GetDemoName(g_SelectedDemoId[client], demo_name, sizeof(demo_name));
+      PM_MessageToAll("{ORANGE}Reproduciendo demo: {PURPLE}\"%s\"", demo_name);
       for (int i = 0; i < g_DemoBots.Length; i++) {
         int bot = g_DemoBots.Get(i);
         if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) {
-          // TEST CACA PEDO HERE ERROR FIX HERE RESETPLAYBACK
-          PM_Message(client, "{ORANGE}Espera que termine la demo actual primero.");
+          BotMimic_ResetPlayback(bot);
           SingleDemoEditorMenu(client, GetMenuSelectionPosition());
           return 0;
         }
       }
-      char demo_name[DEMO_NAME_LENGTH];
-      GetDemoName(g_SelectedDemoId[client], demo_name, sizeof(demo_name));
-      PM_MessageToAll("{ORANGE}Reproduciendo demo: {PURPLE}\"%s\"", demo_name);
       PlayDemo(g_SelectedDemoId[client]);
     } else if (StrEqual(buffer, "stop")) {
       // CancelAllDemos(); inside play
@@ -125,7 +124,7 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
         SingleDemoEditorMenu(client, GetMenuSelectionPosition());
         return 0;
       } else if (IsDemoPlaying()) {
-        PM_Message(client, "Termina tu demo actual primero.");
+        PM_Message(client, "{ORANGE}Pausa tu demo actual primero.");
         SingleDemoEditorMenu(client, GetMenuSelectionPosition());
         return 0;
       } else {
@@ -136,7 +135,7 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
           }
         }
         if (playerCount == 0) {
-          PM_Message(client, "No puedes grabar una demo completa sin jugadores en CT/T.");
+          PM_Message(client, "{ORANGE}No puedes grabar una demo completa sin jugadores en CT/T.");
           return 0;
         } else if (playerCount > g_DemoBots.Length) {
           PM_Message(
@@ -267,12 +266,12 @@ public int SingleDemoRoleMenuHandler(Menu menu, MenuAction action, int client, i
     } else if (StrEqual(buffer, "spawn")) {
       GotoDemoRoleStart(client, g_SelectedDemoId[client], roleId);
     } else if (StrEqual(buffer, "play")) {
-      if (IsDemoPlaying()) {
-        PM_Message(client, "{ORANGE}Termina tu Demo actual primero!");
+      int bot = g_DemoBots.Get(roleId); // g_ReplayBotClients[roleId];
+      if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) {
+        BotMimic_ResetPlayback(bot);
         DemosMainMenu(client);
         return 0;
       }
-      int bot = g_DemoBots.Get(roleId); // g_ReplayBotClients[roleId];
       if (IsDemoBot(bot) && CheckDemoRoleKVString(g_SelectedDemoId[client], roleId, "file")) {
         PlayRoleFromDemo(bot, g_SelectedDemoId[client], roleId);
       }

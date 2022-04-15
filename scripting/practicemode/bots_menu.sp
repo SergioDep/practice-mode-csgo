@@ -1,3 +1,6 @@
+
+int g_CurrentBotControl[MAXPLAYERS + 1] = {-1, ...};
+
 public void GiveBotsMenu(int client) {
   if (!g_InPracticeMode) {
     return;

@@ -152,7 +152,7 @@ public void MaybeWriteNewRetakeData() {
     BuildPath(Path_SM, retakeFile, sizeof(retakeFile), "data/practicemode/retakes/%s.cfg", map);
     DeleteFile(retakeFile);
     if (!g_RetakesKv.ExportToFile(retakeFile)) {
-      LogError("Failed to write retakes to %s", retakeFile);
+      PrintToServer("[RETAKES]Failed to write retakes to %s", retakeFile);
     }
     g_UpdatedRetakeKv = false;
     UpdateHoloRetakeEntities();

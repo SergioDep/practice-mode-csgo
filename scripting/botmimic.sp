@@ -131,7 +131,6 @@ Handle g_hfwdOnPlayerMimicBookmark;
 Handle g_hTeleport;
 
 ConVar g_hCVOriginSnapshotInterval;
-// ConVar g_hCVRespawnOnDeath;
 
 public Plugin myinfo = {
   name = "Bot Mimic",
@@ -195,7 +194,6 @@ public void OnPluginStart() {
   // Save the position of clients every 10000 ticks
   // This is to avoid bots getting stuck in walls due to slightly lower jumps, if they don't touch the ground.
   g_hCVOriginSnapshotInterval = CreateConVar("sm_botmimic_snapshotinterval", "10000", "Save the position of clients every x ticks. This is to avoid bots getting stuck in walls during a long playback and lots of jumps.", _, true, 0.0);
-  // g_hCVRespawnOnDeath = CreateConVar("sm_botmimic_respawnondeath", "1", "Respawn the bot when he dies during playback?", _, true, 0.0, true, 1.0);
 
   AutoExecConfig();
 
@@ -267,7 +265,7 @@ public void OnMapStart() {
   for(int i=0;i<iSize;i++) {
     g_hSortedRecordList.GetString(i, sPath, sizeof(sPath));
     if (!g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader))) {
-      LogError("Internal state error. %s was in the sorted list, but not in the actual storage.", sPath);
+      PrintToServer("[OnMapStart]Internal state error. %s was in the sorted list, but not in the actual storage.", sPath);
       continue;
     }
     if (iFileHeader.FH_frames != null)
@@ -412,16 +410,25 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
       iFrame.newWeapon = weaponId;
     }
   }
-
-  //(FIX|CHECK) TEST ITS FUNCTIONALITY
-  if (g_hRecordingSizeLimit[client] > 0) {
-    if (g_hRecording[client].Length > g_hRecordingSizeLimit[client]) {
-      g_hRecording[client].Erase(0);
-      g_iRecordedTicks[client]--;
-    }
-  }
   g_hRecording[client].PushArray(iFrame, sizeof(FrameInfo));
   g_iRecordedTicks[client]++;
+
+  // // FIX: store origin?
+  // if (g_hRecordingSizeLimit[client] > 0) {
+  //   if (g_hRecording[client].Length > g_hRecordingSizeLimit[client]) {
+  //     // Option 1 -> FIX: store origin?
+  //     // FrameInfo newFirstFrame;
+  //     // g_hRecording[client].GetArray(0, newFirstFrame, sizeof(newFirstFrame));
+  //     // g_fInitialAngles[client] = newFirstFrame.predictedAngles;
+  //     // g_hRecording[client].Erase(0);
+  //     // g_iRecordedTicks[client]--;
+  //     // Option 2 -> Start Again
+  //     GetClientEyeAngles(client, g_fInitialAngles[client]);
+  //     GetClientAbsOrigin(client, g_fInitialPosition[client]);
+  //     g_hRecording[client].Clear();
+  //     g_iRecordedTicks[client] = 0;
+  //   }
+  // }
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
@@ -438,6 +445,16 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // Reset Mimic
     g_iBotMimicTick[client] = 0;
     g_iCurrentAdditionalTeleportIndex[client] = 0;
+    Action result;
+    Call_StartForward(g_hfwdOnPlayerMimicLoops);
+    Call_PushCell(client);
+    Call_Finish(result);
+
+    // Someone doesn't want this guy to loop this mimic.
+    if (result >= Plugin_Handled) {
+      BotMimic_StopPlayerMimic(client);
+      return Plugin_Continue;
+    }
   }
 
   // Get Info in This Frame
@@ -472,17 +489,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     } */
     // (FIX|REPLACE) CSGO_StripAllWeapons
     // Client_RemoveAllWeapons(client);
-
-    Action result;
-    Call_StartForward(g_hfwdOnPlayerMimicLoops);
-    Call_PushCell(client);
-    Call_Finish(result);
-
-    // Someone doesn't want this guy to loop (or start) this mimic.
-    if (result >= Plugin_Handled) {
-      BotMimic_StopPlayerMimic(client);
-      return Plugin_Continue;
-    }
   } else {
     // All ticks except first one
     buttons = iFrame.playerButtons;
@@ -1498,7 +1504,7 @@ void ParseRecordsInDirectory(const char[] sPath, const char[] sCategory, bool su
 void WriteRecordToDisk(const char[] sPath, FileHeader iFileHeader) {
   File hFile = OpenFile(sPath, "wb");
   if (hFile == null) {
-    LogError("Can't open the record file for writing! (%s)", sPath);
+    PrintToServer("[WriteRecordToDisk]Can't open the record file for writing! (%s)", sPath);
     return;
   }
 
@@ -1819,7 +1825,7 @@ stock bool CheckCreateDirectory(const char[] sPath, int mode) {
   if (!DirExists(sPath)) {
     CreateDirectory(sPath, mode);
     if (!DirExists(sPath)) {
-      LogError("Can't create a new directory. Please create one manually! (%s)", sPath);
+      PrintToServer("[CheckCreateDirectory]Can't create a new directory. Please create one manually! (%s)", sPath);
       return false;
     }
   }

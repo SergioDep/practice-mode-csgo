@@ -117,28 +117,6 @@ public Action Command_LastGrenade(int client, int args) {
   return Plugin_Handled;
 }
 
-public Action Command_FixGrenades(int client, int args) {
-  if (!g_InPracticeMode || g_InRetakeMode) {
-    return Plugin_Handled;
-  }
-
-  CorrectGrenadeIds();
-  g_UpdatedGrenadeKv = true;
-  ReplyToCommand(client, "Data de granadas arreglada.");
-  return Plugin_Handled;
-}
-
-public Action Command_FixGrenadeDetonations(int client, int args) {
-  if (!g_InPracticeMode || g_InRetakeMode) {
-    return Plugin_Handled;
-  }
-
-  CorrectGrenadeDetonations(client);
-  g_UpdatedGrenadeKv = true;
-  ReplyToCommand(client, "Tirando y grabando todas las detonaciones de granadas.");
-  return Plugin_Handled;
-}
-
 public Action Command_GrenadeBack(int client, int args) {
   if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
@@ -183,7 +161,7 @@ public Action Command_GrenadeForward(int client, int args) {
 
 static void ClientThrowGrenade(int client, const char[] id, float delay = 0.0) {
   if (!ThrowGrenade(client, id, delay)) {
-    LogError("No parameters for grenade id: %s", id);
+    PrintToServer("[ClientThrowGrenade]No parameters for grenade id: %s", id);
   }
 }
 
@@ -193,7 +171,7 @@ public Action Command_Throw(int client, int args) {
   }
 
   if (!g_CSUtilsLoaded) {
-    LogError("%N failed .throw, g_CSUtilsLoaded = false", client);
+    PrintToServer("[Command_Throw]%N failed .throw, g_CSUtilsLoaded = false", client);
     return Plugin_Handled;
   }
 
@@ -235,13 +213,12 @@ public Action Command_TestFlash(int client, int args) {
   
   if (!g_TestingFlash[client]) {
     g_TestingFlash[client] = true;
-    PM_Message(client, "Posición guardada.");
-    PM_Message(client, "Usa {GREEN}.flash {NORMAL} de nuevo para terminar.");
+    PM_Message(client, "{ORANGE}Usa {GREEN}.flash {ORANGE} de nuevo para terminar.");
     GetClientAbsOrigin(client, g_TestingFlashOrigins[client]);
     GetClientEyeAngles(client, g_TestingFlashAngles[client]);
   } else {
     g_TestingFlash[client] = false;
-    PM_Message(client, "Prueba terminada.");
+    PM_Message(client, "{ORANGE}Cancelado");
   }
   return Plugin_Handled;
 }

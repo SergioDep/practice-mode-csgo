@@ -60,7 +60,7 @@ public void StartBotMimicDemo(DataPack pack) {
   if (err != BM_NoError) {
     char errString[128];
     BotMimic_GetErrorString(err, errString, sizeof(errString));
-    LogError("Error playing record %s on client %d: %s", filepath, client, errString);
+    PrintToServer("[StartBotMimicDemo]Error playing record %s on client %d: %s", filepath, client, errString);
   }
 
   delete pack;
@@ -68,11 +68,11 @@ public void StartBotMimicDemo(DataPack pack) {
 
 public void PlayRoleFromDemo(int client, const char[] demoId, int roleId) {
   if (!IsDemoBot(client)) {
-    PrintToServer("[ERROR] Called PlayRoleFromDemo on non-demo bot %L", client);
+    PrintToServer("[PlayRoleFromDemo][ERROR] Called PlayRoleFromDemo on non-demo bot %L", client);
     return;
   }
   if (BotMimic_IsPlayerMimicing(client)) {
-    PrintToServer("[ERROR] Called PlayRoleFromDemo on already-demo-playing bot %L", client);
+    PrintToServer("[PlayRoleFromDemo][ERROR] Called PlayRoleFromDemo on already-demo-playing bot %L", client);
     return;
   }
   char roleIdStr[DEMO_ID_LENGTH];
@@ -126,7 +126,7 @@ public void GotoDemoRoleStart(int client, const char[] demoId, int roleId) {
   if (error != BM_NoError) {
     char errorString[128];
     BotMimic_GetErrorString(error, errorString, sizeof(errorString));
-    LogError("Failed to get %s headers: %s", filepath, errorString);
+    PrintToServer("[GotoDemoRoleStart]Failed to get %s headers: %s", filepath, errorString);
     return;
   }
   TeleportEntity(client, header.BMFH_initialPosition, header.BMFH_initialAngles, {0.0, 0.0, 0.0});

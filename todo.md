@@ -4,7 +4,7 @@
 
 
 ## Enhancements
-
+- [ ] I dont need to Update All Grenades, just the new ones
 - [ ] Retakes
       - [x] bot logic [**--**]
         - [x] ONLY MOVE PERPENDICULAR TO THE PLAYER (LEFT AND RIGHT)

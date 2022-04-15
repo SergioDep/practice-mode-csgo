@@ -1,6 +1,3 @@
-#include <cstrike>
-#include <sdktools>
-
 #define DEFAULT_MENU_LENGTH 128
 #define ZERO_VECTOR {0.0, 0.0, 0.0}
 
@@ -33,8 +30,6 @@ static char _colorNames[][] = {"{NORMAL}", "{DARK_RED}",    "{PINK}",      "{GRE
 static char _colorCodes[][] = {"\x01", "\x02", "\x03", "\x04", "\x05", "\x06",
                                "\x07", "\x08", "\x09", "\x0B", "\x0C", "\x0E"};
 
-static char _validFileNameCharacters[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_.";
-
 stock void SwitchPlayerTeam(int client, int team) {
   if (GetClientTeam(client) == team)
     return;
@@ -62,14 +57,6 @@ public bool IsPointVisible(const float start[3], const float end[3]) {
   return TR_GetFraction() == 1.0;
 }
 
-public bool ClientCanSeeClient(int client, int target) {
-  float clientEyes[3], targetEyes[3];
-  GetClientEyePosition(client, clientEyes);
-  GetClientEyePosition(target, targetEyes);
-  Handle hTrace = TR_TraceRayFilterEx(clientEyes, targetEyes, MASK_SHOT, RayType_EndPoint, Trace_BaseFilter, client);
-  return TR_DidHit(hTrace) && (TR_GetEntityIndex(hTrace) == target);
-}
-
 public bool Trace_NoPlayersFilter(int entity, int contentsMask)
 {
     return (entity > MaxClients && !(0 < GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity") <= MaxClients));
@@ -86,7 +73,7 @@ stock bool IsPracticeSetupClient(int client) {
       PM_Message(client, "{ORANGE}Cliente con permisos de Administrador: {NORMAL}%N.", g_PracticeSetupClient);
       return false;
     } else {
-      LogError("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
+      PrintToServer("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
       g_PracticeSetupClient = client;
     }
   }
@@ -127,7 +114,7 @@ stock void Colorize(char[] msg, int size, bool stripColor = false) {
 public void SetCvarIntSafe(const char[] name, int value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    LogError("Failed to find cvar: \"%s\"", name);
+    PrintToServer("1Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarInt(cvar, value);
   }
@@ -136,7 +123,7 @@ public void SetCvarIntSafe(const char[] name, int value) {
 public void SetConVarFloatSafe(const char[] name, float value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    LogError("Failed to find cvar: \"%s\"", name);
+    PrintToServer("2Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarFloat(cvar, value);
   }
@@ -145,19 +132,10 @@ public void SetConVarFloatSafe(const char[] name, float value) {
 stock void SetConVarStringSafe(const char[] name, const char[] value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    LogError("Failed to find cvar: \"%s\"", name);
+    PrintToServer("3Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarString(cvar, value);
   }
-}
-
-stock void ClearNestedArray(ArrayList array) {
-  for (int i = 0; i < array.Length; i++) {
-    ArrayList h = view_as<ArrayList>(array.Get(i));
-    delete h;
-  }
-
-  ClearArray(array);
 }
 
 stock int FindAndErase(ArrayList array, int value) {
@@ -172,17 +150,10 @@ stock int FindAndErase(ArrayList array, int value) {
   return count;
 }
 
-stock void GetEnabledString(char[] buffer, int length, bool variable, int client = LANG_SERVER) {
-  if (variable)
-    Format(buffer, length, "Activado");
-  else
-    Format(buffer, length, "Desactivado");
-}
-
 stock int GetCvarIntSafe(const char[] cvarName, int defaultValue = 0) {
   Handle cvar = FindConVar(cvarName);
   if (cvar == INVALID_HANDLE) {
-    LogError("Failed to find cvar \"%s\"", cvar);
+    PrintToServer("4Failed to find cvar \"%s\"", cvar);
     return defaultValue;
   } else {
     return GetConVarInt(cvar);
@@ -192,7 +163,7 @@ stock int GetCvarIntSafe(const char[] cvarName, int defaultValue = 0) {
 stock void GetCvarStringSafe(const char[] cvarName, char[] buffer, int size, char[] defaultValue = "") {
   Handle cvar = FindConVar(cvarName);
   if (cvar == INVALID_HANDLE) {
-    LogError("Failed to find cvar \"%s\"", cvar);
+    PrintToServer("5Failed to find cvar \"%s\"", cvar);
     strcopy(buffer, size, defaultValue);
   } else {
     GetConVarString(cvar, buffer, size);
@@ -230,36 +201,12 @@ stock void RemoveCvarFlag(Handle cvar, int flag) {
   SetConVarFlags(cvar, GetConVarFlags(cvar) & ~flag);
 }
 
-stock ArrayList SplitStringToList(const char[] str, const char[] split, int maxlen) {
-  ArrayList list = new ArrayList(maxlen);
-  int index = 0;
-  while (index != -1) {
-    char[] buffer = new char[maxlen];
-    int ret = SplitString(str[index], split, buffer, maxlen);
-    if (ret != -1) {
-      list.PushString(buffer);
-      index += ret;
-    } else {
-      list.PushString(str[index]);
-      index = -1;
-    }
-  }
-  return list;
-}
-
 stock ConVar GetCvar(const char[] name) {
   ConVar cvar = FindConVar(name);
   if (cvar == null) {
     SetFailState("Failed to find cvar: \"%s\"", name);
   }
   return cvar;
-}
-
-stock void LowerString(char[] string) {
-  int len = strlen(string);
-  for (int i = 0; i < len; i++) {
-    string[i] = CharToLower(string[i]);
-  }
 }
 
 stock void UpperString(char[] string) {
@@ -274,35 +221,11 @@ public bool EnforceDirectoryExists(const char[] smPath) {
   BuildPath(Path_SM, dir, sizeof(dir), smPath);
   if (!DirExists(dir)) {
     if (!CreateDirectory(dir, 511)) {
-      LogError("Failed to create directory %s", dir);
+      PrintToServer("Failed to create directory %s", dir);
       return false;
     }
   }
   return true;
-}
-
-stock void ExecuteCvarLists(ArrayList cvars, ArrayList values) {
-  char cvar[CVAR_NAME_LENGTH];
-  char value[CVAR_VALUE_LENGTH];
-  for (int i = 0; i < cvars.Length; i++) {
-    cvars.GetString(i, cvar, sizeof(cvar));
-    values.GetString(i, value, sizeof(value));
-    ServerCommand("%s %s", cvar, value);
-  }
-}
-
-stock void ReadCvarKv(KeyValues kv, ArrayList cvars, ArrayList values) {
-  char cvarName[CVAR_NAME_LENGTH];
-  char cvarValue[CVAR_VALUE_LENGTH];
-  if (kv.GotoFirstSubKey(false)) {
-    do {
-      kv.GetSectionName(cvarName, sizeof(cvarName));
-      cvars.PushString(cvarName);
-      kv.GetString(NULL_STRING, cvarValue, sizeof(cvarValue));
-      values.PushString(cvarValue);
-    } while (kv.GotoNextKey(false));
-    kv.GoBack();
-  }
 }
 
 stock void ChangeMap(const char[] map, float delay = 3.0) {
@@ -356,10 +279,6 @@ stock int GetMenuInt(Menu menu, int param2) {
   return StringToInt(buffer);
 }
 
-stock int EnabledIf(bool condition) {
-  return condition ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED;
-}
-
 stock void GetPlayerBoundingBox(int client, float min[3], float max[3]) {
   float clientMin[3];
   float clientMax[3];
@@ -387,35 +306,6 @@ stock bool DoPlayersCollide(int client1, int client2) {
 
 stock float GetFlashDuration(int client) {
   return GetEntDataFloat(client, FindSendPropInfo("CCSPlayer", "m_flFlashDuration"));
-}
-
-stock int RemoveDuplicates(ArrayList list, int stringLength) {
-  // Yeah it's really inefficient.
-  int count = 0;
-  for (int i = list.Length - 1; i > 0; i--) {
-    char[] buf = new char[stringLength];
-    list.GetString(i, buf, stringLength);
-
-    // Remove all duplicates that come before i.
-    int found;
-    while ((found = list.FindString(buf)) != i) {
-      list.Erase(found);
-      i--;
-      count++;
-    }
-  }
-  return count;
-}
-
-stock bool IsValidFileName(char[] fileName) {
-  int i = 0;
-  while(fileName[i] != '\0') {
-    char c = fileName[i++]
-    if(FindCharInString(_validFileNameCharacters, c) == -1) {
-      return false;
-    }
-  }
-  return true;
 }
 
 stock int GetRoundTimeSeconds() {

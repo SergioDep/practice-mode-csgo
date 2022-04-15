@@ -22,7 +22,6 @@ char g_RetakePlayId[RETAKE_ID_LENGTH];
 #define KV_PLAYERSPAWN "player"
 #define KV_BOMBSPAWN "bomb"
 #define KV_NADESPAWN "grenade"
-KeyValues g_RetakesKv = null;
 ArrayList g_HoloRetakeEntities;
 RetakeDifficulty g_RetakeDifficulty = RetakeDiff_Medium;
 
@@ -69,42 +68,6 @@ public void Retakes_PluginStart() {
   HookEvent("bomb_defused", Event_BombDefuse);
 }
 
-public void Retakes_MapStart() {
-  PrecacheSound("ui/achievement_earned.wav");
-  PrecacheSound("ui/armsrace_demoted.wav");
-  delete g_RetakesKv;
-  g_RetakesKv = new KeyValues("Retakes");
-  // g_RetakesKv.SetEscapeSequences(true); // Avoid fatals from special chars in user data
-
-  char map[PLATFORM_MAX_PATH];
-  GetCleanMapName(map, sizeof(map));
-
-  char retakesFile[PLATFORM_MAX_PATH + 1];
-  BuildPath(Path_SM, retakesFile, sizeof(retakesFile),
-            "data/practicemode/retakes/%s.cfg", map);
-  g_RetakesKv.ImportFromFile(retakesFile);
-}
-
-public void Retakes_MapEnd() {
-  char dir[PLATFORM_MAX_PATH];
-  BuildPath(Path_SM, dir, sizeof(dir), "data/practicemode/retakes");
-  if (!DirExists(dir)) {
-    if (!CreateDirectory(dir, 511))
-      LogError("Failed to create directory %s", dir);
-  }
-
-  char mapName[PLATFORM_MAX_PATH];
-  GetCleanMapName(mapName, sizeof(mapName));
-  char path[PLATFORM_MAX_PATH];
-  Format(path, sizeof(path), "%s/%s.cfg", dir, mapName);
-
-  DeleteFile(path);
-  if (!g_RetakesKv.ExportToFile(path)) {
-    LogError("Failed to write spawn names to %s", path);
-  }
-  RemoveHoloRetakeEntities();
-}
-
 stock void InitRetakes(int client) {
   if (g_InRetakeMode) {
     PM_Message(client, "{ORANGE}Retakes Ya Activo.");
@@ -130,6 +93,7 @@ stock void InitRetakes(int client) {
 }
 
 stock void StartSingleRetake(int client, int retakePos = 0) {
+  g_RetakeDeathPlayersCount = 0;
   g_RetakeRetakes.GetString(retakePos, g_RetakePlayId, RETAKE_ID_LENGTH);
   char retakeName[RETAKE_NAME_LENGTH];
   GetRetakeName(g_RetakePlayId, retakeName, RETAKE_NAME_LENGTH);
@@ -160,7 +124,7 @@ public Action Timer_StartRetake(Handle timer, int serial) {
   int client = GetClientFromSerial(serial);
   g_RetakePlayers.Push(client);
   // Choose N random clients
-  for (int i = 0; i <= MAXPLAYERS; i++) {
+  for (int i = 0; i <= MaxClients; i++) {
     if (IsPlayer(i) && IsPlayerAlive(i) && GetClientTeam(i) > CS_TEAM_SPECTATOR) {
       if (i == client) continue; // Already In ArrayList
       if (g_RetakePlayers.Length < g_MaxRetakePlayersCvar.IntValue) {
@@ -265,6 +229,7 @@ public Action Timer_StartRetake(Handle timer, int serial) {
   SetCvarIntSafe("mp_respawn_on_death_t", 0);
   SetCvarIntSafe("sv_showimpacts", 0);
   SetCvarIntSafe("sm_holo_spawns", 0);
+  SetCvarIntSafe("sm_bot_collision", 1);
   g_InRetakeMode = true;
   return Plugin_Handled;
 }
@@ -373,6 +338,7 @@ public void StopRetakesMode() {
   SetCvarIntSafe("mp_respawn_on_death_t", 1);
   SetCvarIntSafe("sv_showimpacts", 1);
   SetCvarIntSafe("sm_holo_spawns", 1);
+  SetCvarIntSafe("sm_bot_collision", 0);
   g_RetakeDeathPlayersCount = 0;
 }
 
@@ -589,7 +555,7 @@ public bool IsRetakeBot(int client) {
 
 public void PlantBomb(int client, float bombPosition[3]) {
   int bombEntity = CreateEntityByName("planted_c4");
-  // cacacacacac guardar bombEntity Entidad Global
+  // TODO: save bombEntity as global ent?
   GameRules_SetProp("m_bBombPlanted", 1);
   SetEntData(bombEntity, bombTicking, 1, 1, true);
   Event event = CreateEvent("bomb_planted");
@@ -691,8 +657,8 @@ stock bool IsRectangleVisible(const float start[3], const float end[3], const fl
   }
 
   // Adjust to scale.
-  ZpozOffset *= scale;
-  ZnegOffset *= scale;
+  // ZpozOffset *= scale;
+  // ZnegOffset *= scale;
   WideOffset *= scale;
   
   // Prepare rotation matrix.

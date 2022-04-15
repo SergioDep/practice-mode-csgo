@@ -88,10 +88,11 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         GetClientEyeAngles(client, g_Predict_LastClientAng[client]);
         float endPoint[3];
         if (g_PredictMode[client] == GRENADEPREDICT_NONE) {
-          // CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, true);
+          // CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW,
+          //  endPoint, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]);
           // TeleportEntity(g_Predict_FinalDestinationEnt[client], endPoint, NULL_VECTOR, NULL_VECTOR);
         } else {
-          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, true, false);
+          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, g_Predict_LastClientPos[client]);
           if (!g_Predict_ViewEndpoint[client]) {
             SetClientViewEntity(client, g_Predict_FinalDestinationEnt[client]);
             Client_SetFOV(client, 120);
@@ -123,14 +124,16 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         }
     } else if (g_Predict_HoldingReload[client]) {
       if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
-        CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true);
+        CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW,
+          _, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]);
       }
       if (GetEntityMoveType(client) == MOVETYPE_NONE && g_Predict_ObservingGrenade[client] > 1) {
         SetClientObserveEntity(client, g_Predict_ObservingGrenade[client]);
       }
     }
   } else if (g_Predict_ObservingGrenade[client] > 0) {
-    CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, _, true, true);
+    CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW,
+      _, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]);
     SetEntityRenderMode(client, RENDER_NONE); //?
   }
   return Plugin_Handled;
@@ -168,8 +171,9 @@ stock void CreateTrajectory(
   const char[] weapon,
   bool jumpthrow = false,
   float endPos[3] = {},
-  bool useLastPosition = false,
-  bool useLastAngles = false
+  const float customOrigin[3] = {0.0, 0.0, 0.0},
+  const float customAngles[3] = {0.0, 0.0, 0.0},
+  const float customVelocity[3] = {0.0, 0.0, 0.0}
 ) {
   GrenadeType grenadeType = GrenadeTypeFromWeapon(client, weapon);
   float dtime = GetGrenadeDetonationTime(grenadeType);
@@ -179,13 +183,16 @@ stock void CreateTrajectory(
   GetClientEyePosition(client, gStart);
   GetClientEyeAngles(client, angThrow);
   GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", PlayerVelocity);
-  if (useLastPosition) {
-    gStart = g_Predict_LastClientPos[client];
+  if (customOrigin[0] || customOrigin[1] || customOrigin[2]) {
+    gStart = customOrigin;
     gStart[2] += 64.0; // eye level
     ScaleVector(PlayerVelocity, 0.0);
   }
-  if (useLastAngles) {
-    angThrow = g_Predict_LastClientAng[client];
+  if (customAngles[0] || customAngles[1] || customAngles[2]) {
+    angThrow = customAngles;
+  }
+  if (customVelocity[0] || customVelocity[1] || customVelocity[2]) {
+    PlayerVelocity = customVelocity;
   }
 
   if (angThrow[0] < -90.0) angThrow[0] += 360.0;
@@ -293,7 +300,7 @@ stock void CreateTrajectory(
   // TE_SetupBeamCube(explodePos, 2.0, g_BeamSprite, 0, 0, 0, 0.1, 0.5, 0.5, 0, 0.0, colors, 0);
 }
 
-stock void TE_SetupBeamCube(float center[3], float size, int ModelIndex, int HaloIndex, int StartFrame, int FrameRate, float Life, 
+public void TE_SetupBeamCube(float center[3], float size, int ModelIndex, int HaloIndex, int StartFrame, int FrameRate, float Life, 
 				float Width, float EndWidth, int FadeLength, float Amplitude, const int Color[4], int Speed) {
   float vMins[3], vMaxs[3];
   vMins[0] = -size; vMaxs[0] = size;

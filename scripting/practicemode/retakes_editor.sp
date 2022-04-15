@@ -1,6 +1,44 @@
+KeyValues g_RetakesKv = null;
+
 bool g_UpdatedRetakeKv = false;
 char g_SelectedRetakeId[RETAKE_ID_LENGTH];
 bool g_WaitForRetakeSave[MAXPLAYERS + 1] = {false, ...};
+
+public void Retakes_MapStart() {
+  PrecacheSound("ui/achievement_earned.wav");
+  PrecacheSound("ui/armsrace_demoted.wav");
+  delete g_RetakesKv;
+  g_RetakesKv = new KeyValues("Retakes");
+  // g_RetakesKv.SetEscapeSequences(true); // Avoid fatals from special chars in user data
+
+  char map[PLATFORM_MAX_PATH];
+  GetCleanMapName(map, sizeof(map));
+
+  char retakesFile[PLATFORM_MAX_PATH + 1];
+  BuildPath(Path_SM, retakesFile, sizeof(retakesFile),
+            "data/practicemode/retakes/%s.cfg", map);
+  g_RetakesKv.ImportFromFile(retakesFile);
+}
+
+public void Retakes_MapEnd() {
+  char dir[PLATFORM_MAX_PATH];
+  BuildPath(Path_SM, dir, sizeof(dir), "data/practicemode/retakes");
+  if (!DirExists(dir)) {
+    if (!CreateDirectory(dir, 511))
+      PrintToServer("[Retakes]Failed to create directory %s", dir);
+  }
+
+  char mapName[PLATFORM_MAX_PATH];
+  GetCleanMapName(mapName, sizeof(mapName));
+  char path[PLATFORM_MAX_PATH];
+  Format(path, sizeof(path), "%s/%s.cfg", dir, mapName);
+
+  DeleteFile(path);
+  if (!g_RetakesKv.ExportToFile(path)) {
+    PrintToServer("[Retakes]Failed to write spawn names to %s", path);
+  }
+  RemoveHoloRetakeEntities();
+}
 
 public void UpdateHoloRetakeEntities() {
   RemoveHoloRetakeEntities();

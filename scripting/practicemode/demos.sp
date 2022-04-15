@@ -65,8 +65,6 @@ public void ExitDemoMode() {
   g_RecordingFullDemo = false;
   SetCvarIntSafe("mp_respawn_on_death_ct", 1);
   SetCvarIntSafe("mp_respawn_on_death_t", 1);
-
-  PM_MessageToAll("Modo Demos desactivado.");
 }
 
 public void InitDemoFunctions() {
@@ -84,8 +82,6 @@ public void InitDemoFunctions() {
   // NOTE: mp_death_drop_gun should be set to 1, or bots dont get weapon when executing give weapon_... command
   SetCvarIntSafe("mp_respawn_on_death_ct", 0);
   SetCvarIntSafe("mp_respawn_on_death_t", 0);
-
-  PM_MessageToAll("Modo Demos Activado.");
 }
 
 public void ResetDemoClientsData() {
@@ -196,16 +192,16 @@ public Action BotMimic_OnPlayerMimicLoops(int client) {
   if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
-
-  //if (g_InBotDemoMode) {
-  if (g_DemoBotStopped[client]) {
-    // Second Loop
-    return Plugin_Handled;
-  }
-  // First Loop
-  g_DemoBotStopped[client] = true;
-  //}
-  return Plugin_Continue;
+  // //if (g_InBotDemoMode) {
+  // if (g_DemoBotStopped[client]) {
+  //   // Second Loop
+  //   return Plugin_Handled;
+  // }
+  // // First Loop
+  // g_DemoBotStopped[client] = true;
+  // //}
+  return Plugin_Handled; ////
+  // return Plugin_Continue;
 }
 
 public void Demos_OnThrowGrenade(int client, int entity, GrenadeType grenadeType, const float origin[3], const float velocity[3]) {
@@ -223,11 +219,11 @@ public void Demos_OnThrowGrenade(int client, int entity, GrenadeType grenadeType
     demoNadeData.grenadeType = grenadeType;
     demoNadeData.grenadeVelocity = velocity;
     g_DemoNadeData[client].PushArray(demoNadeData, sizeof(demoNadeData));
-    if (demoNadeData.delay < 1.27) {  // Takes 1.265625s to pull out a grenade.
-      PM_Message(
-          client,
-          "{LIGHT_RED}Advertencia: {NORMAL}Tirar una granada justo despues de empezar la grabación puede no guardarla. {LIGHT_RED}Espera un segundo {NORMAL}despues de empezar la grabacion para tirar la granada.");
-    }
+    // if (demoNadeData.delay < 1.27) {  // Takes 1.265625s to pull out a grenade.
+    //   PM_Message(
+    //       client,
+    //       "{LIGHT_RED}Advertencia: {NORMAL}Tirar una granada justo despues de empezar la grabación puede no guardarla. {LIGHT_RED}Espera un segundo {NORMAL}despues de empezar la grabacion para tirar la granada.");
+    // }
   }
 
   if (BotMimic_IsPlayerMimicing(client)) {
@@ -276,12 +272,11 @@ public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, cha
 
 public void BotMimic_OnPlayerStopsMimicing(int client, char[] name, char[] category, char[] path) {
   if (g_CurrentDemoNadeIndex[client] < g_DemoNadeData[client].Length) {
-    PrintToServer("ERROR: %d didnt throw all his nades", client);
+    PrintToServer("[BotMimic_OnPlayerStopsMimicing]ERROR: %d didnt throw all his nades", client);
   }
   if (IsDemoBot(client)) {
     ForcePlayerSuicide(client);
   } else if (g_IsNadeDemoBot[client]) {
-    //heherherhehrehehheheheheherehehreherehehrherehere
     CreateTimer(1.5, Timer_KickBot, client);
   }
 }

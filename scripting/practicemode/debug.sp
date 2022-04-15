@@ -7,7 +7,7 @@ public Action Command_DebugInfo(int client, int args) {
 
   File f = OpenFile(path, "w");
   if (f == null) {
-    LogError("Failed to open practicemode_debuginfo.txt for writing");
+    PrintToServer("[Command_DebugInfo]Failed to open practicemode_debuginfo.txt for writing");
     return Plugin_Handled;
   }
 

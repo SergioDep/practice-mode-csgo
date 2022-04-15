@@ -18,12 +18,16 @@ enum struct B_PropDoorRotating {
   char soundunlockedoverride[128];
   int spawnflags;
   float speed;
-  char targetname[128];
+  char targetname[MAX_TARGET_LENGTH];
 }
 
 enum struct B_FuncBreakable {
   float origin[3];
+  float angles[3];
   char model[128];
+  char targetname[MAX_TARGET_LENGTH];
+  RenderMode rendermode;
+  // int material;
 }
 
 enum struct B_PropDynamic {
@@ -34,6 +38,7 @@ enum struct B_PropDynamic {
   SolidType_t solidtype;
   SolidFlags_t solidflags;
   int spawnflags;
+  char targetname[MAX_TARGET_LENGTH];
 }
 
 public void Breakables_MapStart() {
@@ -57,7 +62,9 @@ public void BreakBreakableEnts() {
   while ((ent = FindEntityByClassname(ent, "prop_dynamic")) != -1) {
     char model[128];
     Entity_GetModel(ent, model, sizeof(model));
-    if (StrContains(model, "vent", false) == -1) {
+    if (StrContains(model, "vent", false) == -1 &&
+    StrContains(model, "wall_hole", false) == -1 &&
+    StrContains(model, "breakable", false) == -1) {
       continue;
     }
     AcceptEntityInput(ent, "Kill");
@@ -77,8 +84,11 @@ public void RespawnBreakableEnts() {
       DispatchKeyValue(ent, "classname", "func_breakable");
       DispatchKeyValue(ent, "model", breakable.model);
       DispatchKeyValue(ent, "health", "1");
+      DispatchKeyValue(ent, "targetname", breakable.targetname);
+      SetEntityRenderMode(ent, breakable.rendermode);
+      // SetEntProp(ent, Prop_Send, "m_nMaterial", breakable.material); // DispatchKeyValue(ent, "material", breakable.material);
       if (DispatchSpawn(ent)) {
-        TeleportEntity(ent, breakable.origin, NULL_VECTOR, NULL_VECTOR);
+        TeleportEntity(ent, breakable.origin, breakable.angles, NULL_VECTOR);
       }
     }
   }
@@ -123,6 +133,10 @@ public void RespawnBreakableEnts() {
       Entity_SetSpawnFlags(ent, prop.spawnflags);
       Entity_SetSolidType(ent, prop.solidtype);
       Entity_SetSolidFlags(ent, prop.solidflags);
+      DispatchKeyValue(ent, "targetname", prop.targetname);
+      // Entity_SetFlags(ent, 524288);
+      // get entityoutput
+      // SetEntityFlags(ent, 262144);
       if (DispatchSpawn(ent)) {
         TeleportEntity(ent, prop.origin, prop.angles, NULL_VECTOR);
       }
@@ -136,7 +150,16 @@ public void SaveBreakbaleEnts() {
   while ((ent = FindEntityByClassname(ent, "func_breakable")) != -1) {
     B_FuncBreakable breakable;
     Entity_GetModel(ent, breakable.model, sizeof(breakable.model));
+    Entity_GetName(ent, breakable.targetname, sizeof(breakable.targetname));
+    breakable.rendermode = GetEntityRenderMode(ent);
+    //m_nMaterial
+    // breakable.material = GetEntProp(ent, Prop_Send, "m_nMaterial");
+    int charIndex = StrContains(breakable.targetname, ".brush");
+    if (charIndex > -1) {
+      continue;
+    }
     Entity_GetAbsOrigin(ent, breakable.origin);
+    Entity_GetAbsAngles(ent, breakable.angles);
     RespawnEnts_funcbreakable.PushArray(breakable, sizeof(breakable));
   }
   // doors ...
@@ -162,22 +185,23 @@ public void SaveBreakbaleEnts() {
   }
   // vents ...
   while ((ent = FindEntityByClassname(ent, "prop_dynamic")) != -1) {
-    char model[128];
-    Entity_GetModel(ent, model, sizeof(model));
-    if (StrContains(model, "vent", false) == -1) {
-      continue;
-    }
     B_PropDynamic prop;
     Entity_GetAbsOrigin(ent, prop.origin);
     Entity_GetAbsAngles(ent, prop.angles);
     Entity_GetModel(ent, prop.model, sizeof(prop.model));
+    if (StrContains(prop.model, "vent", false) == -1 &&
+    StrContains(prop.model, "wall_hole", false) == -1 &&
+    StrContains(prop.model, "breakable", false) == -1) {
+      continue;
+    }
+    Entity_GetName(ent, prop.targetname, sizeof(prop.targetname));
     Entity_GetRenderColor(ent, prop.rendercolor);
     prop.solidtype = Entity_GetSolidType(ent);
     prop.solidflags = Entity_GetSolidFlags(ent);
     prop.spawnflags = Entity_GetSpawnFlags(ent);
     RespawnEnts_propdynamic.PushArray(prop, sizeof(prop));
   }
-  LogMessage("Saved %d funcbreakable entities.", RespawnEnts_funcbreakable.Length);
-  LogMessage("Saved %d propdoorrotating entities.", RespawnEnts_propdoorrotating.Length);
-  LogMessage("Saved %d propdynamic entities.", RespawnEnts_propdynamic.Length);
+  PrintToServer("Saved %d funcbreakable entities.", RespawnEnts_funcbreakable.Length);
+  PrintToServer("Saved %d propdoorrotating entities.", RespawnEnts_propdoorrotating.Length);
+  PrintToServer("Saved %d propdynamic entities.", RespawnEnts_propdynamic.Length);
 }

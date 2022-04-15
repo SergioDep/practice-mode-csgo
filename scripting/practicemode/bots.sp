@@ -1,3 +1,8 @@
+ArrayList g_ClientBots[MAXPLAYERS + 1];  // Bots owned by each client.
+
+int g_BotPlayerModels[MAXPLAYERS + 1] = {-1, ...};
+int g_BotPlayerModelsIndex[MAXPLAYERS + 1] = {-1, ...};
+
 public Action PMBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
   if (!IsPlayerAlive(client)) {
     return Plugin_Continue;
@@ -125,7 +130,6 @@ stock void SetupPMBot(
 }
 
 public Action Event_PMBot_Death(int victim, Event event, const char[] name, bool dontBroadcast) {
-  g_BotDeathTime[victim] = GetGameTime();
   RemoveSkin(victim);
   int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
   CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
@@ -300,7 +304,7 @@ public Action Timer_ResetCollisions(Handle timer, DataPack pack) {
   int client1 = GetClientFromSerial(pack.ReadCell());
   int client2 = GetClientFromSerial(pack.ReadCell());
   if (!IsValidClient(client1) || !IsValidClient(client2)) {
-    return Plugin_Handled;
+    return Plugin_Stop;
   }
 
   if (DoPlayersCollide(client1, client2)) {
@@ -309,7 +313,7 @@ public Action Timer_ResetCollisions(Handle timer, DataPack pack) {
 
   Entity_SetCollisionGroup(client1, COLLISION_GROUP_PLAYER);
   Entity_SetCollisionGroup(client2, COLLISION_GROUP_PLAYER);
-  return Plugin_Handled;
+  return Plugin_Stop;
 }
 
 public void CreateGlow(int client) {	
@@ -335,7 +339,7 @@ public void SetupGlow(int entity, int client) {
   static int offset = -1;
   
   if ((offset = GetEntSendPropOffs(entity, "m_clrGlow")) == -1) {
-    LogError("Unable to find property offset: \"m_clrGlow\"!");
+    PrintToServer("[SetupGlow]Unable to find property offset: \"m_clrGlow\"!");
     return;
   }
 

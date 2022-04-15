@@ -60,7 +60,7 @@ public void MaybeWriteNewDemoData() {
     BuildPath(Path_SM, demoFile, sizeof(demoFile), "data/practicemode/demos/%s.cfg", map);
     DeleteFile(demoFile);
     if (!g_DemosKv.ExportToFile(demoFile)) {
-      LogError("Failed to write demos to %s", demoFile);
+      PrintToServer("[MaybeWriteNewDemoData]Failed to write demos to %s", demoFile);
     }
     g_UpdatedDemoKv = false;
   }
