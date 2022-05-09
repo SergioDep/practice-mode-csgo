@@ -1,16 +1,18 @@
 public bool IsPracticeBot(int client) {
-  if (g_IsDemoBot[client] || g_IsPMBot[client] || g_IsRetakeBot[client] || g_IsNadeDemoBot[client] || g_IsCrossfireBot[client]) {
+  if (g_IsPMBot[client] || g_IsRetakeBot[client] || g_IsDemoBot[client] || g_IsNadeDemoBot[client] || g_IsCrossfireBot[client]) {
     return true;
   }
   return false;
 }
 
-public void SetNotPracticeBot(int client) {
-  g_IsPMBot[client] = false;
-  g_IsRetakeBot[client] = false;
-  g_IsDemoBot[client] = false;
-  g_IsNadeDemoBot[client] = false;
-  g_IsCrossfireBot[client] = false;
+public void SetNotPracticeBot(int bot) {
+  g_IsPMBot[bot] = false;
+  g_IsRetakeBot[bot] = false;
+  g_IsDemoBot[bot] = false;
+  g_IsNadeDemoBot[bot] = false;
+  g_IsCrossfireBot[bot] = false;
+  g_BotMindControlOwner[bot] = -1;
+  strcopy(g_BotOriginalName[bot], sizeof(g_BotOriginalName[]), "-1");
 }
 
 public int GetLargestBotUserId() {

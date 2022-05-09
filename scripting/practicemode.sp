@@ -25,7 +25,6 @@ bool g_InPracticeMode = false;
 bool g_InDryMode = false;
 bool g_InRetakeMode = false;
 bool g_InCrossfireMode = false;
-bool g_WaitForServerPassword = false;
 bool g_CSUtilsLoaded = false;
 bool g_BotMimicLoaded = false;
 
@@ -36,8 +35,6 @@ ArrayList g_ChatAliases;
 ArrayList g_ChatAliasesCommands;
 
 Handle HudSync;
-// Handle HUDCowntdown_Handle = INVALID_HANDLE;
-// int HUDCountdown_Number;
 
 // Plugin cvars
 ConVar g_AutostartCvar;
@@ -76,12 +73,20 @@ ConVar g_VersionCvar;
 #define AUTH_LENGTH 64
 #define GRENADE_CODE_LENGTH 256
 
+bool g_WaitForServerPassword = false;
 bool g_WaitForDemoSave[MAXPLAYERS + 1] = {false, ...};
+bool g_WaitForSingleDemoRoleName[MAXPLAYERS + 1] = {false, ...};
+bool g_WaitForSingleDemoName[MAXPLAYERS + 1] = {false, ...};
+bool g_WaitForSaveNade[MAXPLAYERS + 1] = {false, ...};
+
 int g_recordingNadeDemoStatus[MAXPLAYERS + 1] = {0, ...};// 0 = not recording/canceled, 1 = recording, 2 = not recording/saved
 bool g_savedNewNadeDemo[MAXPLAYERS + 1] = {false, ...};
-bool g_WaitForSaveNade[MAXPLAYERS + 1] = {false, ...};
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
-KeyValues g_GrenadeLocationsKv;  // Inside any global function, we expect this to be at the root level.
+
+Database g_db = null;
+char g_dbMap[PLATFORM_MAX_PATH];
+
+// // KeyValues g_GrenadeLocationsKv;  // Inside any global function, we expect this to be at the root level.
 int g_CurrentSavedGrenadeId[MAXPLAYERS + 1];
 bool g_UpdatedGrenadeKv = false;  // whether there has been any changed the kv structure this map
 int g_NextID = 0;
@@ -226,6 +231,8 @@ bool g_ClientButtonsInUse[MAXPLAYERS + 1] = {false, ...};
 #include "practicemode/afk_manager.sp"
 #include "practicemode/commands_blocker.sp"
 
+#include "practicemode/database.sp"
+
 public Plugin myinfo = {
   name = "Practicemode Lite",
   author = "sergio",
@@ -236,6 +243,7 @@ public Plugin myinfo = {
 
 public void OnPluginStart() {
   LoadTranslations("common.phrases");
+  LoadTranslations("practicemode.phrases");
   g_InPracticeMode = false;
   AddCommandListener(Command_TeamJoin, "jointeam"); // (FIX) WHY?
   AddCommandListener(Command_Noclip, "noclip");
@@ -256,6 +264,10 @@ public void OnPluginStart() {
   HookEvent("hegrenade_detonate", GrenadeDetonateTimerHelper);
   HookEvent("decoy_started", GrenadeDetonateTimerHelper);
   HookEvent("player_blind", Event_PlayerBlind);
+
+  if (g_db == null) {
+    Database.Connect(SQLConnectCallback, "storage-local");
+  }
 
   for (int i = 0; i <= MaxClients; i++) {
     g_GrenadeHistoryPositions[i] = new ArrayList(3);
@@ -283,11 +295,11 @@ public void OnPluginStart() {
 
   // Grenade history commands
   {
-    RegConsoleCmd("sm_grenadeback", Command_GrenadeBack);
-    PM_AddChatAlias(".back", "sm_grenadeback");
+    RegConsoleCmd("sm_backall", Command_BackAll);
+    PM_AddChatAlias(".back", "sm_backall");
 
-    RegConsoleCmd("sm_grenadeforward", Command_GrenadeForward);
-    PM_AddChatAlias(".forward", "sm_grenadeforward");
+    RegConsoleCmd("sm_nextall", Command_NextAll);
+    PM_AddChatAlias(".next", "sm_nextall");
 
     RegConsoleCmd("sm_lastgrenade", Command_LastGrenade);
     PM_AddChatAlias(".last", "sm_lastgrenade");
@@ -367,11 +379,14 @@ public void OnPluginStart() {
   //   PM_AddChatAlias(".play", "sm_playrecording");
   // }
 
-  // Bot Demo commands
+  // Demo commands
   {
     RegConsoleCmd("sm_demo", Command_Demos);
     PM_AddChatAlias(".demo", "sm_demo");
     PM_AddChatAlias(".demos", "sm_demo");
+
+    RegConsoleCmd("sm_testdemo", Command_TestDemo);
+    PM_AddChatAlias(".testdemo", "sm_testdemo");
 
     // RegConsoleCmd("sm_demomode", CommandToggleReplayMode);
     // PM_AddChatAlias(".versus", "sm_demomode");
@@ -769,11 +784,13 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
         ServerCommand("bot_add_t");
       }
     }
-  } else if (IsPMBot(client) || IsDemoBot(client)) {
-    GiveBotParams(client);
+  } else if (IsPMBot(client)) { //|| IsDemoBot(client)
     if (g_GlowPMBotsCvar.IntValue != 0) {
       RemoveSkin(client);
       CreateGlow(client);
+    }
+    if (IsPMBot(client)) {
+      GiveBotParams(client);
     }
   }
 
@@ -850,23 +867,26 @@ public void OnMapStart() {
   char map[PLATFORM_MAX_PATH];
   GetCleanMapName(map, sizeof(map));
 
-  char legacyFile[PLATFORM_MAX_PATH];
-  Format(legacyFile, sizeof(legacyFile), "%s/%s.cfg", legacyDir, map);
+  // DATABASE
+  GetCleanMapName(g_dbMap, sizeof(g_dbMap));
 
-  BuildPath(Path_SM, g_GrenadeLocationsFile, sizeof(g_GrenadeLocationsFile),
-            "data/practicemode/grenades/%s.cfg", map);
+  // // char legacyFile[PLATFORM_MAX_PATH];
+  // // Format(legacyFile, sizeof(legacyFile), "%s/%s.cfg", legacyDir, map);
 
-  if (!FileExists(g_GrenadeLocationsFile) && FileExists(legacyFile)) {
-    PrintToServer("Moving legacy grenade data from %s to %s", legacyFile, g_GrenadeLocationsFile);
-    g_GrenadeLocationsKv = new KeyValues("Grenades");
-    g_GrenadeLocationsKv.ImportFromFile(legacyFile);
-    g_UpdatedGrenadeKv = true;
-  } else {
-    g_GrenadeLocationsKv = new KeyValues("Grenades");
-    // g_GrenadeLocationsKv.SetEscapeSequences(true); // Avoid fatals from special chars in user data
-    g_GrenadeLocationsKv.ImportFromFile(g_GrenadeLocationsFile);
-    g_UpdatedGrenadeKv = false;
-  }
+  // // BuildPath(Path_SM, g_GrenadeLocationsFile, sizeof(g_GrenadeLocationsFile),
+  // //           "data/practicemode/grenades/%s.cfg", map);
+
+  // // if (!FileExists(g_GrenadeLocationsFile) && FileExists(legacyFile)) {
+  // //   PrintToServer("Moving legacy grenade data from %s to %s", legacyFile, g_GrenadeLocationsFile);
+  // //   g_GrenadeLocationsKv = new KeyValues("Grenades");
+  // //   g_GrenadeLocationsKv.ImportFromFile(legacyFile);
+  // //   g_UpdatedGrenadeKv = true;
+  // // } else {
+  // //   g_GrenadeLocationsKv = new KeyValues("Grenades");
+  // //   // g_GrenadeLocationsKv.SetEscapeSequences(true); // Avoid fatals from special chars in user data
+  // //   g_GrenadeLocationsKv.ImportFromFile(g_GrenadeLocationsFile);
+  // //   g_UpdatedGrenadeKv = false;
+  // // }
 
   MaybeCorrectGrenadeIds();
 
@@ -946,7 +966,7 @@ public void OnClientDisconnect(int client) {
 }
 
 public void OnMapEnd() {
-  MaybeWriteNewGrenadeData();
+  // // MaybeWriteNewGrenadeData();
 
   if (g_InPracticeMode) {
     ExitPracticeMode();
@@ -957,25 +977,26 @@ public void OnMapEnd() {
   HoloNade_MapEnd();
   Retakes_MapEnd();
   Crossfires_MapEnd();
-  delete g_GrenadeLocationsKv;
+  // // delete g_GrenadeLocationsKv;
 }
 
-public void MaybeWriteNewGrenadeData() {
-  if (g_UpdatedGrenadeKv) {
-    g_GrenadeLocationsKv.Rewind();
-    BackupFiles("grenades");
-    DeleteFile(g_GrenadeLocationsFile);
-    if (!g_GrenadeLocationsKv.ExportToFile(g_GrenadeLocationsFile)) {
-      PrintToServer("[MaybeWriteNewGrenadeData]Failed to write grenade data to %s", g_GrenadeLocationsFile);
-    }
-    g_UpdatedGrenadeKv = false;
-  }
-}
+// // public void MaybeWriteNewGrenadeData() {
+// //   if (g_UpdatedGrenadeKv) {
+// //     g_GrenadeLocationsKv.Rewind();
+// //     BackupFiles("grenades");
+// //     DeleteFile(g_GrenadeLocationsFile);
+// //     if (!g_GrenadeLocationsKv.ExportToFile(g_GrenadeLocationsFile)) {
+// //       PrintToServer("[MaybeWriteNewGrenadeData]Failed to write grenade data to %s", g_GrenadeLocationsFile);
+// //     }
+// //     g_UpdatedGrenadeKv = false;
+// //   }
+// // }
 
 public void OnClientPutInServer(int client) {
   if (!IsPlayer(client)) {
     return;
   }
+  DB_GetPlayerData(client);
   HoloNade_ClientPutInServer(client);
 }
 
@@ -983,18 +1004,18 @@ public Action FUNCION_PRUEBA(int client, int args) {
   if (args >= 1) {
     char arg[128];
     GetCmdArg(1, arg, sizeof(arg));
-    int ent = CreateEntityByName("prop_dynamic_override");
-    if (ent > 0) {
-      SetEntityModel(ent, arg);
-      float fOrigin[3];
-      GetClientAbsOrigin(client, fOrigin);
-      if (DispatchSpawn(ent)) {
-        TeleportEntity(ent, fOrigin, NULL_VECTOR, NULL_VECTOR);
-        PrintToChatAll("yes");
-      }
-    }
-  } else {
-    PrintToChat(client, "texto: %T", "cacaca", client);
+    int index = Client_GetWeapon(client, arg);
+    PM_Message(client, "prueba: %d", index);
+    // int ent = CreateEntityByName("prop_dynamic_override");
+    // if (ent > 0) {
+    //   SetEntityModel(ent, arg);
+    //   float fOrigin[3];
+    //   GetClientAbsOrigin(client, fOrigin);
+    //   if (DispatchSpawn(ent)) {
+    //     TeleportEntity(ent, fOrigin, NULL_VECTOR, NULL_VECTOR);
+    //     PrintToChatAll("yes");
+    //   }
+    // }
   }
   return Plugin_Handled;
 }
@@ -1080,9 +1101,9 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         if (IsValidEntity(spawnEnt)) {
           GetEntityClassname(g_Spawns.Get(spawnIndex, 0), spawnclassName, sizeof(spawnclassName));
           if (StrEqual(spawnclassName, "info_player_counterterrorist")) {
-            PM_Message(client, "{ORANGE}Teletransportado a Spawn CT {GREEN}%d", spawnIndex + 1);
+            PM_Message(client, "{ORANGE}%t: {GREEN}%d", "TeleportingToCTSpawn", client, spawnIndex + 1);
           } else {
-            PM_Message(client, "{ORANGE}Teletransportado a Spawn T {GREEN}%d", spawnIndex + 1 - ctSpawnsLength);
+            PM_Message(client, "{ORANGE}%t: {GREEN}%d", "TeleportingToTSpawn", client, spawnIndex + 1 - ctSpawnsLength);
           }
         }
         return Plugin_Continue;
@@ -1118,9 +1139,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         g_ClientPulledPinButtons[client] |= buttons;
         g_ClientPulledPin[client] = false;
         // DEMOS
-        if (!g_InBotDemoMode && g_recordingNadeDemoStatus[client] && BotMimic_IsPlayerRecording(client)) {
-          g_recordingNadeDemoStatus[client] = 2;
-          CreateTimer(0.2, Timer_Botmimic_PauseRecording, GetClientSerial(client));
+        if (g_recordingNadeDemoStatus[client]) {
+          if (!g_InBotDemoMode && BotMimic_IsPlayerRecording(client)) {
+            g_recordingNadeDemoStatus[client] = 2;
+            CreateTimer(0.2, Timer_Botmimic_PauseRecording, GetClientSerial(client));
+          }
         }
     }
     if (g_ClientPulledPin[client]) {
@@ -1136,9 +1159,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     }
   } else {
     // DEMOS
-    if (!g_InBotDemoMode && g_recordingNadeDemoStatus[client] == 1 && BotMimic_IsPlayerRecording(client)) {
-      g_recordingNadeDemoStatus[client] = 0;
-      BotMimic_StopRecording(client, false); // delete
+    if (g_recordingNadeDemoStatus[client] == 1) {
+      if (!g_InBotDemoMode && BotMimic_IsPlayerRecording(client)) {
+        g_recordingNadeDemoStatus[client] = 0;
+        BotMimic_StopRecording(client, false); // delete
+      }
     }
   }
   NadePrediction_PlayerRunCmd(client, buttons, weaponName);
@@ -1168,6 +1193,10 @@ public Action Timer_Botmimic_PauseRecording(Handle timer, int serial) {
 public Action Command_TeamJoin(int client, const char[] command, int argc) {
   if (!IsValidClient(client) || argc < 1)
     return Plugin_Handled;
+
+  if (g_InCrossfireMode || g_InRetakeMode) {
+    return Plugin_Handled;
+  }
 
   if (g_InPracticeMode) {
     char arg[4];
@@ -1452,13 +1481,13 @@ public Action Event_PlayerBlind(Event event, const char[] name, bool dontBroadca
       char T_CB[16];
       if(GetFlashDuration(victim)>=g_FlashEffectiveThresholdCvar.FloatValue) T_CB="{GREEN}";
       else T_CB="{DARK_RED}";
-      PM_Message(i, "{PURPLE}------------");
-      PM_Message(i, "{ORANGE}Flash a : %N", victim);
+      PM_Message(i, "{PURPLE}---------------");
+      PM_Message(i, "{ORANGE}%t: %N", "BlindedPlayer", i, victim);
       float accuracy = GetFlashDuration(victim)/5.21*100;
       accuracy > 100.0 ? (accuracy=100.0) : accuracy;
-      PM_Message(i, "Precisión de Flash: %s%.1f%%", T_CB, accuracy);
-      PM_Message(i, "Duración de Flash: %s%.1f{NORMAL}s", T_CB, GetFlashDuration(victim));
-      PM_Message(i, "{PURPLE}------------");
+      PM_Message(i, "%t: %s%.1f%%", "FlashPrecision", i, T_CB, accuracy);
+      PM_Message(i, "%t: %s%.1f{NORMAL}s", "FlashDuration", i, T_CB, GetFlashDuration(victim));
+      PM_Message(i, "{PURPLE}---------------");
       break;
     }
   }
@@ -1510,7 +1539,7 @@ public Action GrenadeDetonateTimerHelper(Event event, const char[] name, bool do
         GrenadeType grenadeType = GrenadeTypeFromWeapon(client, grenadeName);
         GrenadeTypeString(grenadeType, grenadeName, sizeof(grenadeName));
         UpperString(grenadeName);
-        PM_Message(client, "{ORANGE}Tiempo en el aire (%s): %.1f segundos, %d rebotes", grenadeName, dt, bounces);
+        PM_Message(client, "{ORANGE}%t (%s): %.1f segundos, %d rebotes", "AirTime", client, grenadeName, dt, bounces);
         if (grenadeType == GrenadeType_Smoke) {
           ForceGlow(entity);
         }
@@ -1704,51 +1733,73 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
     return;
   }
 
-  // CleanMsgString(sArgs, sizeof(sArgs)); sArgs is constant value
+  char cleanArgs[128];
+  strcopy(cleanArgs, sizeof(cleanArgs), sArgs);
+  CleanMsgString(cleanArgs, sizeof(cleanArgs));
   if (g_WaitForSaveNade[client]) {
     g_WaitForSaveNade[client] = false;
-    if (StrEqual(sArgs, "!no")) {
-      PM_Message(client, "{ORANGE}Cancelado.");
+    if (StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
     } else {
-      SaveClientNade(client, sArgs);
+      SaveClientNade(client, cleanArgs);
     }
   } else if (g_WaitForServerPassword && client == g_PracticeSetupClient) {
     g_WaitForServerPassword = false;
-    if (StrEqual(sArgs, "!no")) {
-      PM_Message(client, "{ORANGE}Cancelado.");
+    if (StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
     } else {
-      SetConVarStringSafe("sv_password", sArgs);
-      PM_Message(client, "Contraseña Cambiada a \"{ORANGE}%s{NORMAL}\".", sArgs);
+      SetConVarStringSafe("sv_password", cleanArgs);
+      PM_Message(client, "%t \"{ORANGE}%s{NORMAL}\".", "PasswordChangedTo", client, cleanArgs);
     }
     PracticeSetupMenu(client);
   } else if(g_WaitForRetakeSave[client]) {
     g_WaitForRetakeSave[client] = false;
-    if(StrEqual(sArgs, "!no")) {
-      PM_Message(client, "{ORANGE}Cancelado.");
+    if(StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
     } else {
       IntToString(GetRetakesNextId(), g_SelectedRetakeId, RETAKE_ID_LENGTH);
-      SetRetakeName(g_SelectedRetakeId, sArgs);
-      PM_Message(client, "{ORANGE}Retake \"%s\" (retake_%s) creado.", sArgs, g_SelectedRetakeId);
+      SetRetakeName(g_SelectedRetakeId, cleanArgs);
+      PM_Message(client, "{ORANGE}%t", "CreatedRetake", client, cleanArgs, g_SelectedRetakeId);
       SingleRetakeEditorMenu(client);
     }
   } else if(g_WaitForCrossfireSave[client]) {
     g_WaitForCrossfireSave[client] = false;
-    if(StrEqual(sArgs, "!no")) {
-      PM_Message(client, "{ORANGE}Cancelado.");
+    if(StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
     } else {
       IntToString(GetCrossfiresNextId(), g_SelectedCrossfireId, CROSSFIRE_ID_LENGTH);
-      SetCrossfireName(g_SelectedCrossfireId, sArgs);
-      PM_Message(client, "{ORANGE}Crossfire \"%s\" (crossfire_%s) creado.", sArgs, g_SelectedCrossfireId);
+      SetCrossfireName(g_SelectedCrossfireId, cleanArgs);
+      PM_Message(client, "{ORANGE}%t", "CreatedCrossfire", client, cleanArgs, g_SelectedCrossfireId);
       SingleCrossfireEditorMenu(client);
     }
   } else if (g_WaitForDemoSave[client]) {
     g_WaitForDemoSave[client] = false;
-    if(StrEqual(sArgs, "!no")) {
-      PM_Message(client, "{ORANGE}Cancelado.");
+    if(StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
     } else {
       IntToString(GetDemosNextId(), g_SelectedDemoId[client], DEMO_ID_LENGTH);
-      SetDemoName(g_SelectedDemoId[client], sArgs);
-      PM_Message(client, "{ORANGE}Demo \"%s\" (demo_%s) creado.", sArgs, g_SelectedDemoId[client]);
+      SetDemoName(g_SelectedDemoId[client], cleanArgs);
+      PM_Message(client, "{ORANGE}%t", "CreatedDemo", client, cleanArgs, g_SelectedDemoId[client]);
+      SingleDemoEditorMenu(client);
+    }
+  } else if (g_WaitForSingleDemoRoleName[client]) {
+    g_WaitForSingleDemoRoleName[client] = false;
+    if(StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+    } else {
+      char demoRoleStr[DEMO_ID_LENGTH];
+      IntToString(g_CurrentEditingDemoRole[client], demoRoleStr, sizeof(demoRoleStr));
+      SetDemoRoleKVString(g_SelectedDemoId[client], demoRoleStr, "name", cleanArgs);
+      PM_Message(client, "{ORANGE}%t", "NameChangedTo", client, cleanArgs);
+      SingleDemoRoleMenu(client, g_CurrentEditingDemoRole[client]);
+    }
+  } else if (g_WaitForSingleDemoName[client]) {
+    g_WaitForSingleDemoName[client] = false;
+    if(StrEqual(cleanArgs, "!no")) {
+      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+    } else {
+      SetDemoName(g_SelectedDemoId[client], cleanArgs);
+      PM_Message(client, "{ORANGE}%t", "NameChangedTo", client, cleanArgs);
       SingleDemoEditorMenu(client);
     }
   }
@@ -1772,52 +1823,56 @@ public Action Command_GivePracticeSetupMenu(int client, int args) {
 
 stock void PracticeSetupMenu(int client, int pos = 0) {
   Menu menu = new Menu(PracticeSetupMenuHandler);
-  menu.SetTitle("Configuración del Servidor");
+  menu.SetTitle("%t", "Server_Settings");
 
   char buffer[128];
   GetCvarStringSafe("sv_password", buffer, sizeof(buffer));
   if (!StrEqual(buffer, "")) {
-    Format(buffer, sizeof(buffer), "%s %s", "Acceso al servidor:", "Con Contraseña");
+    Format(buffer, sizeof(buffer), "%t", "ServerAccessPass", client);
     menu.AddItem("password", buffer);
-    menu.AddItem("changepassword", "Cambiar contraseña\n ");
+    Format(buffer, sizeof(buffer), "%t\n ", "ChangePassword", client);
+    menu.AddItem("changepassword", buffer);
   } else {
-    Format(buffer, sizeof(buffer), "%s %s", "Acceso al servidor:", "Sin Contraseña");
+    Format(buffer, sizeof(buffer), "%t", "ServerAccessNoPass", client);
     menu.AddItem("password", buffer);
-    menu.AddItem("changepassword", "Cambiar contraseña\n ", ITEMDRAW_DISABLED);
+    Format(buffer, sizeof(buffer), "%t\n ", "ChangePassword", client);
+    menu.AddItem("changepassword", buffer, ITEMDRAW_DISABLED);
   }
 
   menu.AddItem("", "", ITEMDRAW_NOTEXT);
   menu.AddItem("", "", ITEMDRAW_NOTEXT);
 
-  menu.AddItem("changemap", "Cambiar Mapa");
-  menu.AddItem("kickplayers", "Kickear Jugadores");
+  Format(buffer, sizeof(buffer), "%t", "ChangeMap", client);
+  menu.AddItem("changemap", buffer);
+  Format(buffer, sizeof(buffer), "%t", "KickPlayers", client);
+  menu.AddItem("kickplayers", buffer);
 
-  Format(buffer, sizeof(buffer), "%s: %s", "Mostrar impactos de bala: ",
-  (GetCvarIntSafe("sv_showimpacts") == 0) ? "Desactivado" : "Activado");
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_ShowImpacts", client,
+  (GetCvarIntSafe("sv_showimpacts") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("showimpacts", buffer);
 
-  Format(buffer, sizeof(buffer), "%s: %s", "Munición Infinita: ",
-  (GetCvarIntSafe("sv_infinite_ammo") != 1) ? "Desactivado" : "Activado");
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_InfiniteAmmo", client,
+  (GetCvarIntSafe("sv_infinite_ammo") != 1) ? "Disabled" : "Enabled", client);
   menu.AddItem("infiniteammo", buffer);
 
-  Format(buffer, sizeof(buffer), "%s: %s", "Bots Wallhack: ",
-  (GetCvarIntSafe("sm_glow_pmbots") == 0) ? "Desactivado" : "Activado");
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_BotsWallhack", client,
+  (GetCvarIntSafe("sm_glow_pmbots") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("glowbots", buffer);
 
-  Format(buffer, sizeof(buffer), "%s: %s", "Trayectoria de Granada: ",
-  (GetCvarIntSafe("sv_grenade_trajectory") == 0) ? "Desactivado" : "Activado");
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_GrenadeTrajectory", client,
+  (GetCvarIntSafe("sv_grenade_trajectory") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("grenadetrajectory", buffer);
 
-  Format(buffer, sizeof(buffer), "%s: %s", "Mostrar Spawns: ",
-  (GetCvarIntSafe("sm_holo_spawns") == 0) ? "Desactivado" : "Activado");
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_ShowSpawns", client,
+  (GetCvarIntSafe("sm_holo_spawns") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("glowspawns", buffer);
 
-  Format(buffer, sizeof(buffer), "%s: %s", "Noclip: ",
-  (GetCvarIntSafe("sm_allow_noclip") == 0) ? "Desactivado" : "Activado");
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_AllowNoclip", client,
+  (GetCvarIntSafe("sm_allow_noclip") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("noclip", buffer);
 
-  // Format(buffer, sizeof(buffer), "%s: %s", "Colisiones: ",
-  // (GetCvarIntSafe("sm_bot_collision") == 0) ? "Desactivado" : "Activado");
+  // Format(buffer, sizeof(buffer), "%t: %t", "Colisiones: ", client,
+  // (GetCvarIntSafe("sm_bot_collision") == 0) ? "Disabled" : "Enabled", client);
   // menu.AddItem("collision", buffer);
 
   // menu.Pagination = MENU_NO_PAGINATION;
@@ -1838,11 +1893,11 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
       if (!StrEqual(SvPassword, "")) {
         SetConVarString(FindConVar("sv_password"), "");
       } else {
-        PM_Message(client, "{ORANGE}Escriba la nueva contraseña. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
+        PM_Message(client, "%t", "WriteInput", client, "la nueva contraseña");
         g_WaitForServerPassword = true;
       }
     } else if (StrEqual(buffer, "changepassword")) {
-        PM_Message(client, "{ORANGE}Escriba la nueva contraseña. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
+        PM_Message(client, "%t", "WriteInput", client, "la nueva contraseña");
         g_WaitForServerPassword = true;
     } else if (StrEqual(buffer, "kickplayers")) {
       Command_Kick(client, 0);
@@ -1897,11 +1952,15 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
 
 stock void GivePracticeMenu(int client, int style = ITEMDRAW_DEFAULT) {
   Menu menu = new Menu(PracticeMenuHandler);
-  menu.SetTitle("Menu de Práctica");
-  menu.AddItem("bots_menu", "Menu de Bots");
-  menu.AddItem("nades_menu", "Menu de Granadas\n ");
+  menu.SetTitle("%t", "PracticeMenu", client);
+  char displayStr[OPTION_NAME_LENGTH];
+  Format(displayStr, sizeof(displayStr), "%t", "BotsMenu", client);
+  menu.AddItem("bots_menu", displayStr);
+  Format(displayStr, sizeof(displayStr), "%t\n ", "NadesMenu", client);
+  menu.AddItem("nades_menu", displayStr);
   
-  menu.AddItem("help", "Ayuda");
+  Format(displayStr, sizeof(displayStr), "%t\n ", "Help", client);
+  menu.AddItem("help", displayStr);
 
   menu.Pagination = MENU_NO_PAGINATION;
   menu.ExitButton = true;
@@ -1949,31 +2008,30 @@ stock void ShowHelpInfo(int client, int page = 1) {
     char setupClientName[MAX_NAME_LENGTH];
     if (IsPlayer(g_PracticeSetupClient)) {
       GetClientName(g_PracticeSetupClient, setupClientName, MAX_NAME_LENGTH);
-    } else {
-      setupClientName = "No Asignado";
     }
-    PM_Message(client, "{GREEN}.setup: {PURPLE}Menu Para Administrador del Servidor: {ORANGE}%s", setupClientName);
-    PM_Message(client, "{GREEN}.menu: {PURPLE}Menu Para todos los Usuarios");
-    PM_Message(client, "{GREEN}.save <nombre>: {PURPLE}Guarda tu última granada");
-    PM_Message(client, "{GREEN}.copy: {PURPLE}Copia el último lineup de un jugador");
-    PM_Message(client, "{GREEN}.throw: {PURPLE}Tira tu última granada <O el nombre de una guardada>");
-    PM_Message(client, "{GREEN}.flash: {PURPLE}Guarda tu posicion para probar una flash");
-    PM_Message(client, "{GREEN}.last: {PURPLE}Ve a tu último lineup");
-    PM_Message(client, "{GREEN}.clear: {PURPLE}Limpia instantáneamente los humos y molos");
-    PM_Message(client, "{GREEN}.clearmap/.cleanmap: {PURPLE}Resetea los vidrios, puertas y objetos del mapa");
-    PM_Message(client, "{GREEN}.map: {PURPLE}Menú de cambio de mapa");
-    PM_Message(client, "{GREEN}.bots: {PURPLE}Muestra el menu de los bots");
-    PM_Message(client, "{ORANGE}Con una Granada Equipada:");
-    PM_Message(client, "{GREEN}Mantenga {PURPLE}[R] {GREEN}para hacer ver donde caerá la granada");
-    PM_Message(client, "{GREEN}Presione {PURPLE}[E] {GREEN}Para cambiar el tipo de trayectoria de la granada.");
-    PM_Message(client, "{GREEN}.help <pagina>: {PURPLE}Lista de Comandos [1/2]");
+    PM_Message(client, "{GREEN}.setup: {PURPLE}%t {ORANGE}(%s)", "Help_Setup", client, setupClientName);
+    PM_Message(client, "{GREEN}.menu: {PURPLE}%t", "Help_Menu", client);
+    PM_Message(client, "%t", "Help_Save", client);
+    PM_Message(client, "{GREEN}.copy: {PURPLE}%t", "Help_Copy", client);
+    PM_Message(client, "{GREEN}.throw: {PURPLE}%t", "Help_Throw", client);
+    PM_Message(client, "{GREEN}.flash: {PURPLE}%t", "Help_Flash", client);
+    PM_Message(client, "{GREEN}.last: {PURPLE}%t", "Help_Last", client);
+    PM_Message(client, "{GREEN}.clear: {PURPLE}%t", "Help_Clear", client);
+    PM_Message(client, "{GREEN}.clearmap/.cleanmap: {PURPLE}%t", "Help_ClearMap", client);
+    PM_Message(client, "{GREEN}.map: {PURPLE}%t", "Help_Map", client);
+    PM_Message(client, "{GREEN}.bots: {PURPLE}%t", "Help_Bots", client);
+    PM_Message(client, "%t", "Help_Predict1", client);
+    PM_Message(client, "%t", "Help_Predict2", client);
+    PM_Message(client, "%t", "Help_Predict3", client);
+    PM_Message(client, "%t", "Help_Predict4", client);
+    PM_Message(client, "%t", "Help_Page", client);
   } else if (page == 2) {
-    PM_Message(client, "{GREEN}.back: {PURPLE}Regresa 1 en tu historial de lineups");
-    PM_Message(client, "{GREEN}.forward: {PURPLE}Avanza 1 en tu historial de lineups");
-    PM_Message(client, "{GREEN}.noflash: {PURPLE}Activa/Desactiva Antiflash");
-    PM_Message(client, "{GREEN}.timer .timer2: {PURPLE}Temporizadores");
-    PM_Message(client, "{GREEN}.god");
-    PM_Message(client, "{GREEN}.rr <segundos>: {PURPLE}Reinicia la ronda con delay de <segundos> para compra");
+    PM_Message(client, "%t", "Help_Back", client);
+    PM_Message(client, "%t", "Help_Next", client);
+    PM_Message(client, "%t", "Help_NoFlash", client);
+    PM_Message(client, "%t", "Help_Timer", client);
+    PM_Message(client, "%t", "Help_God", client);
+    PM_Message(client, "%t", "Help_RR", client);
   }
 }
 
@@ -2004,32 +2062,3 @@ public void CSU_OnGrenadeExplode(
   // GrenadeAccuracy_OnGrenadeExplode(client, currentEntity, grenade, grenadeDetonationOrigin);
   // Learn_OnGrenadeExplode(client, currentEntity, grenade, grenadeDetonationOrigin);
 }
-
-// public Action HUDCountdownMessage(Handle timer, DataPack pack) {
-//   HUDCountdown_Number--;
-//   if(HUDCountdown_Number <= 0) {
-//     if(HUDCowntdown_Handle != INVALID_HANDLE) {
-//       KillTimer(HUDCowntdown_Handle);
-//       HUDCowntdown_Handle = INVALID_HANDLE;
-//     }
-//     for (int i = 1; i <= MAXPLAYERS + 1; i++) {
-//       if(IsPlayer(i)) {
-//         ClearSyncHud(i, HudSync);
-//       }
-//     }
-//     return Plugin_Handled;
-//   }
-//   char string[256];
-//   pack.Reset();
-//   ReadPackString(pack, string, sizeof(string));
-//   char string2[512];
-//   Format(string2, sizeof(string2), "%s: %d", string, HUDCountdown_Number);
-
-//   for (int i = 1; i <= MAXPLAYERS + 1; i++) {
-//     if(IsValidClient(i)) {
-//       SetHudTextParams(-1.0, 0.67, 3.5, 64, 255, 64, 0, 1, 1.0, 1.0, 1.0);
-//       ShowSyncHudText(i, HudSync, string2);
-//     }
-//   }
-//   return Plugin_Handled;
-// }

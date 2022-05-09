@@ -23,12 +23,7 @@ stock bool IsDemoPlaying(int role = -1) {
 }
 
 stock void PlayDemo(const char[] demoId, int exclude = -1) {
-  if (IsDemoPlaying()) {
-    PrintToServer("Called PlayDemo with an active demo!");
-    return;
-  }
   g_currentDemoGrenade = -1;
-
   for (int i = 0; i < g_DemoBots.Length; i++) {
     if (i == exclude) {
       continue;
@@ -71,14 +66,23 @@ public void PlayRoleFromDemo(int client, const char[] demoId, int roleId) {
     PrintToServer("[PlayRoleFromDemo][ERROR] Called PlayRoleFromDemo on non-demo bot %L", client);
     return;
   }
-  if (BotMimic_IsPlayerMimicing(client)) {
-    PrintToServer("[PlayRoleFromDemo][ERROR] Called PlayRoleFromDemo on already-demo-playing bot %L", client);
-    return;
-  }
   char roleIdStr[DEMO_ID_LENGTH];
   IntToString(roleId, roleIdStr, sizeof(roleIdStr));
   char filepath[PLATFORM_MAX_PATH + 1];
   GetDemoRoleKVString(demoId, roleIdStr, "file", filepath, sizeof(filepath));
+
+  if (BotMimic_IsPlayerMimicing(client)) {
+    // Check if its different file
+    char lastMimicFilePath[PLATFORM_MAX_PATH];
+    BotMimic_GetRecordPlayerMimics(client, lastMimicFilePath, sizeof(lastMimicFilePath));
+    if (StrEqual(lastMimicFilePath, filepath)) {
+      BotMimic_ResetPlayback(client);
+      return;
+    } else {
+      BotMimic_StopPlayerMimic(client);
+    }
+  }
+
   GetDemoRoleKVNades(client, demoId, roleIdStr);
 
   char roleName[DEMO_NAME_LENGTH];

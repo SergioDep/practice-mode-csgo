@@ -1,3 +1,60 @@
+stock void DemosMenu(int client) {
+  Menu menu = new Menu(DemosMenuHandler);
+  menu.SetTitle("Menu de Demos");
+  menu.AddItem("record_menu", "Menu de Grabación");
+  menu.AddItem("demos_menu", "Menu de Demo");
+  menu.AddItem("demos_control", "Control de Demo");
+  menu.AddItem("spect_menu", "Menu De Espectador");
+  menu.AddItem("versus_settings", "Opciones de Versus");
+  menu.AddItem("more_settings", "Mas Opciones");
+  char gameModeDisplayStr[OPTION_NAME_LENGTH];
+  Format(gameModeDisplayStr, OPTION_NAME_LENGTH, "Modo de Demo: %s", g_GameModeDemoAttack ? "Versus" : "Espectador");
+  menu.AddItem("toggle_gamemode", gameModeDisplayStr);
+
+  menu.Pagination = MENU_NO_PAGINATION;
+  menu.ExitButton = true;
+  menu.DisplayAt(client, 0, MENU_TIME_FOREVER);
+}
+
+public int DemosMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    char buffer[OPTION_NAME_LENGTH];
+    menu.GetItem(item, buffer, sizeof(buffer));
+    if (StrEqual(buffer, "record_menu")) {
+
+      return 0;
+    } else if (StrEqual(buffer, "demos_menu")) {
+
+      return 0;
+    } else if (StrEqual(buffer, "demos_control")) {
+
+      return 0;
+    } else if (StrEqual(buffer, "spect_menu")) {
+
+      return 0;
+    } else if (StrEqual(buffer, "versus_settings")) {
+
+      return 0;
+    } else if (StrEqual(buffer, "more_settings")) {
+
+      return 0;
+    } else if (StrEqual(buffer, "toggle_gamemode")) {
+      if (IsDemoPlaying()) {
+        PM_Message(client, "{ORANGE}Pausa tu demo actual primero.");
+        DemosMenu(client);
+        return 0;
+      }
+      g_GameModeDemoAttack = !g_GameModeDemoAttack;
+      PM_Message(client, "{ORANGE}Modo %s activado.", g_GameModeDemoAttack ? "Versus" : "Espectador");
+    }
+    DemosMenu(client);
+  } else if (action == MenuAction_End) {
+    delete menu;
+  }
+
+  return 0;
+}
+
 public void DemosMainMenu(int client) {
   strcopy(g_SelectedDemoId[client], DEMO_ID_LENGTH, "");
 
@@ -92,16 +149,9 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
     if (StrEqual(buffer, "play")) {
       char demo_name[DEMO_NAME_LENGTH];
       GetDemoName(g_SelectedDemoId[client], demo_name, sizeof(demo_name));
-      PM_MessageToAll("{ORANGE}Reproduciendo demo: {PURPLE}\"%s\"", demo_name);
-      for (int i = 0; i < g_DemoBots.Length; i++) {
-        int bot = g_DemoBots.Get(i);
-        if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) {
-          BotMimic_ResetPlayback(bot);
-          SingleDemoEditorMenu(client, GetMenuSelectionPosition());
-          return 0;
-        }
-      }
+      PM_MessageToAll("{ORANGE}Empezando demo: {PURPLE}\"%s\"", demo_name);
       PlayDemo(g_SelectedDemoId[client]);
+      SingleDemoEditorMenu(client, GetMenuSelectionPosition());
     } else if (StrEqual(buffer, "stop")) {
       // CancelAllDemos(); inside play
       CancelAllDemos();
@@ -114,10 +164,9 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
       char demo_name[DEMO_NAME_LENGTH];
       GetDemoName(g_SelectedDemoId[client], demo_name, DEMO_NAME_LENGTH);
       DemoDeletionMenu(client);
-      return 0;
     } else if (StrContains(buffer, "rename") == 0) {
-      PM_Message(client, "{LIGHT_RED}(FIX) .namereplay override");
-      SingleDemoEditorMenu(client, GetMenuSelectionPosition());
+      PM_Message(client, "{ORANGE}Ingrese El Nuevo Nombre: ");
+      g_WaitForSingleDemoName[client] = true;
     } else if (StrEqual(buffer, "recordall")) {
       if (BotMimic_IsPlayerRecording(client)) {
         PM_Message(client, "{ORANGE}Termina tu grabación actual primero.");
@@ -158,7 +207,6 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
           PM_MessageToAll("{ORANGE}Grabando demo con %d jugadores.", playerCount);
           PM_MessageToAll("{ORANGE}La grabación terminara automáticamente cuando cualquier jugador use noclip.");
         }
-
       }
     } else {
       for (int roleId = 0; roleId < g_DemoBots.Length; roleId++) {
@@ -174,44 +222,6 @@ public int SingleDemoEditorMenuHandler(Menu menu, MenuAction action, int client,
     DemosMainMenu(client);
   } else if (action == MenuAction_End) {
     delete menu;
-  }
-  return 0;
-}
-
-public void DemoDeletionMenu(int client) {
-  char demoName[DEMO_NAME_LENGTH];
-  GetDemoName(g_SelectedDemoId[client], demoName, sizeof(demoName));
-
-  Menu menu = new Menu(DemoDeletionMenuHandler);
-  menu.SetTitle("Confirma la eliminación de demo: %s", demoName);
-  
-  menu.ExitBackButton = false;
-  menu.ExitButton = false;
-  menu.Pagination = MENU_NO_PAGINATION;
-
-  for (int i = 0; i < 7; i++) {
-    menu.AddItem("", "", ITEMDRAW_NOTEXT);
-  }
-
-  menu.AddItem("no", "No, cancelar");
-  menu.AddItem("yes", "Si, eliminar");
-  menu.Display(client, MENU_TIME_FOREVER);
-}
-
-public int DemoDeletionMenuHandler(Menu menu, MenuAction action, int client, int item) {
-  if (action == MenuAction_Select) {
-    char buffer[OPTION_NAME_LENGTH];
-    menu.GetItem(item, buffer, sizeof(buffer));
-
-    if (StrEqual(buffer, "yes")) {
-      char demoName[DEMO_NAME_LENGTH];
-      GetDemoName(g_SelectedDemoId[client], demoName, sizeof(demoName));
-      DeleteDemo(g_SelectedDemoId[client]);
-      PM_MessageToAll("{ORANGE}Demo {PURPLE}\"%s\" {ORANGE}eliminado.", demoName);
-      DemosMainMenu(client);
-    } else {
-      SingleDemoEditorMenu(client);
-    }
   }
   return 0;
 }
@@ -267,28 +277,18 @@ public int SingleDemoRoleMenuHandler(Menu menu, MenuAction action, int client, i
       GotoDemoRoleStart(client, g_SelectedDemoId[client], roleId);
     } else if (StrEqual(buffer, "play")) {
       int bot = g_DemoBots.Get(roleId); // g_ReplayBotClients[roleId];
-      if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) {
-        BotMimic_ResetPlayback(bot);
-        DemosMainMenu(client);
-        return 0;
-      }
       if (IsDemoBot(bot) && CheckDemoRoleKVString(g_SelectedDemoId[client], roleId, "file")) {
         PlayRoleFromDemo(bot, g_SelectedDemoId[client], roleId);
       }
     } else if (StrEqual(buffer, "name")) {
-      PM_Message(client, "{ORANGE}(FIX)Usa .namerole <nombre> para nombrar este Rol.");
+      PM_Message(client, "{ORANGE}Ingrese El Nuevo Nombre: ");
+      g_WaitForSingleDemoRoleName[client] = true;
+      return 0;
     } else if (StrEqual(buffer, "nades")) {
-      if (g_DemoNadeData[client].Length >= 0) {
-        DemoRoleNadesMenu(client);
-        return 0;
-      }
-      PM_Message(client, "Este Jugador No Tiene Granadas en su Demo.");
+      DemoRoleNadesMenu(client);
+      return 0;
     } else if (StrEqual(buffer, "delete")) {
-      char roleIdStr[DEMO_ID_LENGTH];
-      IntToString(roleId, roleIdStr, sizeof(roleIdStr));
-      DeleteDemoRole(g_SelectedDemoId[client], roleIdStr);
-      PM_Message(client, "Demo de Jugador %d eliminado.", roleId + 1);
-      SingleDemoEditorMenu(client);
+      DemoRoleDeletionMenu(client);
       return 0;
     }
     SingleDemoRoleMenu(client, roleId, GetMenuSelectionPosition());
@@ -298,6 +298,79 @@ public int SingleDemoRoleMenuHandler(Menu menu, MenuAction action, int client, i
     delete menu;
   }
 
+  return 0;
+}
+
+public void DemoDeletionMenu(int client) {
+  char demoName[DEMO_NAME_LENGTH];
+  GetDemoName(g_SelectedDemoId[client], demoName, sizeof(demoName));
+
+  Menu menu = new Menu(DemoDeletionMenuHandler);
+  menu.SetTitle("Confirma la eliminación de demo: %s", demoName);
+  
+  menu.ExitBackButton = false;
+  menu.ExitButton = false;
+  menu.Pagination = MENU_NO_PAGINATION;
+
+  for (int i = 0; i < 7; i++) {
+    menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  }
+
+  menu.AddItem("no", "No, cancelar");
+  menu.AddItem("yes", "Si, eliminar");
+  menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int DemoDeletionMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    char buffer[OPTION_NAME_LENGTH];
+    menu.GetItem(item, buffer, sizeof(buffer));
+
+    if (StrEqual(buffer, "yes")) {
+      char demoName[DEMO_NAME_LENGTH];
+      GetDemoName(g_SelectedDemoId[client], demoName, sizeof(demoName));
+      DeleteDemo(g_SelectedDemoId[client]);
+      PM_MessageToAll("{ORANGE}Demo {PURPLE}\"%s\" {ORANGE}eliminado.", demoName);
+      DemosMainMenu(client);
+    } else {
+      SingleDemoEditorMenu(client);
+    }
+  }
+  return 0;
+}
+
+public void DemoRoleDeletionMenu(int client) {
+  Menu menu = new Menu(DemoDeletionMenuHandler);
+  menu.SetTitle("Confirma la eliminación de Demo de Jugador: %d", g_CurrentEditingDemoRole[client]);
+  
+  menu.ExitBackButton = false;
+  menu.ExitButton = false;
+  menu.Pagination = MENU_NO_PAGINATION;
+
+  for (int i = 0; i < 7; i++) {
+    menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  }
+
+  menu.AddItem("no", "No, cancelar");
+  menu.AddItem("yes", "Si, eliminar");
+  menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int DemoRoleDeletionMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    char buffer[OPTION_NAME_LENGTH];
+    menu.GetItem(item, buffer, sizeof(buffer));
+
+    if (StrEqual(buffer, "yes")) {
+      char roleIdStr[DEMO_ID_LENGTH];
+      IntToString(g_CurrentEditingDemoRole[client], roleIdStr, sizeof(roleIdStr));
+      DeleteDemoRole(g_SelectedDemoId[client], roleIdStr);
+      PM_Message(client, "{ORANGE}Demo de Jugador {PURPLE}\"%d\" {ORANGE}eliminado.", g_CurrentEditingDemoRole[client] + 1);
+      SingleDemoEditorMenu(client);
+    } else {
+      SingleDemoRoleMenu(client, g_CurrentEditingDemoRole[client]);
+    }
+  }
   return 0;
 }
 
@@ -317,6 +390,9 @@ stock void DemoRoleNadesMenu(int client, int pos = 0) {
     GrenadeTypeString(demoNadeData.grenadeType, display, sizeof(display));
     UpperString(display);
     AddMenuInt(menu, i, display);
+  }
+  if (g_DemoNadeData[client].Length == 0) {
+    PM_Message(client, "Este Jugador No Tiene Granadas en su Demo.");
   }
 
   menu.DisplayAt(client, MENU_TIME_FOREVER, pos);

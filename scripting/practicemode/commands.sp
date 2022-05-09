@@ -44,6 +44,32 @@ public Action Command_NoFlash(int client, int args) {
   return Plugin_Handled;
 }
 
+public Action Command_BackAll(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  if (g_InCrossfireMode) {
+    Command_NextCrossfire(client, args);
+    return Plugin_Handled;
+  }
+
+  Command_GrenadeBack(client, args);
+  return Plugin_Handled;
+}
+
+public Action Command_NextAll(int client, int args) {
+  if (!g_InPracticeMode) {
+    return Plugin_Handled;
+  }
+  if (g_InCrossfireMode) {
+    Command_PrevCrossfire(client, args);
+    return Plugin_Handled;
+  }
+
+  Command_GrenadeForward(client, args);
+  return Plugin_Handled;
+}
+
 public Action Command_Time(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
@@ -51,7 +77,7 @@ public Action Command_Time(int client, int args) {
 
   if (!g_RunningTimeCommand[client]) {
     // Start command.
-    PM_Message(client, "El cronómetro empezará cuando te muevas y terminará cuando pares.");
+    PM_Message(client, "%t", "Timer1", client);
     g_RunningTimeCommand[client] = true;
     g_RunningLiveTimeCommand[client] = false;
     g_TimerType[client] = TimerType_Increasing_Movement;
@@ -70,7 +96,7 @@ public Action Command_Time2(int client, int args) {
 
   if (!g_RunningTimeCommand[client]) {
     // Start command.
-    PM_Message(client, "Escribe .timer2 para parar el cronometro.");
+    PM_Message(client, "%t", "Timer2", client);
     g_RunningTimeCommand[client] = true;
     g_RunningLiveTimeCommand[client] = false;
     g_TimerType[client] = TimerType_Increasing_Manual;
@@ -88,18 +114,18 @@ public Action Command_CountDown(int client, int args) {
     return Plugin_Handled;
   }
 
-  float timer_duration = float(GetRoundTimeSeconds());
-  char arg[PLATFORM_MAX_PATH];
-  if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
-    timer_duration = StringToFloat(arg);
-  }
+  // float timer_duration = float(GetRoundTimeSeconds());
+  // char arg[PLATFORM_MAX_PATH];
+  // if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
+  //   timer_duration = StringToFloat(arg);
+  // }
 
-  PM_Message(client, "El cronómetro empezará cuando te muevas y terminará cuando escribar .stop");
-  g_RunningTimeCommand[client] = true;
-  g_RunningLiveTimeCommand[client] = false;
-  g_TimerType[client] = TimerType_Countdown_Movement;
-  g_TimerDuration[client] = timer_duration;
-  StartClientTimer(client);
+  // PM_Message(client, "El cronómetro empezará cuando te muevas y terminará cuando escribar .stop");
+  // g_RunningTimeCommand[client] = true;
+  // g_RunningLiveTimeCommand[client] = false;
+  // g_TimerType[client] = TimerType_Countdown_Movement;
+  // g_TimerDuration[client] = timer_duration;
+  // StartClientTimer(client);
 
   return Plugin_Handled;
 }
@@ -118,8 +144,8 @@ public void StopClientTimer(int client) {
   TimerType timer_type = g_TimerType[client];
   if (timer_type == TimerType_Increasing_Manual || timer_type == TimerType_Increasing_Movement) {
     float dt = GetEngineTime() - g_LastTimeCommand[client];
-    PM_Message(client, "Resultado Cronómetro: %.2f segundos", dt);
-    PrintCenterText(client, "Tiempo: %.2f segundos", dt);
+    // PM_Message(client, "Resultado Cronómetro: %.2f segundos", dt);
+    PrintCenterText(client, "%t: %.2f", "Time", client, dt);
   }
 }
 
@@ -135,7 +161,7 @@ public Action Timer_DisplayClientTimer(Handle timer, int serial) {
       }
       if (time_left >= 0.0) {
         int seconds = RoundToCeil(time_left);
-        PrintCenterText(client, "Tiempo: %d:%2d", seconds / 60, seconds % 60);
+        PrintCenterText(client, "%t: %d:%2ds", "Time", client, seconds / 60, seconds % 60);
       } else {
         StopClientTimer(client);
       }
@@ -143,7 +169,7 @@ public Action Timer_DisplayClientTimer(Handle timer, int serial) {
       // call works?
     } else {
       float dt = GetEngineTime() - g_LastTimeCommand[client];
-      PrintCenterText(client, "Tiempo: %.1f segundos", dt);
+      PrintCenterText(client, "%t: %.1fs.", "Time", client, dt);
     }
     return Plugin_Continue;
   }
@@ -168,7 +194,12 @@ public Action Command_Spec(int client, int args) {
     return Plugin_Handled;
   }
 
-  FakeClientCommand(client, "jointeam 1");
+  for (int i = 0; i <= MaxClients; i++) {
+    if (IsPlayer(i)) {
+      FakeClientCommand(i, "jointeam 1");
+    }
+  }
+
   return Plugin_Handled;
 }
 
@@ -177,7 +208,12 @@ public Action Command_JoinT(int client, int args) {
     return Plugin_Handled;
   }
 
-  FakeClientCommand(client, "jointeam 2");
+  for (int i = 0; i <= MaxClients; i++) {
+    if (IsPlayer(i)) {
+      FakeClientCommand(i, "jointeam 2");
+    }
+  }
+
   return Plugin_Handled;
 }
 
@@ -186,7 +222,12 @@ public Action Command_JoinCT(int client, int args) {
     return Plugin_Handled;
   }
 
-  FakeClientCommand(client, "jointeam 3");
+  for (int i = 0; i <= MaxClients; i++) {
+    if (IsPlayer(i)) {
+      FakeClientCommand(i, "jointeam 3");
+    }
+  }
+
   return Plugin_Handled;
 }
 
@@ -229,12 +270,14 @@ public Action Command_ClearNades(int client, int args) {
   CEffectData smokeData;
   smokeData.m_nEntIndex = 0;
   smokeData.m_nHitBox = GetParticleSystemIndex("explosion_smokegrenade_fallback");
-  DispatchEffect(client, "ParticleEffectStop", smokeData);
+
+  bool clearAll = false;
+  DispatchEffect(clearAll ? 0 : client, "ParticleEffectStop", smokeData);
   int clearEntity = -1;
   while ((clearEntity = FindEntityByClassname(clearEntity, "smokegrenade_projectile")) != -1) {
     // TODO: get only detonated grenades?
     int owner = GetEntPropEnt(clearEntity, Prop_Send, "m_hThrower");
-    if (owner == client || owner <= 0) {
+    if (clearAll || (owner == client || owner <= 0)) {
       StopSound(clearEntity, SNDCHAN_STATIC, "weapons/smokegrenade/smoke_emit.wav");
       StopSound(clearEntity, SNDCHAN_STATIC, "~)weapons/smokegrenade/smoke_emit.wav");
       AcceptEntityInput(clearEntity, "Kill");
@@ -247,15 +290,24 @@ public Action Command_ClearNades(int client, int args) {
   DispatchEffect(client, "ParticleEffectStop", infernoData);
   while ((clearEntity = FindEntityByClassname(clearEntity, "inferno")) != -1) {
     int owner = GetEntPropEnt(clearEntity, Prop_Data, "m_hOwnerEntity");
-    if (owner == client || owner <= 0) {
+    if (clearAll || (owner == client || owner <= 0)) {
       StopSound(clearEntity, SNDCHAN_STATIC, "weapons/molotov/fire_loop_1.wav");
       StopSound(clearEntity, SNDCHAN_STATIC, "~)weapons/molotov/fire_loop_1.wav");
       AcceptEntityInput(clearEntity, "Kill");
     }
   }
 
-  g_LastGrenadeEntity[client] = -1;
-  g_ClientGrenadeThrowTimes[client].Clear()
+  if (clearAll) {
+    for (int i = 0; i <= MaxClients; i++) {
+      if (IsPlayer(i)) {
+        g_LastGrenadeEntity[i] = -1;
+        g_ClientGrenadeThrowTimes[i].Clear()
+      }
+    }
+  } else {
+    g_LastGrenadeEntity[client] = -1;
+    g_ClientGrenadeThrowTimes[client].Clear()
+  }
   
   return Plugin_Handled;
 }
@@ -277,7 +329,7 @@ public Action Command_Kick(int client, int args) {
         GetClientName(i, playerName, sizeof(playerName));
         if (StrEqual(playerName, arg)) {
           KickClient(i);
-          PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", i);
+          // PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", i);
           return Plugin_Handled;
         }
       }
@@ -286,7 +338,7 @@ public Action Command_Kick(int client, int args) {
   Menu menu = new Menu(KickPlayersMenuHandler);
   menu.ExitButton = true;
   menu.ExitBackButton = true;
-  menu.SetTitle("Kickear Jugador:");
+  menu.SetTitle("%t", "KickPlayers", client);
   for (int i = 0; i <= MaxClients; i++) {
     if (IsPlayer(i)) {
       char playerName[MAX_NAME_LENGTH];
@@ -315,7 +367,7 @@ public void KickPlayerConfirmationMenu(int client, int kickPlayer) {
     return;
   }
   Menu menu = new Menu(KickPlayerMenuHandler);
-  menu.SetTitle("Kickear Jugador: %N ?", kickPlayer);
+  menu.SetTitle("%t: %N ?", "KickPlayer", client, kickPlayer);
 
   menu.ExitBackButton = false;
   menu.ExitButton = false;
@@ -329,8 +381,11 @@ public void KickPlayerConfirmationMenu(int client, int kickPlayer) {
     menu.AddItem("", "", ITEMDRAW_NOTEXT);
   }
 
-  menu.AddItem("no", "No, cancelar");
-  menu.AddItem("yes", "Si, kickear");
+  char displayStr[128];
+  Format(displayStr, sizeof(displayStr), "%t", "SelectNo", client);
+  menu.AddItem("no", displayStr);
+  Format(displayStr, sizeof(displayStr), "%t", "SelectYes", client);
+  menu.AddItem("yes", displayStr);
   menu.Display(client, MENU_TIME_FOREVER);
 }
 
@@ -344,7 +399,7 @@ public int KickPlayerMenuHandler(Menu menu, MenuAction action, int client, int i
       int kickPlayer = StringToInt(kickIndexStr);
       if (IsPlayer(kickPlayer) && IsPlayer(client)) {
         KickClient(kickPlayer);
-        PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", kickPlayer);
+        // PM_MessageToAll("%N {ORANGE}Fue Kickeado del Servidor.", kickPlayer);
       }
     } else {
       Command_Kick(client, 0);
@@ -376,7 +431,7 @@ public Action Command_Map(int client, int args) {
   Menu menu = new Menu(ChangeMapHandler);
   menu.ExitButton = true;
   menu.ExitBackButton = true;
-  menu.SetTitle("Selecciona un mapa:");
+  menu.SetTitle("%t", "SelectMap", client);
   for (int i = 0; i < sizeof(_mapNames); i++) {
     AddMenuInt(menu, i, _mapNames[i]);
   }
@@ -443,7 +498,6 @@ public Action Command_DryRun(int client, int args) {
         SetEntityMoveType(i, MOVETYPE_WALK);
       }
     }
-    PM_Message(client, "{ORANGE}.dry <dinero ${GREEN}%d{NORMAL}> <duración de ronda {GREEN}%d{NORMAL} min.>");
   } else {
     SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
     SetCvarIntSafe("mp_freezetime", 0);
@@ -463,6 +517,7 @@ public Action Command_DryRun(int client, int args) {
     SetCvarIntSafe("sm_bot_collision", 0);
   }
 
+  PM_Message(client, "%t", "DryParams", client);
   ServerCommand("mp_restartgame 1");
   return Plugin_Handled;
 }
@@ -473,7 +528,7 @@ public Action Command_God(int client, int args) {
   }
 
   if (!GetCvarIntSafe("sv_cheats")) {
-    PM_Message(client, ".god requiere que sv_cheats este activado.");
+    // PM_Message(client, ".god requiere que sv_cheats este activado.");
     return Plugin_Handled;
   }
 
@@ -487,7 +542,6 @@ public Action Command_Break(int client, int args) {
   }
 
   BreakBreakableEnts();
-  PM_MessageToAll("Broke all breakable entities.");
   return Plugin_Handled;
 }
 

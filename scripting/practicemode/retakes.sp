@@ -55,13 +55,13 @@ public void Retakes_PluginStart() {
   g_MaxRetakePlayersCvar = CreateConVar("sm_retake_max_players", "2",
                               "How many retake players spawn at max.", 0, true, 1.0, true, 3.0);
   g_RKBot_SpotMultCvar = CreateConVar("sm_retake_spot_mult", "1.1",
-                              "How many retake players spawn at max.", 0, true, 1.0, true, 2.0);
+                              "Only for testing purposes.", 0, true, 1.0, true, 2.0);
   g_RKBot_ReactTimeCvar = CreateConVar("sm_retake_react_time", "80",
-                              "How many retake players spawn at max.", 0, true, 1.0, true, 2.0);
+                              "How much ticks until bot starts shooting.", 0, true, 30.0, true, 150.0);
   g_RKBot_AttackTimeCvar = CreateConVar("sm_retake_attack_time", "30",
-                              "How many retake players spawn at max.", 0, true, 1.0, true, 2.0);
+                              "How much ticks until bot stops shooting.", 0, true, 0.0, true, 100.0);
   g_RKBot_MoveDistanceCvar = CreateConVar("sm_retake_move_distance", "60",
-                              "How many retake players spawn at max.", 0, true, 1.0, true, 2.0);
+                              "How much ticks will the bot move before shooting.", 0, true, 0.0, true, 150.0);
 
   HookEvent("bomb_planted", Event_BombPlant);
   HookEvent("bomb_exploded", Event_BombExplode);
@@ -373,7 +373,7 @@ public Action RetakeBot_PlayerRunCmd(int client, int &buttons, float vel[3], flo
       if (distance > nearestDistance && nearestDistance > -1.0) {
         continue;
       }
-      if (!IsAbleToSee(client, target)) {
+      if (!IsAbleToSee(client, target, g_RKBot_SpotMultCvar.FloatValue)) {
         if (distance < 500.0) {
           nearestNonVisibleTarget = -1; //target
         }
@@ -594,7 +594,7 @@ stock int GetNearestBombsite(float start[3]) {
   return 1; //B
 }
 
-public bool IsAbleToSee(int entity, int client) {
+public bool IsAbleToSee(int entity, int client, float spotValue) {
   // Skip all traces if the player isn't within the field of view.
   // - Temporarily disabled until eye angle prediction is added.
   // if (IsInFieldOfView(g_vEyePos[client], g_vEyeAngles[client], g_vAbsCentre[entity]))
@@ -616,7 +616,7 @@ public bool IsAbleToSee(int entity, int client) {
   GetClientMins(client, mins);
   GetClientMaxs(client, maxs);
   // Check outer 4 corners of player.
-  if (IsRectangleVisible(vecEyePos, vecOrigin, mins, maxs, g_RKBot_SpotMultCvar.FloatValue)) {
+  if (IsRectangleVisible(vecEyePos, vecOrigin, mins, maxs, spotValue)) {
       return true;
   }
 
@@ -657,8 +657,8 @@ stock bool IsRectangleVisible(const float start[3], const float end[3], const fl
   }
 
   // Adjust to scale.
-  // ZpozOffset *= scale;
-  // ZnegOffset *= scale;
+  ZpozOffset *= scale;
+  ZnegOffset *= scale;
   WideOffset *= scale;
   
   // Prepare rotation matrix.

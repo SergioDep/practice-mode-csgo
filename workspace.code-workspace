@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "C:\\csgoserver\\csgo\\cfg\\sourcemod"
+		},
+		{
+			"path": "..\\..\\..\\..\\..\\csgoserver\\csgo\\addons\\sourcemod\\translations"
 		}
 	],
 	"settings": {

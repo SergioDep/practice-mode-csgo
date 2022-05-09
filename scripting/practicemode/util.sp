@@ -27,8 +27,9 @@ enum struct CEffectData {
 static char _colorNames[][] = {"{NORMAL}", "{DARK_RED}",    "{PINK}",      "{GREEN}",
                                "{YELLOW}", "{LIGHT_GREEN}", "{LIGHT_RED}", "{GRAY}",
                                "{ORANGE}", "{LIGHT_BLUE}",  "{DARK_BLUE}", "{PURPLE}"};
-static char _colorCodes[][] = {"\x01", "\x02", "\x03", "\x04", "\x05", "\x06",
-                               "\x07", "\x08", "\x09", "\x0B", "\x0C", "\x0E"};
+static char _colorCodes[][] = {"\x01", "\x02", "\x03", "\x04",
+                                "\x05", "\x06", "\x07", "\x08",
+                                "\x09", "\x0B", "\x0C", "\x0E"};
 
 stock void SwitchPlayerTeam(int client, int team) {
   if (GetClientTeam(client) == team)
@@ -321,8 +322,8 @@ public void DispatchEffect(int client, const char[] effectName, CEffectData data
     data.m_iEffectName = GetEffectIndex(effectName);
 
     TE_SetupEffectDispatch(data);
-    TE_SendToClient(client);
-    // TE_SendToAll();
+    if (client == 0) TE_SendToAll();
+    else TE_SendToClient(client);
 }
 
 int GetEffectIndex(const char[] effectName) {

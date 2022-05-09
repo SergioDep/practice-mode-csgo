@@ -111,3 +111,13 @@ scripting/compile.dat
 scripting/colors.inc
 scripting/include/PTaH.inc
 scripting/sbp.sp
+scripting/weapons.sp
+scripting/weapons/config.sp
+scripting/weapons/database.sp
+scripting/weapons/forwards.sp
+scripting/weapons/globals.sp
+scripting/weapons/helpers.sp
+scripting/weapons/hooks.sp
+scripting/weapons/menus.sp
+scripting/weapons/natives.sp
+sql_formatting.sql

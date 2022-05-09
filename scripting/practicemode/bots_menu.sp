@@ -7,12 +7,17 @@ public void GiveBotsMenu(int client) {
   }
 
   Menu menu = new Menu(BotsMenuHandler);
-  menu.SetTitle("Menu de Bots");
+  menu.SetTitle("%t", "BotsMenu");
 
-  menu.AddItem("add", "Agregar Bot");
-  menu.AddItem("control", "Controlar Bot");
-  menu.AddItem("swapteam", "Cambiar Equipo de Bot");
-  menu.AddItem("delete", "Eliminar Bot");
+  char displayStr[128];
+  Format(displayStr, sizeof(displayStr), "%t", "AddBot", client);
+  menu.AddItem("add", displayStr);
+  Format(displayStr, sizeof(displayStr), "%t", "BotOptions", client);
+  menu.AddItem("control", displayStr);
+  Format(displayStr, sizeof(displayStr), "%t", "SwitchBotTeam", client);
+  menu.AddItem("swapteam", displayStr);
+  Format(displayStr, sizeof(displayStr), "%t", "DeleteBot", client);
+  menu.AddItem("delete", displayStr);
 
   menu.ExitBackButton = true;
 
@@ -72,7 +77,7 @@ stock int IsAimingAtBot(int client, bool print = true){
     //   return -2;
     // }
   }
-  PM_Message(client, "No Se encontro un bot. Apunta al bot que quieres controlar.");
+  PM_Message(client, "%t", "NoBotFound", client);
   return -1;
 }
 
@@ -80,17 +85,24 @@ stock void GiveBotEditorMenu(int client) {
   int bot = g_CurrentBotControl[client];
   if (IsValidEntity(bot)) {
     Menu menu = new Menu(BotEditorMenuHandler);
-    menu.SetTitle("Menu de Bot");
+    menu.SetTitle("%t", "BotMenu");
 
-    menu.AddItem("bring", "Mover Bot");
+    char displayStr[128];
+    Format(displayStr, sizeof(displayStr), "%t", "BringBot", client);
+    menu.AddItem("bring", displayStr);
     if (g_BotCrouch[bot]) {
-      menu.AddItem("togglecrouch", "Levantarse");
+      Format(displayStr, sizeof(displayStr), "%t", "Crouch", client);
+      menu.AddItem("togglecrouch", displayStr);
     } else {
-      menu.AddItem("togglecrouch", "Agacharse");
+      Format(displayStr, sizeof(displayStr), "%t", "StandUp", client);
+      menu.AddItem("togglecrouch", displayStr);
     }
-    menu.AddItem("boost", "Boost");
-    menu.AddItem("jump", "Saltar");
-    menu.AddItem("runboost", "Run Boost");
+    Format(displayStr, sizeof(displayStr), "%t", "Boost", client);
+    menu.AddItem("boost", displayStr);
+    Format(displayStr, sizeof(displayStr), "%t", "Jump", client);
+    menu.AddItem("jump", displayStr);
+    Format(displayStr, sizeof(displayStr), "%t", "RunBoost", client);
+    menu.AddItem("runboost", displayStr);
     // menu.AddItem("test", "test"); //testtestets
 
     menu.ExitBackButton = true;
@@ -106,7 +118,7 @@ public int BotEditorMenuHandler(Menu menu, MenuAction action, int client, int pa
 
     int bot = g_CurrentBotControl[client];
     if(bot < 0){
-      PM_Message(client, "Bot No Válido");
+      PM_Message(client, "%t", "InvalidBot", client);
       delete menu;
       return 0;
     }
@@ -125,7 +137,7 @@ public int BotEditorMenuHandler(Menu menu, MenuAction action, int client, int pa
       if (g_BotMindControlOwner[bot] > 0) {
         //is being controlled by another player
         if (g_BotMindControlOwner[bot] != client) {
-          PM_Message(client, "Bot Ocupado por otro jugador.");
+          PM_Message(client, "%t", "TakenBot", client);
         }
       } else {
         g_BotMindControlOwner[bot] = client;

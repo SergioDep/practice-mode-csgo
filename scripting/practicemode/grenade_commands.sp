@@ -17,42 +17,53 @@ public Action Command_ImportNade(int client, int args) {
   char code[GRENADE_CODE_LENGTH];
   GetCmdArgString(code, sizeof(code));
   TrimString(code);
-  int nadeId = FindGrenadeWithCode(code);
-  if (nadeId > -1 && g_CSUtilsLoaded) {
-    char nadeIdStr[GRENADE_ID_LENGTH];
-    IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
-    if (CopyGrenade(client, nadeIdStr) > 0) {
-      PM_Message(client, "{ORANGE}Granada {ORANGE}guardada.");
-      OnGrenadeKvMutate();
-    }
-  }
+  DB_CopyGrenadeWithCode(client, code);
   return Plugin_Handled;
 }
 
-stock int FindGrenadeWithCode(const char[] code) {
-  char auth[AUTH_LENGTH];
-  if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
-    do {
-      g_GrenadeLocationsKv.GetSectionName(auth, AUTH_LENGTH);
-      if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
-        do {
-          char currentCode[GRENADE_CODE_LENGTH];
-          g_GrenadeLocationsKv.GetString("code", currentCode, sizeof(currentCode));
-          if (StrEqual(currentCode, code)) {
-            char currentId[GRENADE_ID_LENGTH];
-            g_GrenadeLocationsKv.GetSectionName(currentId, sizeof(currentId));
-            g_GrenadeLocationsKv.Rewind();
-            return StringToInt(currentId);
-          }
-        } while (g_GrenadeLocationsKv.GotoNextKey());
-        g_GrenadeLocationsKv.GoBack();
-      }
+// public Action Command_ImportNade(int client, int args) {
+//   if (!g_InPracticeMode || g_InRetakeMode) {
+//     return Plugin_Handled;
+//   }
+//   char code[GRENADE_CODE_LENGTH];
+//   GetCmdArgString(code, sizeof(code));
+//   TrimString(code);
+//   int nadeId = FindGrenadeWithCode(code);
+//   if (nadeId > -1 && g_CSUtilsLoaded) {
+//     char nadeIdStr[GRENADE_ID_LENGTH];
+//     IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
+//     if (CopyGrenade(client, nadeIdStr) > 0) {
+//       PM_Message(client, "{ORANGE}Granada {ORANGE}guardada.");
+//       OnGrenadeKvMutate();
+//     }
+//   }
+//   return Plugin_Handled;
+// }
 
-    } while (g_GrenadeLocationsKv.GotoNextKey());
-    g_GrenadeLocationsKv.GoBack();
-  }
-  return -1;
-}
+// // stock int FindGrenadeWithCode(const char[] code) {
+// //   char auth[AUTH_LENGTH];
+// //   if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
+// //     do {
+// //       g_GrenadeLocationsKv.GetSectionName(auth, AUTH_LENGTH);
+// //       if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
+// //         do {
+// //           char currentCode[GRENADE_CODE_LENGTH];
+// //           g_GrenadeLocationsKv.GetString("code", currentCode, sizeof(currentCode));
+// //           if (StrEqual(currentCode, code)) {
+// //             char currentId[GRENADE_ID_LENGTH];
+// //             g_GrenadeLocationsKv.GetSectionName(currentId, sizeof(currentId));
+// //             g_GrenadeLocationsKv.Rewind();
+// //             return StringToInt(currentId);
+// //           }
+// //         } while (g_GrenadeLocationsKv.GotoNextKey());
+// //         g_GrenadeLocationsKv.GoBack();
+// //       }
+
+// //     } while (g_GrenadeLocationsKv.GotoNextKey());
+// //     g_GrenadeLocationsKv.GoBack();
+// //   }
+// //   return -1;
+// // }
 
 public Action Command_CopyPlayerLastGrenade(int client, int args) {
   if (!g_InPracticeMode || g_InRetakeMode) {

@@ -230,7 +230,6 @@ public int SingleNadeMenuHandler(Menu menu, MenuAction action, int client, int p
     } else if (StrEqual(buffer, "exportcode")) {
       ExportClientNade(client, NadeIdStr);
     } else if (StrEqual(buffer, "preview")) {
-      PM_Message(client, "{ORANGE}Starting Demo...");
       InitHoloNadeDemo(client, NadeId);
     } else if (StrEqual(buffer, "throw")) {
       ThrowGrenade(client, NadeIdStr);

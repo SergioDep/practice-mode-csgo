@@ -56,10 +56,7 @@ public Action PMBot_PlayerRunCmd(int client, int &buttons, float vel[3], float a
 
 stock void CreateBot(int client) {
   if (g_ClientBots[client].Length >= g_MaxPlacedBotsCvar.IntValue) {
-    PM_Message(
-        client,
-        "Tienes muchos bots (%d) añadidos.",
-        g_ClientBots[client].Length);
+    PM_Message(client, "%t", "TooManyBots", client, g_ClientBots[client].Length);
     return;
   }
   char name[MAX_NAME_LENGTH + 1];
@@ -233,21 +230,27 @@ public Action Command_RemoveAllBots(int client, int args) {
   }
 
   KickAllBotsInServer();
-  PM_MessageToAll("Bots Eliminados del Servidor");
+  for (int i = 0; i <= MaxClients; i++) {
+    if (IsPlayer(i)) {
+      PM_MessageToAll("%t", "BotsRemoved", i);
+    }
+  }
   return Plugin_Handled;
 }
 
 public void KickAllBotsInServer() {
   for (int client = 0; client <= MaxClients; client++) {
-    for (int j = 0; j < g_ClientBots[client].Length; j++) {
-      int bot = g_ClientBots[client].Get(j);
-      if (IsPMBot(bot)) {
-        g_IsPMBot[bot] = false;
-        g_BotMindControlOwner[bot] = -1;
-        ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+    if (IsPlayer(client)) {
+      for (int j = 0; j < g_ClientBots[client].Length; j++) {
+        int bot = g_ClientBots[client].Get(j);
+        if (IsPMBot(bot)) {
+          g_IsPMBot[bot] = false;
+          g_BotMindControlOwner[bot] = -1;
+          ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+        }
       }
+      g_ClientBots[client].Clear();
     }
-    g_ClientBots[client].Clear();
   }
 }
 
@@ -281,10 +284,12 @@ public Action Event_BotDamageDealtEvent(Event event, const char[] name, bool don
   int attacker = GetClientOfUserId(event.GetInt("attacker"));
   int victim = GetClientOfUserId(event.GetInt("userid"));
 
-  if (IsPMBot(victim) && IsPlayer(attacker)) {
+  if ((IsDemoBot(victim) || IsPMBot(victim)) && IsPlayer(attacker)) {
     int damage = event.GetInt("dmg_health");
     int postDamageHealth = event.GetInt("health");
-    PM_Message(attacker, "---> %d de daño a BOT %N(Salud Actual: %d)", damage, victim, postDamageHealth);
+    char botName[128];
+    GetClientName(victim, botName, sizeof(botName));
+    PM_Message(attacker, "%t", "BotDamageEvent", attacker, damage, botName, postDamageHealth);
   }
 
   return Plugin_Continue;
@@ -294,7 +299,7 @@ void TemporarilyDisableCollisions(int client1, int client2) {
   Entity_SetCollisionGroup(client1, COLLISION_GROUP_DEBRIS);
   Entity_SetCollisionGroup(client2, COLLISION_GROUP_DEBRIS);
   DataPack pack;
-  CreateDataTimer(0.1, Timer_ResetCollisions, pack, TIMER_REPEAT);
+  CreateDataTimer(0.1, Timer_ResetCollisions, pack, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
   pack.WriteCell(GetClientSerial(client1));
   pack.WriteCell(GetClientSerial(client2));
 }

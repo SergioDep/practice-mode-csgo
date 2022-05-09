@@ -45,9 +45,10 @@ public void DeleteDemoRole(const char[] demoId, const char[] roleId) {
     if (g_DemosKv.JumpToKey(roleId)) {
       g_UpdatedDemoKv = true;
       g_DemosKv.DeleteThis();
+      g_DemosKv.Rewind();
     }
   }
-  g_DemosKv.Rewind();
+  MaybeWriteNewDemoData();
 }
 
 public void MaybeWriteNewDemoData() {

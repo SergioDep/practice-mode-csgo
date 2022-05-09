@@ -1,12 +1,28 @@
 public void CrossfiresSetupMenu(int client) {
   Menu menu = new Menu(CrossfiresSetupMenuHandler);
 
-  menu.SetTitle("Opciones De Crossfire");
-  // menu.AddItem("togglerepeat", "Repetir: %");
-  // menu.AddItem("togglerandom", "RandomWeapons: %");
-  // menu.AddItem("togglezone", "");
-  menu.AddItem("start", "Empezar Crossfires");
-  menu.AddItem("stop", "Salir de Crossfires");
+  menu.SetTitle("Menu De Crossfire");
+  menu.AddItem("start", "Empezar Crossfire");
+  char displayStr[OPTION_NAME_LENGTH];
+  Format(displayStr, sizeof(displayStr), "Cambiar Dificultad: %s", 
+    (g_CFOption_BotsDifficulty == 0)
+      ? "Práctica"
+    : (g_CFOption_BotsDifficulty == 1)
+      ? "Facil"
+    : (g_CFOption_BotsDifficulty == 2)
+      ? "Medio"
+    : (g_CFOption_BotsDifficulty == 3)
+      ? "Dificil"
+    : (g_CFOption_BotsDifficulty == 4)
+      ? "Mas Dificil"
+    : (g_CFOption_BotsDifficulty == 5)
+      ? "Avanzado" : "Error"
+  );
+  menu.AddItem("difficulty", displayStr);
+  Format(displayStr, sizeof(displayStr), "Endless: %s", (g_CFOption_EndlessMode) ? "Si" : "No");
+  menu.AddItem("endless", displayStr);
+  menu.AddItem("options", "Opciones Personalizadas");
+  menu.AddItem("stop", "Salir de Crossfire");
   menu.AddItem("edit", "Editar Crossfires");
   menu.ExitButton = true;
   menu.Display(client, MENU_TIME_FOREVER);
@@ -18,11 +34,167 @@ public int CrossfiresSetupMenuHandler(Menu menu, MenuAction action, int client, 
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "start")) {
       InitCrossfire(client);
+    } else if (StrEqual(buffer, "difficulty")) {
+      g_CFOption_BotsDifficulty++;
+      g_CFOption_BotsDifficulty = (g_CFOption_BotsDifficulty > CFOption_BotsDifficultyMAX)
+        ? CFOption_BotsDifficultyMIN
+        : g_CFOption_BotsDifficulty;
+      switch(g_CFOption_BotsDifficulty) {
+        case 0: {
+          g_CFOption_MaxSimBots = 2;
+          g_CFOption_BotReactTime = 180;
+          g_CFOption_BotStartDelay = 100;
+          g_CFOption_BotsAttack = false;
+          g_CFOption_BotsFlash = true;
+          g_CFOption_BotStrafeChance = 2;
+        }
+        case 1: {
+          g_CFOption_MaxSimBots = 1;
+          g_CFOption_BotReactTime = 300;
+          g_CFOption_BotStartDelay = 250;
+          g_CFOption_BotsAttack = true;
+          g_CFOption_BotsFlash = false;
+          g_CFOption_BotStrafeChance = 0;
+        }
+        case 2: {
+          g_CFOption_MaxSimBots = 2;
+          g_CFOption_BotReactTime = 240;
+          g_CFOption_BotStartDelay = 100;
+          g_CFOption_BotsAttack = true;
+          g_CFOption_BotsFlash = false;
+          g_CFOption_BotStrafeChance = 1;
+        }
+        case 3: {
+          g_CFOption_MaxSimBots = 2;
+          g_CFOption_BotReactTime = 180;
+          g_CFOption_BotStartDelay = 100;
+          g_CFOption_BotsAttack = true;
+          g_CFOption_BotsFlash = false;
+          g_CFOption_BotStrafeChance = 2;
+        }
+        case 4: {
+          g_CFOption_MaxSimBots = 2;
+          g_CFOption_BotReactTime = 180;
+          g_CFOption_BotStartDelay = 100;
+          g_CFOption_BotsAttack = true;
+          g_CFOption_BotsFlash = true;
+          g_CFOption_BotStrafeChance = 3;
+        }
+        case 5: {
+          g_CFOption_MaxSimBots = 2;
+          g_CFOption_BotReactTime = 120;
+          g_CFOption_BotStartDelay = 100;
+          g_CFOption_BotsAttack = true;
+          g_CFOption_BotsFlash = true;
+          g_CFOption_BotStrafeChance = 3;
+        }
+      }
+      CrossfiresSetupMenu(client);
+    } else if (StrEqual(buffer, "endless")) {
+      g_CFOption_EndlessMode = !g_CFOption_EndlessMode;
+      CrossfiresSetupMenu(client);
+    } else if (StrEqual(buffer, "options")) {
+      CrossfireOptionsMenu(client);
     } else if (StrEqual(buffer, "stop")) {
       StopCrossfiresMode();
     } else if (StrEqual(buffer, "edit")) {
       CrossfiresEditorMenu(client);
     }
+  } else if (action == MenuAction_End) {
+    delete menu;
+  }
+  return 0;
+}
+
+public void CrossfireOptionsMenu(int client) {
+  Menu menu = new Menu(CrossfireOptionsMenuHandler);
+  menu.SetTitle("Cambiar Opciones Personalizadas");
+  char displayStr[OPTION_NAME_LENGTH];
+  Format(displayStr, sizeof(displayStr), "Máximo Numero De Bots Simultaneos: %d", g_CFOption_MaxSimBots);
+  menu.AddItem("maxsimbots", displayStr);
+  Format(displayStr, sizeof(displayStr), "Tiempo de Reacción de Bots: %.0f ms", g_CFOption_BotReactTime*5.5556);
+  menu.AddItem("reacttime", displayStr);
+  Format(displayStr, sizeof(displayStr), "Tiempo para que un Bot Salga: %.0f ms", g_CFOption_BotStartDelay*5.5556);
+  menu.AddItem("botdelay", displayStr);
+  Format(displayStr, sizeof(displayStr), "Bots Atacan: %s", g_CFOption_BotsAttack ? "Si" : "No");
+  menu.AddItem("botsattack", displayStr);
+  Format(displayStr, sizeof(displayStr), "Bots Lanzan Flash: %s", g_CFOption_BotsFlash ? "Si" : "No");
+  menu.AddItem("botsflash", displayStr);
+  Format(displayStr, sizeof(displayStr), "Swingeo de Bots (A-D): %s", 
+    (g_CFOption_BotStrafeChance == 0)
+      ? "Ninguno"
+    : (g_CFOption_BotStrafeChance == 1)
+      ? "Pocos"
+    : (g_CFOption_BotStrafeChance == 2)
+      ? "Normal"
+    : (g_CFOption_BotStrafeChance == 3)
+      ? "Muchos" : "Error"
+  )
+  menu.AddItem("botsstrafe", displayStr);
+  Format(displayStr, sizeof(displayStr), "Armas de Bots: %s\n ", 
+    (g_CFOption_BotWeapons == 0)
+      ? "Cuchillo"
+    : (g_CFOption_BotWeapons == 1)
+      ? "Pistola"
+    : (g_CFOption_BotWeapons == 2)
+      ? "MP9"
+    : (g_CFOption_BotWeapons == 3)
+      ? "Deagle"
+    : (g_CFOption_BotWeapons == 4)
+      ? "AK-47"
+    : (g_CFOption_BotWeapons == 5)
+      ? "AWP" : "Error"
+  )
+  menu.AddItem("weapons", displayStr);
+
+  menu.Pagination = MENU_NO_PAGINATION;
+  menu.AddItem("back", "Back"); // menu.ExitBackButton = true;
+  menu.AddItem("exit", "Exit"); // menu.ExitButton = true;
+  menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int CrossfireOptionsMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    char buffer[CROSSFIRE_ID_LENGTH + 1];
+    menu.GetItem(item, buffer, sizeof(buffer));
+    if (StrEqual(buffer, "botsstrafe")) {
+      g_CFOption_BotStrafeChance++;
+      g_CFOption_BotStrafeChance = (g_CFOption_BotStrafeChance > CFOption_BotStrafeChanceMAX)
+        ? CFOption_BotStrafeChanceMIN
+        : g_CFOption_BotStrafeChance;
+    } else if (StrEqual(buffer, "weapons")) {
+      g_CFOption_BotWeapons++;
+      g_CFOption_BotWeapons = (g_CFOption_BotWeapons > CFOption_BotWeaponsMAX)
+        ? CFOption_BotWeaponsMIN
+        : g_CFOption_BotWeapons;
+    } else if (StrEqual(buffer, "maxsimbots")) {
+      g_CFOption_MaxSimBots++;
+      g_CFOption_MaxSimBots = (g_CFOption_MaxSimBots > CFOption_MaxSimBotsMAX)
+        ? CFOption_MaxSimBotsMIN
+        : g_CFOption_MaxSimBots;
+    } else if (StrEqual(buffer, "reacttime")) {
+      g_CFOption_BotReactTime += 30;
+      g_CFOption_BotReactTime = (g_CFOption_BotReactTime > CFOption_BotReactTimeMAX)
+        ? CFOption_BotReactTimeMIN
+        : g_CFOption_BotReactTime;
+    } else if (StrEqual(buffer, "botdelay")) {
+      g_CFOption_BotStartDelay += 50;
+      g_CFOption_BotStartDelay = (g_CFOption_BotStartDelay > CFOption_BotStartDelayMAX)
+        ? CFOption_BotStartDelayMIN
+        : g_CFOption_BotStartDelay;
+    } else if (StrEqual(buffer, "botsattack")) {
+      g_CFOption_BotsAttack = !g_CFOption_BotsAttack;
+    } else if (StrEqual(buffer, "botsflash")) {
+      g_CFOption_BotsFlash = !g_CFOption_BotsFlash;
+    } else if (StrEqual(buffer, "back")) {
+      CrossfiresSetupMenu(client);
+      return 0;
+    } else if (StrEqual(buffer, "exit")) {
+      return 0;
+    }
+    CrossfireOptionsMenu(client);
+  } else if (action == MenuAction_Cancel && item == MenuCancel_ExitBack) {
+    CrossfiresSetupMenu(client);
   } else if (action == MenuAction_End) {
     delete menu;
   }
@@ -175,6 +347,8 @@ stock void CrossfireSpawnEditorMenu(int client, const char[] spawnType, char[] s
   if (StrEqual(spawnType, KV_PLAYERSPAWN)) {
     menu.AddItem("vecmin", "(Zona) Mover Primer Punto");
     menu.AddItem("vecmax", "(Zona) Mover Segundo Punto");
+  } else {
+    menu.AddItem("maxorigin", "Mover Linea de Desplazamiento");
   }
 
   menu.AddItem("delete", "Eliminar Spawn");
@@ -213,6 +387,8 @@ public int CrossfireSpawnEditorMenuHandler(Menu menu, MenuAction action, int cli
         SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "vecmin", fOrigin);
       } else if (StrEqual(buffer, "vecmax")) {
         SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "vecmax", fOrigin);
+      } else if (StrEqual(buffer, "maxorigin")) {
+        SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "maxorigin", fOrigin);
       }
     }
     CrossfireSpawnEditorMenu(client, SelectedSpawnInfo[1], SelectedSpawnInfo[3]);

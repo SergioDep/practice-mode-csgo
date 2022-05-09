@@ -116,6 +116,11 @@ public void CreateCrossfirePlayerEntity(const char[] spawnType, const char[] spa
     if (StrEqual(spawnType, KV_BOTSPAWN)) {
       DispatchKeyValue(iEnt, "model", "models/player/custom_player/legacy/tm_separatist_variantD.mdl");
       SetEntityRenderColor(iEnt, color[0], color[1], color[2], color[3]);
+      float maxOrigin[3];
+      g_CrossfiresKv.GetVector("maxorigin", maxOrigin, origin);
+      int beamEnt = CreateBeam(origin, maxOrigin);
+      SetEntityRenderColor(beamEnt, color[0], color[1], color[2], color[3]);
+      g_HoloCFireEnts.Push(beamEnt);
     } else if (StrEqual(spawnType, KV_PLAYERSPAWN)) {
       DispatchKeyValue(iEnt, "model", "models/player/custom_player/legacy/ctm_sas.mdl");
       SetEntityRenderColor(iEnt, color[0], color[1], 255, color[3]);

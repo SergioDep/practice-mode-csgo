@@ -124,8 +124,40 @@ public void InitHoloNadeEntities() {
 
 public void UpdateHoloNadeEntities() {
   RemoveHoloNadeEntities();
-  UpdateHoloNadeEntities_Iterator();
-  // IterateGrenades(_UpdateHoloNadeEntities_Iterator);
+  DB_UpdateHoloNadeEnts();
+  // UpdateHoloNadeEntities_Iterator();
+}
+
+
+public void T_UpdateHoloNadePlayersCallback(Database database, DBResultSet results, const char[] error, any data) {
+  if (results == null) {
+      LogError("Query T_GetPlayerDataCallback failed! %s", error);
+  } else {
+    while (SQL_FetchRow(results)) {
+      int grenadeId = results.FetchInt(0);
+      char steamid[32];
+      results.FetchString(1, steamid, sizeof(steamid));
+      float grenadeDetonationOrigin[3];
+      grenadeDetonationOrigin[0] = results.FetchFloat(2);
+      grenadeDetonationOrigin[1] = results.FetchFloat(3);
+      grenadeDetonationOrigin[2] = results.FetchFloat(4);
+      char grenadeTypeStr[32];
+      results.FetchString(5, grenadeTypeStr, sizeof(grenadeTypeStr));
+      GrenadeType type = GrenadeTypeFromString(grenadeTypeStr);
+
+      float projectedOrigin[3];
+      AddVectors(grenadeDetonationOrigin, view_as<float>({0.0, 0.0, GRENADEMODEL_HEIGHT}), projectedOrigin);
+
+      if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary) {
+        SendVectorToGround(projectedOrigin);
+        projectedOrigin[2] += GRENADEMODEL_HEIGHT;
+      } else if (type == GrenadeType_Flash)
+        projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
+      char grenadeIdStr[16];
+      IntToString(grenadeId, grenadeIdStr, sizeof(grenadeIdStr));
+      CreateHoloNadeGroup(projectedOrigin, type, grenadeIdStr);
+    }
+  }
 }
 
 // public bool IsHoloNadeLoaded(const char[] grenadeIdStr) {
@@ -183,39 +215,34 @@ public void UpdateHoloNadeEntities_Iterator() {
   }
 }
 
-// public Action _UpdateHoloNadeEntities_Iterator(
-//   const char[] ownerName,
-//   const char[] ownerAuth,
-//   const char[] name,
-//   const char[] execution,
-//   char[] grenadeId,
-//   const float origin[3],
-//   const float angles[3],
-//   const char[] grenadeType,
-//   const float grenadeOrigin[3],
-//   const float grenadeVelocity[3],
-//   const float grenadeDetonationOrigin[3],
-//   any data
-// ) {
-//   if (g_EnabledHoloNadeAuth.FindString(ownerAuth) == -1) {
-//     return Plugin_Continue;
-//   }
-//   //if auth enabled
-//   GrenadeType type = GrenadeTypeFromString(grenadeType);
+public int CreateHoloNadeGroup2(const float origin[3], const GrenadeType type, int grenadeID) {
+  int GroupEnts[MAX_GRENADES_IN_GROUP] = {-1, ...};
+  float distance;
+  int NearestGroupIndex = GetAvailableNadeGroupIndex(origin, type, distance);
+  if (NearestGroupIndex > -1 && (distance <= MAX_NADE_GROUP_DISTANCE)) {
+    // Exists and is near
+    // dont spawn, group in that location
+    g_HoloNadeEntities.GetArray(NearestGroupIndex, GroupEnts, sizeof(GroupEnts));
+    //i = 1,2,3... only saves the grenadeIds, i=0 saves the spawned entity index, i=1 is grenadeId of the entity
+    for (int i = 2; i < MAX_GRENADES_IN_GROUP; i++) {
+      if(GroupEnts[i] == -1) {
+        //saves the grenadeId in the next aviable spot ( = -1 )
+        GroupEnts[i] = grenadeID;
+        g_HoloNadeEntities.SetArray(NearestGroupIndex, GroupEnts, sizeof(GroupEnts));
+        return NearestGroupIndex;
+      }
+    }
+    //cant represent more grenades with a single entity (MAX_GRENADES_IN_GROUP)
+  }
 
-//   float projectedOrigin[3];
-//   AddVectors(grenadeDetonationOrigin, view_as<float>({0.0, 0.0, GRENADEMODEL_HEIGHT}), projectedOrigin);
-  
-//   if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary) {
-//     SendVectorToGround(projectedOrigin);
-//     projectedOrigin[2] += GRENADEMODEL_HEIGHT;
-//   } else if (type == GrenadeType_Flash)
-//     projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
+  // Only spawn this nade
+  int ent = CreateHoloNadeEnt2(origin, type, grenadeID);
+  GroupEnts[0] = ent;
+  GroupEnts[1] = grenadeID;
+  return g_HoloNadeEntities.PushArray(GroupEnts, sizeof(GroupEnts));
+}
 
-//   CreateHoloNadeGroup(projectedOrigin, type, grenadeId);
-//   return Plugin_Continue;
-// }
-
+#pragma deprecated Use CreateHoloNadeGroup2() instead.
 public int CreateHoloNadeGroup(const float origin[3], const GrenadeType type, const char[] grenadeID) {
   int GroupEnts[MAX_GRENADES_IN_GROUP] = {-1, ...};
   float distance;
@@ -243,6 +270,43 @@ public int CreateHoloNadeGroup(const float origin[3], const GrenadeType type, co
   return g_HoloNadeEntities.PushArray(GroupEnts, sizeof(GroupEnts));
 }
 
+public int CreateHoloNadeEnt2(const float origin[3], const GrenadeType type, int grenadeID) {
+  char color[16];
+  GetHoloNadeColorFromType(type, color);
+
+  char grenadeModel[50];
+  GetGrenadeModelFromType(type, grenadeModel);
+
+  int ent = CreateEntityByName("prop_dynamic_override");
+  if (ent != -1) {
+    DispatchKeyValue(ent, "classname", "prop_dynamic_override");
+    DispatchKeyValue(ent, "spawnflags", "1"); 
+    DispatchKeyValue(ent, "renderamt", "255");
+    DispatchKeyValue(ent, "rendermode", "1"); 
+    DispatchKeyValue(ent, "rendercolor", color);
+    char targetName[GRENADE_NAME_LENGTH];
+    GrenadeTypeString(type, targetName, sizeof(targetName));
+    DispatchKeyValue(ent, "targetname", targetName);
+    DispatchKeyValue(ent, "model", grenadeModel);
+    if (!DispatchSpawn(ent)) {
+      return -1;
+    }
+    SetEntPropFloat(ent, Prop_Send, "m_flModelScale", GRENADEMODEL_SCALE);
+    if (type == GrenadeType_Molotov)
+      SetEntPropFloat(ent, Prop_Send, "m_flModelScale", 3.1);
+    TeleportEntity(ent, origin, NULL_VECTOR, NULL_VECTOR);
+    // Hack: reuse this prop for storing grenade ID.
+    SetEntProp(ent, Prop_Send, "m_iTeamNum", grenadeID);
+    SetEntProp(ent, Prop_Send, "m_bShouldGlow", true, true);
+    SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
+    SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 2500.0);
+    SetGlowColor(ent, color);
+    return ent;
+  }
+  return -1;
+}
+
+#pragma deprecated Use CreateHoloNadeEnt2() instead.
 public int CreateHoloNadeEnt(const float origin[3], const GrenadeType type, const char[] grenadeID) {
   char color[16];
   GetHoloNadeColorFromType(type, color);
@@ -379,10 +443,11 @@ stock int GetNearestNadeGroupIndex(
 }
 
 public void InitHoloNadeDemo(int client, int nadeId) {
+  PM_Message(client, "{ORANGE}Starting Demo...");
   ServerCommand("bot_quota_mode normal");
   ServerCommand("bot_add");
   DataPack pack = new DataPack();
-  CreateDataTimer(0.1, Timer_GetHoloNadeBot, pack, TIMER_FLAG_NO_MAPCHANGE);
+  CreateDataTimer(0.2, Timer_GetHoloNadeBot, pack, TIMER_FLAG_NO_MAPCHANGE);
   pack.WriteCell(client);
   pack.WriteCell(nadeId);
 }
@@ -390,18 +455,24 @@ public void InitHoloNadeDemo(int client, int nadeId) {
 public Action Timer_GetHoloNadeBot(Handle timer, DataPack pack) {
   pack.Reset();
   int client = pack.ReadCell();
+  if (!IsValidClient(client)) {
+    return Plugin_Handled;
+  }
   int nadeId = pack.ReadCell();
   int bot = GetLiveBot(CS_TEAM_T);
   if (bot < 0) {
     return Plugin_Handled;
   }
+
+  GetClientName(bot, g_BotOriginalName[bot], MAX_NAME_LENGTH);
   SetClientName(bot, "DEMO");
 
   g_IsNadeDemoBot[bot] = true;
   g_DemoNadeData[bot].Clear();
 
-  // Weapons
   Client_RemoveAllWeapons(bot);
+  
+  Entity_SetCollisionGroup(bot, COLLISION_GROUP_DEBRIS);
 
   char auth[AUTH_LENGTH], nadeIdStr[GRENADE_ID_LENGTH];
   IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
@@ -447,12 +518,26 @@ public Action Timer_GetHoloNadeBot(Handle timer, DataPack pack) {
   g_DemoBotStopped[bot] = false;
   g_CurrentDemoNadeIndex[bot] = 0;
   g_ClientSpecBot[bot] = client;
-  g_LastSpecPlayerTeam[client] = GetClientTeam(client);
+  g_LastSpecPlayerTeam[client] = (GetClientTeam(client) == CS_TEAM_T) ? CS_TEAM_T : CS_TEAM_CT;
   GetClientAbsOrigin(client, g_LastSpecPlayerPos[client]);
   GetClientEyeAngles(client, g_LastSpecPlayerAng[client]);
-  ChangeClientTeam(client, TEAM_SPECTATOR);
-  SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", bot);
 
+  DataPack playerPack = new DataPack();
+  CreateDataTimer(0.1, Timer_ClientSpectate, playerPack);
+  playerPack.WriteCell(client);
+  playerPack.WriteCell(bot);
+
+  return Plugin_Handled;
+}
+
+public Action Timer_ClientSpectate(Handle Timer, DataPack pack) {
+  pack.Reset();
+  int client = pack.ReadCell();
+  int bot = pack.ReadCell();
+  if (IsValidClient(client) && IsValidClient(bot)) {
+    SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", bot);
+    ChangeClientTeam(client, TEAM_SPECTATOR);
+  }
   return Plugin_Handled;
 }
 

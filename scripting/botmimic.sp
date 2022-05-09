@@ -42,6 +42,7 @@ enum struct FrameInfo {
 #define AT_ANGLES 1
 #define AT_VELOCITY 2
 #define AT_FLAGS 3
+
 enum struct AdditionalTeleport {
   float atOrigin[3];
   float atAngles[3];
@@ -75,6 +76,12 @@ enum BookmarkWhileMimicing {
 
 #define REACTION_TIME 10
 #define ONETAP_MOVE_DELAY 110
+
+// Real Bot
+int g_ActiveBot_Time[MAXPLAYERS + 1] = {0, ...};
+ConVar g_ActiveBot_ReactTimeCvar;
+ConVar g_ActiveBot_AttackTimeCvar;
+ConVar g_ActiveBot_MoveDistanceCvar;
 
 // Where did he start recording. The bot is teleported to this position on replay.
 float g_fInitialPosition[MAXPLAYERS + 1][3];
@@ -207,6 +214,13 @@ public void OnPluginStart() {
   // Save all paths to .rec files in the trie sorted by time
   g_hSortedRecordList = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
   g_hSortedCategoryList = new ArrayList(ByteCountToCells(64));
+
+  g_ActiveBot_ReactTimeCvar = CreateConVar("sm_botmimic_react_time", "80",
+                              "How much ticks until bot starts shooting.", 0, true, 30.0, true, 150.0);
+  g_ActiveBot_AttackTimeCvar = CreateConVar("sm_botmimic_attack_time", "30",
+                              "How much ticks until bot stops shooting.", 0, true, 0.0, true, 100.0);
+  g_ActiveBot_MoveDistanceCvar = CreateConVar("sm_botmimic_move_distance", "60",
+                              "How much ticks will the bot move before shooting.", 0, true, 0.0, true, 150.0);
 
   HookEvent("player_spawn", Event_OnPlayerSpawn);
   HookEvent("player_death", Event_OnPlayerDeath);
@@ -351,7 +365,7 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
     iAT.atFlags = ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL;
     g_hRecordingAdditionalTeleport[client].PushArray(iAT, sizeof(AdditionalTeleport));
     g_bSaveFullSnapshot[client] = false;
-  }  else {
+  } else {
     // Save the current position 
     int iInterval = g_hCVOriginSnapshotInterval.IntValue;
     if (iInterval > 0 && g_iOriginSnapshotInterval[client] > iInterval) {
@@ -441,7 +455,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     return Plugin_Continue;
   }
 
+  // Here attack logic ?
+
   if (g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client]) {
+
+  // IF ATTACK dont execute any of this 
     // Reset Mimic
     g_iBotMimicTick[client] = 0;
     g_iCurrentAdditionalTeleportIndex[client] = 0;
@@ -511,26 +529,26 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
     g_hLoadedRecordsAdditionalTeleport.GetValue(sPath, hAdditionalTeleport);
     if (g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length) {
-      PrintToServer("=============================ERROR=============================");
-      PrintToServer("g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length");
-      PrintToServer("g_hRecording[client].Length = %d", g_hRecording[client].Length);
-      PrintToServer("currenttick: %d index: %d", g_iBotMimicTick[client], g_iCurrentAdditionalTeleportIndex[client]);
-      PrintToServer("============================ENDERROR===========================");
+      PrintToServer("[BOTMIMIC-RUNCMD]ERROR: g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length");
       BotMimic_StopPlayerMimic(client);
       return Plugin_Handled;
     }
     hAdditionalTeleport.GetArray(g_iCurrentAdditionalTeleportIndex[client], iAT, sizeof(iAT));
 
     // Only pass the arguments, if they were set..
-    if (!Math_VectorsEqual(iAT.atOrigin, {0.0, 0.0, 0.0})) {
+    if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN)) {
+      // PrintToChatAll("teleport origin to %f %f %f", iAT.atOrigin[0], iAT.atOrigin[1], iAT.atOrigin[2]);
+      g_bValidTeleportCall[client] = true;
       TeleportEntity(client, iAT.atOrigin, NULL_VECTOR, NULL_VECTOR);
     }
-    if (!Math_VectorsEqual(iAT.atAngles, {0.0, 0.0, 0.0})) {
-      // PrintToChatAll("teleport additional to %f %f %f", iAT.atAngles[0], iAT.atAngles[1], iAT.atAngles[2]);
+    if (iFrame.additionalFields & (ADDFIELD_TP_ANGLES)) {
+      // PrintToChatAll("teleport angles to %f %f %f", iAT.atAngles[0], iAT.atAngles[1], iAT.atAngles[2]);
+      g_bValidTeleportCall[client] = true;
       TeleportEntity(client, NULL_VECTOR, iAT.atAngles, NULL_VECTOR);
     }
-    if (!Math_VectorsEqual(iAT.atVelocity, {0.0, 0.0, 0.0})) {
-      // PrintToChatAll("teleport additional to %f %f %f", iAT.atVelocity[0], iAT.atVelocity[1], iAT.atVelocity[2]);
+    if (iFrame.additionalFields & (ADDFIELD_TP_VEL)) {
+      // PrintToChatAll("teleport velocity to %f %f %f", iAT.atVelocity[0], iAT.atVelocity[1], iAT.atVelocity[2]);
+      g_bValidTeleportCall[client] = true;
       TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, iAT.atVelocity);
     }
     g_iCurrentAdditionalTeleportIndex[client]++;
@@ -600,7 +618,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
   g_iBotMimicTick[client]++;
 
-  return Plugin_Continue;
+  return Plugin_Changed;
 }
 
 /**
@@ -629,7 +647,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
   } else if (g_hBotMimicsRecord[client] != null) {
     // This bot has been mimicing
     BotMimic_StopPlayerMimic(client);
-    // // Respawn the bot after death! <--- why? (its assuming "respwning" cvar of practicemode is false, maybe wants to respawn sooner?)
+    // // Respawn the bot after death! <--- why?
     //   g_iBotMimicTick[client] = 0;
     //   g_iCurrentAdditionalTeleportIndex[client] = 0;
     // if (g_hCVRespawnOnDeath.BoolValue && GetClientTeam(client) >= CS_TEAM_T)

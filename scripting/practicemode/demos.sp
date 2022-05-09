@@ -15,6 +15,8 @@ bool g_DemoPlayRoundTimer[MAXPLAYERS + 1] = {false, ...};
 bool g_RecordingFullDemo = false;
 int g_RecordingFullDemoClient = -1;
 
+bool g_GameModeDemoAttack = false;
+
 ArrayList g_DemoBots;
 
 // Nade DemoBot Data
@@ -56,11 +58,13 @@ public void Demos_MapEnd() {
 }
 
 public void ExitDemoMode() {
-  ServerCommand("bot_kick");
-  g_DemoBots.Clear();
   for (int i = 0; i < g_DemoBots.Length; i++) {
-    g_IsDemoBot[g_DemoBots.Get(i)] = 0;
+    int bot = g_DemoBots.Get(i);
+    if (IsDemoBot(bot)) {
+      ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+    }
   }
+  g_DemoBots.Clear();
   g_InBotDemoMode = false;
   g_RecordingFullDemo = false;
   SetCvarIntSafe("mp_respawn_on_death_ct", 1);
@@ -114,12 +118,18 @@ public Action Timer_GetDemoBots(Handle timer) {
     if (bot < 0) {
       continue;
     }
+    GetClientName(bot, g_BotOriginalName[bot], MAX_NAME_LENGTH);
     ChangeClientTeam(bot, CS_TEAM_T);
     ForcePlayerSuicide(bot);
     SetClientName(bot, name);
     g_IsDemoBot[bot] = true;
     g_DemoBots.Push(bot); // g_ReplayBotClients[i] = GetLiveBot(name);
   }
+  return Plugin_Handled;
+}
+
+public Action Command_TestDemo(int client, int args) {
+  DemosMenu(client);
   return Plugin_Handled;
 }
 
@@ -139,6 +149,7 @@ public Action Command_Demos(int client, int args) {
   }
 
   if (!g_InBotDemoMode) {
+    Command_DemoCancel(client, 0);
     InitDemoFunctions();
   }
 
@@ -262,10 +273,22 @@ public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, cha
   } else if (g_savedNewNadeDemo[client]) {
     DemoNadeData demoNadeData;
     g_DemoNadeData[client].GetArray(0, demoNadeData, sizeof(demoNadeData));
-    SetClientGrenadeFloat(g_CurrentSavedGrenadeId[client], "delay", demoNadeData.delay);
-    SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
+    char query[512];
+    SQL_FormatQuery(g_db, query, sizeof(query), 
+      "BEGIN TRANSACTION;"...
+      " UPDATE playergrenades"...
+      " SET file='%s' WHERE grenadeid=%d;"...
+      " UPDATE grenades"...
+      " SET delay=%f WHERE id=%d;"...
+      " COMMIT;",
+      file, g_CurrentSavedGrenadeId[client],
+      demoNadeData.delay, g_CurrentSavedGrenadeId[client]
+    );
+    DB_UpdateGrenade(g_CurrentSavedGrenadeId[client], query);
+    // // SetClientGrenadeFloat(g_CurrentSavedGrenadeId[client], "delay", demoNadeData.delay);
+    // // SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
 
-    MaybeWriteNewGrenadeData();
+    // // MaybeWriteNewGrenadeData();
     g_savedNewNadeDemo[client] = false;
   }
 }
