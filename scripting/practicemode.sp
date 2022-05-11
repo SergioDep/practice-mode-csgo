@@ -888,7 +888,7 @@ public void OnMapStart() {
   // //   g_UpdatedGrenadeKv = false;
   // // }
 
-  MaybeCorrectGrenadeIds();
+  // // MaybeCorrectGrenadeIds();
 
   Spawns_MapStart();
   Demos_MapStart();
@@ -932,7 +932,7 @@ public void CheckAutoStart() {
 }
 
 public void OnClientDisconnect(int client) {
-  MaybeWriteNewGrenadeData();
+  // // MaybeWriteNewGrenadeData();
   if (IsPracticeBot(client)) {
     SetNotPracticeBot(client);
     return;

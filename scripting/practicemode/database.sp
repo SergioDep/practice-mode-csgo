@@ -1,3 +1,62 @@
+void DB_GetHoloNadeBot(
+  int client,
+  int grenadeid,
+  int bot
+) {
+  char auth[AUTH_LENGTH], nadeIdStr[GRENADE_ID_LENGTH];
+  IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
+  FindId(nadeIdStr, auth, sizeof(auth));
+  char filepath[PLATFORM_MAX_PATH + 1];
+  GetGrenadeData(auth, nadeIdStr, "record", filepath, sizeof(filepath));
+
+  DemoNadeData demoNadeData;
+  GetGrenadeVector(auth, nadeIdStr, "origin", demoNadeData.origin);
+  GetGrenadeVector(auth, nadeIdStr, "angles", demoNadeData.angles);
+  GetGrenadeVector(auth, nadeIdStr, "grenadeOrigin", demoNadeData.grenadeOrigin);
+  GetGrenadeVector(auth, nadeIdStr, "grenadeVelocity", demoNadeData.grenadeVelocity);
+  char grenadeTypeStr[GRENADE_NAME_LENGTH];
+  GetGrenadeData(auth, nadeIdStr, "grenadeType", grenadeTypeStr, sizeof(grenadeTypeStr));
+  demoNadeData.grenadeType = GrenadeTypeFromString(grenadeTypeStr);
+  demoNadeData.delay = GetGrenadeFloat(auth, nadeIdStr, "delay");
+
+  g_DemoNadeData[bot].PushArray(demoNadeData, sizeof(demoNadeData));
+
+  if (!IsPlayerAlive(bot)) {
+    CS_RespawnPlayer(bot);
+  }
+
+  BMFileHeader header;
+  BMError error = BotMimic_GetFileHeaders(filepath, header, sizeof(header));
+  if (error != BM_NoError) {
+    char errorString[128];
+    BotMimic_GetErrorString(error, errorString, sizeof(errorString));
+    PrintToServer("[Timer_GetHoloNadeBot]Failed to get %s headers: %s", filepath, errorString);
+    return Plugin_Handled;
+  }
+  g_BotSpawnAngles[bot] = header.BMFH_initialAngles;
+  char sAlias[64];
+  GetGrenadeWeapon(demoNadeData.grenadeType, sAlias, sizeof(sAlias));
+  GivePlayerItem(bot, sAlias);
+  TeleportEntity(bot, header.BMFH_initialPosition, g_BotSpawnAngles[bot], {0.0, 0.0, 0.0});
+  // wait some time so client can see lineup
+  DataPack demoPack = new DataPack();
+  RequestFrame(StartBotMimicDemo, demoPack);
+  demoPack.WriteCell(bot);
+  demoPack.WriteString(filepath);
+  demoPack.WriteFloat(1.5);
+  g_DemoBotStopped[bot] = false;
+  g_CurrentDemoNadeIndex[bot] = 0;
+  g_ClientSpecBot[bot] = client;
+  g_LastSpecPlayerTeam[client] = (GetClientTeam(client) == CS_TEAM_T) ? CS_TEAM_T : CS_TEAM_CT;
+  GetClientAbsOrigin(client, g_LastSpecPlayerPos[client]);
+  GetClientEyeAngles(client, g_LastSpecPlayerAng[client]);
+
+  DataPack playerPack = new DataPack();
+  CreateDataTimer(0.1, Timer_ClientSpectate, playerPack);
+  playerPack.WriteCell(client);
+  playerPack.WriteCell(bot);
+}
+
 void DB_TeleportToGrenade(
   int client,
   int grenadeid

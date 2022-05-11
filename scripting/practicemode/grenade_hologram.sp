@@ -178,42 +178,42 @@ public void T_UpdateHoloNadePlayersCallback(Database database, DBResultSet resul
 //   return false;
 // }
 
-public void UpdateHoloNadeEntities_Iterator() {
-  char ownerAuth[AUTH_LENGTH];
-  char grenadeId[GRENADE_ID_LENGTH];
-  char grenadeTypeString[32];
-  float grenadeDetonationOrigin[3];
-  if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
-    do {
-      g_GrenadeLocationsKv.GetSectionName(ownerAuth, sizeof(ownerAuth));
-      if (g_EnabledHoloNadeAuth.FindString(ownerAuth) == -1) {
-        continue;
-      }
-      // Inner iteration by grenades for a user.
-      if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
-        do {
-          g_GrenadeLocationsKv.GetSectionName(grenadeId, sizeof(grenadeId));
-          g_GrenadeLocationsKv.GetString("grenadeType", grenadeTypeString, sizeof(grenadeTypeString));
-          g_GrenadeLocationsKv.GetVector("grenadeDetonationOrigin", grenadeDetonationOrigin);
-          GrenadeType type = GrenadeTypeFromString(grenadeTypeString);
+// // public void UpdateHoloNadeEntities_Iterator() {
+// //   char ownerAuth[AUTH_LENGTH];
+// //   char grenadeId[GRENADE_ID_LENGTH];
+// //   char grenadeTypeString[32];
+// //   float grenadeDetonationOrigin[3];
+// //   if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
+// //     do {
+// //       g_GrenadeLocationsKv.GetSectionName(ownerAuth, sizeof(ownerAuth));
+// //       if (g_EnabledHoloNadeAuth.FindString(ownerAuth) == -1) {
+// //         continue;
+// //       }
+// //       // Inner iteration by grenades for a user.
+// //       if (g_GrenadeLocationsKv.GotoFirstSubKey()) {
+// //         do {
+// //           g_GrenadeLocationsKv.GetSectionName(grenadeId, sizeof(grenadeId));
+// //           g_GrenadeLocationsKv.GetString("grenadeType", grenadeTypeString, sizeof(grenadeTypeString));
+// //           g_GrenadeLocationsKv.GetVector("grenadeDetonationOrigin", grenadeDetonationOrigin);
+// //           GrenadeType type = GrenadeTypeFromString(grenadeTypeString);
 
-          float projectedOrigin[3];
-          AddVectors(grenadeDetonationOrigin, view_as<float>({0.0, 0.0, GRENADEMODEL_HEIGHT}), projectedOrigin);
+// //           float projectedOrigin[3];
+// //           AddVectors(grenadeDetonationOrigin, view_as<float>({0.0, 0.0, GRENADEMODEL_HEIGHT}), projectedOrigin);
           
-          if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary) {
-            SendVectorToGround(projectedOrigin);
-            projectedOrigin[2] += GRENADEMODEL_HEIGHT;
-          } else if (type == GrenadeType_Flash)
-            projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
+// //           if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary) {
+// //             SendVectorToGround(projectedOrigin);
+// //             projectedOrigin[2] += GRENADEMODEL_HEIGHT;
+// //           } else if (type == GrenadeType_Flash)
+// //             projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
 
-          CreateHoloNadeGroup(projectedOrigin, type, grenadeId);
-        } while (g_GrenadeLocationsKv.GotoNextKey());
-        g_GrenadeLocationsKv.GoBack();
-      }
-    } while (g_GrenadeLocationsKv.GotoNextKey());
-    g_GrenadeLocationsKv.GoBack();
-  }
-}
+// //           CreateHoloNadeGroup(projectedOrigin, type, grenadeId);
+// //         } while (g_GrenadeLocationsKv.GotoNextKey());
+// //         g_GrenadeLocationsKv.GoBack();
+// //       }
+// //     } while (g_GrenadeLocationsKv.GotoNextKey());
+// //     g_GrenadeLocationsKv.GoBack();
+// //   }
+// // }
 
 public int CreateHoloNadeGroup2(const float origin[3], const GrenadeType type, int grenadeID) {
   int GroupEnts[MAX_GRENADES_IN_GROUP] = {-1, ...};
@@ -474,58 +474,60 @@ public Action Timer_GetHoloNadeBot(Handle timer, DataPack pack) {
   
   Entity_SetCollisionGroup(bot, COLLISION_GROUP_DEBRIS);
 
-  char auth[AUTH_LENGTH], nadeIdStr[GRENADE_ID_LENGTH];
-  IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
-  FindId(nadeIdStr, auth, sizeof(auth));
-  char filepath[PLATFORM_MAX_PATH + 1];
-  GetGrenadeData(auth, nadeIdStr, "record", filepath, sizeof(filepath));
+  DB_GetHoloNadeBot(client, nadeId, bot);
 
-  DemoNadeData demoNadeData;
-  GetGrenadeVector(auth, nadeIdStr, "origin", demoNadeData.origin);
-  GetGrenadeVector(auth, nadeIdStr, "angles", demoNadeData.angles);
-  GetGrenadeVector(auth, nadeIdStr, "grenadeOrigin", demoNadeData.grenadeOrigin);
-  GetGrenadeVector(auth, nadeIdStr, "grenadeVelocity", demoNadeData.grenadeVelocity);
-  char grenadeTypeStr[GRENADE_NAME_LENGTH];
-  GetGrenadeData(auth, nadeIdStr, "grenadeType", grenadeTypeStr, sizeof(grenadeTypeStr));
-  demoNadeData.grenadeType = GrenadeTypeFromString(grenadeTypeStr);
-  demoNadeData.delay = GetGrenadeFloat(auth, nadeIdStr, "delay");
+  // // char auth[AUTH_LENGTH], nadeIdStr[GRENADE_ID_LENGTH];
+  // // IntToString(nadeId, nadeIdStr, sizeof(nadeIdStr));
+  // // FindId(nadeIdStr, auth, sizeof(auth));
+  // // char filepath[PLATFORM_MAX_PATH + 1];
+  // // GetGrenadeData(auth, nadeIdStr, "record", filepath, sizeof(filepath));
 
-  g_DemoNadeData[bot].PushArray(demoNadeData, sizeof(demoNadeData));
+  // // DemoNadeData demoNadeData;
+  // // GetGrenadeVector(auth, nadeIdStr, "origin", demoNadeData.origin);
+  // // GetGrenadeVector(auth, nadeIdStr, "angles", demoNadeData.angles);
+  // // GetGrenadeVector(auth, nadeIdStr, "grenadeOrigin", demoNadeData.grenadeOrigin);
+  // // GetGrenadeVector(auth, nadeIdStr, "grenadeVelocity", demoNadeData.grenadeVelocity);
+  // // char grenadeTypeStr[GRENADE_NAME_LENGTH];
+  // // GetGrenadeData(auth, nadeIdStr, "grenadeType", grenadeTypeStr, sizeof(grenadeTypeStr));
+  // // demoNadeData.grenadeType = GrenadeTypeFromString(grenadeTypeStr);
+  // // demoNadeData.delay = GetGrenadeFloat(auth, nadeIdStr, "delay");
 
-  if (!IsPlayerAlive(bot)) {
-    CS_RespawnPlayer(bot);
-  }
+  // // g_DemoNadeData[bot].PushArray(demoNadeData, sizeof(demoNadeData));
 
-  BMFileHeader header;
-  BMError error = BotMimic_GetFileHeaders(filepath, header, sizeof(header));
-  if (error != BM_NoError) {
-    char errorString[128];
-    BotMimic_GetErrorString(error, errorString, sizeof(errorString));
-    PrintToServer("[Timer_GetHoloNadeBot]Failed to get %s headers: %s", filepath, errorString);
-    return Plugin_Handled;
-  }
-  g_BotSpawnAngles[bot] = header.BMFH_initialAngles;
-  char sAlias[64];
-  GetGrenadeWeapon(demoNadeData.grenadeType, sAlias, sizeof(sAlias));
-  GivePlayerItem(bot, sAlias);
-  TeleportEntity(bot, header.BMFH_initialPosition, g_BotSpawnAngles[bot], {0.0, 0.0, 0.0});
-  // wait some time so client can see lineup
-  DataPack demoPack = new DataPack();
-  RequestFrame(StartBotMimicDemo, demoPack);
-  demoPack.WriteCell(bot);
-  demoPack.WriteString(filepath);
-  demoPack.WriteFloat(1.5);
-  g_DemoBotStopped[bot] = false;
-  g_CurrentDemoNadeIndex[bot] = 0;
-  g_ClientSpecBot[bot] = client;
-  g_LastSpecPlayerTeam[client] = (GetClientTeam(client) == CS_TEAM_T) ? CS_TEAM_T : CS_TEAM_CT;
-  GetClientAbsOrigin(client, g_LastSpecPlayerPos[client]);
-  GetClientEyeAngles(client, g_LastSpecPlayerAng[client]);
+  // // if (!IsPlayerAlive(bot)) {
+  // //   CS_RespawnPlayer(bot);
+  // // }
 
-  DataPack playerPack = new DataPack();
-  CreateDataTimer(0.1, Timer_ClientSpectate, playerPack);
-  playerPack.WriteCell(client);
-  playerPack.WriteCell(bot);
+  // // BMFileHeader header;
+  // // BMError error = BotMimic_GetFileHeaders(filepath, header, sizeof(header));
+  // // if (error != BM_NoError) {
+  // //   char errorString[128];
+  // //   BotMimic_GetErrorString(error, errorString, sizeof(errorString));
+  // //   PrintToServer("[Timer_GetHoloNadeBot]Failed to get %s headers: %s", filepath, errorString);
+  // //   return Plugin_Handled;
+  // // }
+  // // g_BotSpawnAngles[bot] = header.BMFH_initialAngles;
+  // // char sAlias[64];
+  // // GetGrenadeWeapon(demoNadeData.grenadeType, sAlias, sizeof(sAlias));
+  // // GivePlayerItem(bot, sAlias);
+  // // TeleportEntity(bot, header.BMFH_initialPosition, g_BotSpawnAngles[bot], {0.0, 0.0, 0.0});
+  // // // wait some time so client can see lineup
+  // // DataPack demoPack = new DataPack();
+  // // RequestFrame(StartBotMimicDemo, demoPack);
+  // // demoPack.WriteCell(bot);
+  // // demoPack.WriteString(filepath);
+  // // demoPack.WriteFloat(1.5);
+  // // g_DemoBotStopped[bot] = false;
+  // // g_CurrentDemoNadeIndex[bot] = 0;
+  // // g_ClientSpecBot[bot] = client;
+  // // g_LastSpecPlayerTeam[client] = (GetClientTeam(client) == CS_TEAM_T) ? CS_TEAM_T : CS_TEAM_CT;
+  // // GetClientAbsOrigin(client, g_LastSpecPlayerPos[client]);
+  // // GetClientEyeAngles(client, g_LastSpecPlayerAng[client]);
+
+  // // DataPack playerPack = new DataPack();
+  // // CreateDataTimer(0.1, Timer_ClientSpectate, playerPack);
+  // // playerPack.WriteCell(client);
+  // // playerPack.WriteCell(bot);
 
   return Plugin_Handled;
 }
