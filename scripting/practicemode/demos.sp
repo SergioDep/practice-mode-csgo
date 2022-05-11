@@ -15,7 +15,7 @@ bool g_DemoPlayRoundTimer[MAXPLAYERS + 1] = {false, ...};
 bool g_RecordingFullDemo = false;
 int g_RecordingFullDemoClient = -1;
 
-bool g_GameModeDemoAttack = false;
+bool g_BotMimic_VersusMode = false;
 
 ArrayList g_DemoBots;
 
@@ -273,22 +273,10 @@ public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, cha
   } else if (g_savedNewNadeDemo[client]) {
     DemoNadeData demoNadeData;
     g_DemoNadeData[client].GetArray(0, demoNadeData, sizeof(demoNadeData));
-    char query[512];
-    SQL_FormatQuery(g_db, query, sizeof(query), 
-      "BEGIN TRANSACTION;"...
-      " UPDATE playergrenades"...
-      " SET file='%s' WHERE grenadeid=%d;"...
-      " UPDATE grenades"...
-      " SET delay=%f WHERE id=%d;"...
-      " COMMIT;",
-      file, g_CurrentSavedGrenadeId[client],
-      demoNadeData.delay, g_CurrentSavedGrenadeId[client]
-    );
-    DB_UpdateGrenade(g_CurrentSavedGrenadeId[client], query);
-    // // SetClientGrenadeFloat(g_CurrentSavedGrenadeId[client], "delay", demoNadeData.delay);
-    // // SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
+    SetClientGrenadeFloat(g_CurrentSavedGrenadeId[client], "delay", demoNadeData.delay);
+    SetClientGrenadeData(g_CurrentSavedGrenadeId[client], "record", file);
 
-    // // MaybeWriteNewGrenadeData();
+    MaybeWriteNewGrenadeData();
     g_savedNewNadeDemo[client] = false;
   }
 }
@@ -297,7 +285,7 @@ public void BotMimic_OnPlayerStopsMimicing(int client, char[] name, char[] categ
   if (g_CurrentDemoNadeIndex[client] < g_DemoNadeData[client].Length) {
     PrintToServer("[BotMimic_OnPlayerStopsMimicing]ERROR: %d didnt throw all his nades", client);
   }
-  if (IsDemoBot(client)) {
+  if (IsDemoBot(client) && !g_BotMimic_VersusMode) {
     ForcePlayerSuicide(client);
   } else if (g_IsNadeDemoBot[client]) {
     CreateTimer(1.5, Timer_KickBot, client);

@@ -8,7 +8,7 @@ stock void DemosMenu(int client) {
   menu.AddItem("versus_settings", "Opciones de Versus");
   menu.AddItem("more_settings", "Mas Opciones");
   char gameModeDisplayStr[OPTION_NAME_LENGTH];
-  Format(gameModeDisplayStr, OPTION_NAME_LENGTH, "Modo de Demo: %s", g_GameModeDemoAttack ? "Versus" : "Espectador");
+  Format(gameModeDisplayStr, OPTION_NAME_LENGTH, "Modo de Demo: %s", g_BotMimic_VersusMode ? "Versus" : "Espectador");
   menu.AddItem("toggle_gamemode", gameModeDisplayStr);
 
   menu.Pagination = MENU_NO_PAGINATION;
@@ -44,8 +44,8 @@ public int DemosMenuHandler(Menu menu, MenuAction action, int client, int item) 
         DemosMenu(client);
         return 0;
       }
-      g_GameModeDemoAttack = !g_GameModeDemoAttack;
-      PM_Message(client, "{ORANGE}Modo %s activado.", g_GameModeDemoAttack ? "Versus" : "Espectador");
+      g_BotMimic_VersusMode = !g_BotMimic_VersusMode;
+      PM_Message(client, "{ORANGE}Modo %s activado.", g_BotMimic_VersusMode ? "Versus" : "Espectador");
     }
     DemosMenu(client);
   } else if (action == MenuAction_End) {
@@ -60,6 +60,9 @@ public void DemosMainMenu(int client) {
 
   Menu menu = new Menu(DemosMainMenuHandler);
   menu.SetTitle("Lista de Demos");
+  char gameModeDisplayStr[OPTION_NAME_LENGTH];
+  Format(gameModeDisplayStr, OPTION_NAME_LENGTH, "Modo de Demo: %s", g_BotMimic_VersusMode ? "Versus" : "Espectador");
+  menu.AddItem("toggle_gamemode", gameModeDisplayStr);
   menu.AddItem("add_new", "Grabar Nueva Demo");
 
   char demo_id[DEMO_ID_LENGTH];
@@ -89,6 +92,14 @@ public int DemosMainMenuHandler(Menu menu, MenuAction action, int client, int it
     } else if (StrEqual(buffer, "exit_edit")) {
       ExitDemoMode();
       PM_Message(client, "{ORANGE}Modo Demos Desactivado.");
+    } else if (StrEqual(buffer, "toggle_gamemode")) {
+      if (IsDemoPlaying()) {
+        PM_Message(client, "{ORANGE}Pausa tu demo actual primero.");
+        DemosMenu(client);
+        return 0;
+      }
+      g_BotMimic_VersusMode = BotMimic_ChangeGameMode();
+      PM_Message(client, "{ORANGE}Modo %s activado.", g_BotMimic_VersusMode ? "Versus" : "Espectador");
     } else {
       strcopy(g_SelectedDemoId[client], DEMO_ID_LENGTH, buffer);
       SingleDemoEditorMenu(client);

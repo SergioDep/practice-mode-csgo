@@ -452,6 +452,8 @@ public int ChangeMapHandler(Menu menu, MenuAction action, int param1, int param2
   return 0;
 }
 
+public Action Command_
+
 public Action Command_DryRun(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;

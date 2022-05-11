@@ -196,6 +196,13 @@ native BMError BotMimic_GetFileHeaders(const char[] path, any iFileHeader[sizeof
 native bool BotMimic_GetFileCategory(const char[] path, char[] category, int maxlen);
 
 /**
+ * Change the Gamemode of a record.
+ *
+ * @return				true if attack mode, false if normal mode
+ */
+native bool BotMimic_ChangeGameMode();
+
+/**
  * Change the name of a record. This doesn't change the filename, but the stored record name inside the file. (BMTP_recordName)
  *
  * @param path	The path to the .rec record file which name to change.
@@ -385,5 +392,6 @@ public void __pl_botmimic_SetNTVOptional()
 	MarkNativeAsOptional("BotMimic_GetFileCategory");
 	MarkNativeAsOptional("BotMimic_ChangeRecordName");
 	MarkNativeAsOptional("BotMimic_GetRecordBookmarks");
+	MarkNativeAsOptional("BotMimic_ChangeGameMode");
 }
 #endif

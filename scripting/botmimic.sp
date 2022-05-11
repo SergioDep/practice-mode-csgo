@@ -78,10 +78,11 @@ enum BookmarkWhileMimicing {
 #define ONETAP_MOVE_DELAY 110
 
 // Real Bot
-int g_ActiveBot_Time[MAXPLAYERS + 1] = {0, ...};
-ConVar g_ActiveBot_ReactTimeCvar;
-ConVar g_ActiveBot_AttackTimeCvar;
-ConVar g_ActiveBot_MoveDistanceCvar;
+bool g_BotMimic_VersusMode = false;
+int g_BotMimic_VersusMode_Time[MAXPLAYERS + 1] = {0, ...};
+ConVar g_BotMimic_VersusMode_ReactTimeCvar;
+ConVar g_BotMimic_VersusMode_AttackTimeCvar;
+ConVar g_BotMimic_VersusMode_MoveDistanceCvar;
 
 // Where did he start recording. The bot is teleported to this position on replay.
 float g_fInitialPosition[MAXPLAYERS + 1][3];
@@ -175,6 +176,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
   CreateNative("BotMimic_GetFileHeaders", GetFileHeaders);
   CreateNative("BotMimic_ChangeRecordName", ChangeRecordName);
+  CreateNative("BotMimic_ChangeGameMode", ChangeGameMode);
   CreateNative("BotMimic_GetLoadedRecordList", GetLoadedRecordList);
   CreateNative("BotMimic_GetLoadedRecordCategoryList", GetLoadedRecordCategoryList);
   CreateNative("BotMimic_GetFileCategory", GetFileCategory);
@@ -215,11 +217,11 @@ public void OnPluginStart() {
   g_hSortedRecordList = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
   g_hSortedCategoryList = new ArrayList(ByteCountToCells(64));
 
-  g_ActiveBot_ReactTimeCvar = CreateConVar("sm_botmimic_react_time", "80",
+  g_BotMimic_VersusMode_ReactTimeCvar = CreateConVar("sm_botmimic_react_time", "80",
                               "How much ticks until bot starts shooting.", 0, true, 30.0, true, 150.0);
-  g_ActiveBot_AttackTimeCvar = CreateConVar("sm_botmimic_attack_time", "30",
+  g_BotMimic_VersusMode_AttackTimeCvar = CreateConVar("sm_botmimic_attack_time", "30",
                               "How much ticks until bot stops shooting.", 0, true, 0.0, true, 100.0);
-  g_ActiveBot_MoveDistanceCvar = CreateConVar("sm_botmimic_move_distance", "60",
+  g_BotMimic_VersusMode_MoveDistanceCvar = CreateConVar("sm_botmimic_move_distance", "60",
                               "How much ticks will the bot move before shooting.", 0, true, 0.0, true, 150.0);
 
   HookEvent("player_spawn", Event_OnPlayerSpawn);
@@ -448,6 +450,7 @@ public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
   // Is Bot mimicing something ?
   if (g_hBotMimicsRecord[client] == null) {
+    // what should he do when finished recording
     return Plugin_Continue;
   }
   // Is this a valid living bot?
@@ -1445,6 +1448,11 @@ public int ChangeRecordName(Handle plugin, int numParams) {
   WriteRecordToDisk(sPath, iFileHeader);
 
   return view_as<int>(BM_NoError);
+}
+
+public int ChangeGameMode(Handle plugin, int numParams) {
+  g_BotMimic_VersusMode = !g_BotMimic_VersusMode;
+  return view_as<int>(g_BotMimic_VersusMode);
 }
 
 public int GetLoadedRecordList(Handle plugin, int numParams) {

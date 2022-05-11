@@ -83,10 +83,7 @@ int g_recordingNadeDemoStatus[MAXPLAYERS + 1] = {0, ...};// 0 = not recording/ca
 bool g_savedNewNadeDemo[MAXPLAYERS + 1] = {false, ...};
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
 
-Database g_db = null;
-char g_dbMap[PLATFORM_MAX_PATH];
-
-// // KeyValues g_GrenadeLocationsKv;  // Inside any global function, we expect this to be at the root level.
+KeyValues g_GrenadeLocationsKv;  // Inside any global function, we expect this to be at the root level.
 int g_CurrentSavedGrenadeId[MAXPLAYERS + 1];
 bool g_UpdatedGrenadeKv = false;  // whether there has been any changed the kv structure this map
 int g_NextID = 0;
@@ -231,8 +228,6 @@ bool g_ClientButtonsInUse[MAXPLAYERS + 1] = {false, ...};
 #include "practicemode/afk_manager.sp"
 #include "practicemode/commands_blocker.sp"
 
-#include "practicemode/database.sp"
-
 public Plugin myinfo = {
   name = "Practicemode Lite",
   author = "sergio",
@@ -264,10 +259,6 @@ public void OnPluginStart() {
   HookEvent("hegrenade_detonate", GrenadeDetonateTimerHelper);
   HookEvent("decoy_started", GrenadeDetonateTimerHelper);
   HookEvent("player_blind", Event_PlayerBlind);
-
-  if (g_db == null) {
-    Database.Connect(SQLConnectCallback, "storage-local");
-  }
 
   for (int i = 0; i <= MaxClients; i++) {
     g_GrenadeHistoryPositions[i] = new ArrayList(3);
@@ -867,26 +858,23 @@ public void OnMapStart() {
   char map[PLATFORM_MAX_PATH];
   GetCleanMapName(map, sizeof(map));
 
-  // DATABASE
-  GetCleanMapName(g_dbMap, sizeof(g_dbMap));
+  char legacyFile[PLATFORM_MAX_PATH];
+  Format(legacyFile, sizeof(legacyFile), "%s/%s.cfg", legacyDir, map);
 
-  // // char legacyFile[PLATFORM_MAX_PATH];
-  // // Format(legacyFile, sizeof(legacyFile), "%s/%s.cfg", legacyDir, map);
+  BuildPath(Path_SM, g_GrenadeLocationsFile, sizeof(g_GrenadeLocationsFile),
+            "data/practicemode/grenades/%s.cfg", map);
 
-  // // BuildPath(Path_SM, g_GrenadeLocationsFile, sizeof(g_GrenadeLocationsFile),
-  // //           "data/practicemode/grenades/%s.cfg", map);
-
-  // // if (!FileExists(g_GrenadeLocationsFile) && FileExists(legacyFile)) {
-  // //   PrintToServer("Moving legacy grenade data from %s to %s", legacyFile, g_GrenadeLocationsFile);
-  // //   g_GrenadeLocationsKv = new KeyValues("Grenades");
-  // //   g_GrenadeLocationsKv.ImportFromFile(legacyFile);
-  // //   g_UpdatedGrenadeKv = true;
-  // // } else {
-  // //   g_GrenadeLocationsKv = new KeyValues("Grenades");
-  // //   // g_GrenadeLocationsKv.SetEscapeSequences(true); // Avoid fatals from special chars in user data
-  // //   g_GrenadeLocationsKv.ImportFromFile(g_GrenadeLocationsFile);
-  // //   g_UpdatedGrenadeKv = false;
-  // // }
+  if (!FileExists(g_GrenadeLocationsFile) && FileExists(legacyFile)) {
+    PrintToServer("Moving legacy grenade data from %s to %s", legacyFile, g_GrenadeLocationsFile);
+    g_GrenadeLocationsKv = new KeyValues("Grenades");
+    g_GrenadeLocationsKv.ImportFromFile(legacyFile);
+    g_UpdatedGrenadeKv = true;
+  } else {
+    g_GrenadeLocationsKv = new KeyValues("Grenades");
+    // g_GrenadeLocationsKv.SetEscapeSequences(true); // Avoid fatals from special chars in user data
+    g_GrenadeLocationsKv.ImportFromFile(g_GrenadeLocationsFile);
+    g_UpdatedGrenadeKv = false;
+  }
 
   MaybeCorrectGrenadeIds();
 
@@ -966,7 +954,7 @@ public void OnClientDisconnect(int client) {
 }
 
 public void OnMapEnd() {
-  // // MaybeWriteNewGrenadeData();
+  MaybeWriteNewGrenadeData();
 
   if (g_InPracticeMode) {
     ExitPracticeMode();
@@ -977,26 +965,25 @@ public void OnMapEnd() {
   HoloNade_MapEnd();
   Retakes_MapEnd();
   Crossfires_MapEnd();
-  // // delete g_GrenadeLocationsKv;
+  delete g_GrenadeLocationsKv;
 }
 
-// // public void MaybeWriteNewGrenadeData() {
-// //   if (g_UpdatedGrenadeKv) {
-// //     g_GrenadeLocationsKv.Rewind();
-// //     BackupFiles("grenades");
-// //     DeleteFile(g_GrenadeLocationsFile);
-// //     if (!g_GrenadeLocationsKv.ExportToFile(g_GrenadeLocationsFile)) {
-// //       PrintToServer("[MaybeWriteNewGrenadeData]Failed to write grenade data to %s", g_GrenadeLocationsFile);
-// //     }
-// //     g_UpdatedGrenadeKv = false;
-// //   }
-// // }
+public void MaybeWriteNewGrenadeData() {
+  if (g_UpdatedGrenadeKv) {
+    g_GrenadeLocationsKv.Rewind();
+    BackupFiles("grenades");
+    DeleteFile(g_GrenadeLocationsFile);
+    if (!g_GrenadeLocationsKv.ExportToFile(g_GrenadeLocationsFile)) {
+      PrintToServer("[MaybeWriteNewGrenadeData]Failed to write grenade data to %s", g_GrenadeLocationsFile);
+    }
+    g_UpdatedGrenadeKv = false;
+  }
+}
 
 public void OnClientPutInServer(int client) {
   if (!IsPlayer(client)) {
     return;
   }
-  DB_GetPlayerData(client);
   HoloNade_ClientPutInServer(client);
 }
 

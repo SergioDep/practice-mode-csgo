@@ -124,40 +124,7 @@ public void InitHoloNadeEntities() {
 
 public void UpdateHoloNadeEntities() {
   RemoveHoloNadeEntities();
-  DB_UpdateHoloNadeEnts();
-  // UpdateHoloNadeEntities_Iterator();
-}
-
-
-public void T_UpdateHoloNadePlayersCallback(Database database, DBResultSet results, const char[] error, any data) {
-  if (results == null) {
-      LogError("Query T_GetPlayerDataCallback failed! %s", error);
-  } else {
-    while (SQL_FetchRow(results)) {
-      int grenadeId = results.FetchInt(0);
-      char steamid[32];
-      results.FetchString(1, steamid, sizeof(steamid));
-      float grenadeDetonationOrigin[3];
-      grenadeDetonationOrigin[0] = results.FetchFloat(2);
-      grenadeDetonationOrigin[1] = results.FetchFloat(3);
-      grenadeDetonationOrigin[2] = results.FetchFloat(4);
-      char grenadeTypeStr[32];
-      results.FetchString(5, grenadeTypeStr, sizeof(grenadeTypeStr));
-      GrenadeType type = GrenadeTypeFromString(grenadeTypeStr);
-
-      float projectedOrigin[3];
-      AddVectors(grenadeDetonationOrigin, view_as<float>({0.0, 0.0, GRENADEMODEL_HEIGHT}), projectedOrigin);
-
-      if (type == GrenadeType_Molotov || type == GrenadeType_Incendiary) {
-        SendVectorToGround(projectedOrigin);
-        projectedOrigin[2] += GRENADEMODEL_HEIGHT;
-      } else if (type == GrenadeType_Flash)
-        projectedOrigin[2] -= GRENADEMODEL_SCALE*5.5; //set to middle
-      char grenadeIdStr[16];
-      IntToString(grenadeId, grenadeIdStr, sizeof(grenadeIdStr));
-      CreateHoloNadeGroup(projectedOrigin, type, grenadeIdStr);
-    }
-  }
+  UpdateHoloNadeEntities_Iterator();
 }
 
 // public bool IsHoloNadeLoaded(const char[] grenadeIdStr) {
@@ -215,34 +182,6 @@ public void UpdateHoloNadeEntities_Iterator() {
   }
 }
 
-public int CreateHoloNadeGroup2(const float origin[3], const GrenadeType type, int grenadeID) {
-  int GroupEnts[MAX_GRENADES_IN_GROUP] = {-1, ...};
-  float distance;
-  int NearestGroupIndex = GetAvailableNadeGroupIndex(origin, type, distance);
-  if (NearestGroupIndex > -1 && (distance <= MAX_NADE_GROUP_DISTANCE)) {
-    // Exists and is near
-    // dont spawn, group in that location
-    g_HoloNadeEntities.GetArray(NearestGroupIndex, GroupEnts, sizeof(GroupEnts));
-    //i = 1,2,3... only saves the grenadeIds, i=0 saves the spawned entity index, i=1 is grenadeId of the entity
-    for (int i = 2; i < MAX_GRENADES_IN_GROUP; i++) {
-      if(GroupEnts[i] == -1) {
-        //saves the grenadeId in the next aviable spot ( = -1 )
-        GroupEnts[i] = grenadeID;
-        g_HoloNadeEntities.SetArray(NearestGroupIndex, GroupEnts, sizeof(GroupEnts));
-        return NearestGroupIndex;
-      }
-    }
-    //cant represent more grenades with a single entity (MAX_GRENADES_IN_GROUP)
-  }
-
-  // Only spawn this nade
-  int ent = CreateHoloNadeEnt2(origin, type, grenadeID);
-  GroupEnts[0] = ent;
-  GroupEnts[1] = grenadeID;
-  return g_HoloNadeEntities.PushArray(GroupEnts, sizeof(GroupEnts));
-}
-
-#pragma deprecated Use CreateHoloNadeGroup2() instead.
 public int CreateHoloNadeGroup(const float origin[3], const GrenadeType type, const char[] grenadeID) {
   int GroupEnts[MAX_GRENADES_IN_GROUP] = {-1, ...};
   float distance;
@@ -270,43 +209,6 @@ public int CreateHoloNadeGroup(const float origin[3], const GrenadeType type, co
   return g_HoloNadeEntities.PushArray(GroupEnts, sizeof(GroupEnts));
 }
 
-public int CreateHoloNadeEnt2(const float origin[3], const GrenadeType type, int grenadeID) {
-  char color[16];
-  GetHoloNadeColorFromType(type, color);
-
-  char grenadeModel[50];
-  GetGrenadeModelFromType(type, grenadeModel);
-
-  int ent = CreateEntityByName("prop_dynamic_override");
-  if (ent != -1) {
-    DispatchKeyValue(ent, "classname", "prop_dynamic_override");
-    DispatchKeyValue(ent, "spawnflags", "1"); 
-    DispatchKeyValue(ent, "renderamt", "255");
-    DispatchKeyValue(ent, "rendermode", "1"); 
-    DispatchKeyValue(ent, "rendercolor", color);
-    char targetName[GRENADE_NAME_LENGTH];
-    GrenadeTypeString(type, targetName, sizeof(targetName));
-    DispatchKeyValue(ent, "targetname", targetName);
-    DispatchKeyValue(ent, "model", grenadeModel);
-    if (!DispatchSpawn(ent)) {
-      return -1;
-    }
-    SetEntPropFloat(ent, Prop_Send, "m_flModelScale", GRENADEMODEL_SCALE);
-    if (type == GrenadeType_Molotov)
-      SetEntPropFloat(ent, Prop_Send, "m_flModelScale", 3.1);
-    TeleportEntity(ent, origin, NULL_VECTOR, NULL_VECTOR);
-    // Hack: reuse this prop for storing grenade ID.
-    SetEntProp(ent, Prop_Send, "m_iTeamNum", grenadeID);
-    SetEntProp(ent, Prop_Send, "m_bShouldGlow", true, true);
-    SetEntProp(ent, Prop_Send, "m_nGlowStyle", 0);
-    SetEntPropFloat(ent, Prop_Send, "m_flGlowMaxDist", 2500.0);
-    SetGlowColor(ent, color);
-    return ent;
-  }
-  return -1;
-}
-
-#pragma deprecated Use CreateHoloNadeEnt2() instead.
 public int CreateHoloNadeEnt(const float origin[3], const GrenadeType type, const char[] grenadeID) {
   char color[16];
   GetHoloNadeColorFromType(type, color);
