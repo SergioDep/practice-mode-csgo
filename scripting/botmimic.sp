@@ -5,6 +5,7 @@
 #include <sdkhooks>
 #include <smlib>
 #include <botmimic>
+#include "practicemode/util.sp"
 
 #undef REQUIRE_EXTENSIONS
 #include <dhooks>
@@ -74,15 +75,39 @@ enum BookmarkWhileMimicing {
   BWM_index // The index into the FH_bookmarks array in the fileheader for the corresponding bookmark (to get the name)
 };
 
-#define REACTION_TIME 10
-#define ONETAP_MOVE_DELAY 110
-
 // Real Bot
 bool g_BotMimic_VersusMode = false;
-int g_BotMimic_VersusMode_Time[MAXPLAYERS + 1] = {0, ...};
-ConVar g_BotMimic_VersusMode_ReactTimeCvar;
-ConVar g_BotMimic_VersusMode_AttackTimeCvar;
-ConVar g_BotMimic_VersusMode_MoveDistanceCvar;
+enum RouteType {
+	DEFAULT_ROUTE = 0,
+	FASTEST_ROUTE,
+	SAFEST_ROUTE,
+	RETREAT_ROUTE
+}
+
+#define VersusMode_MaxPositionDiff 3.0
+
+Handle g_hVersusModeMoveTo;
+Handle g_hVersusModeIsLineBlockedBySmoke;
+Address g_pVersusModeTheBots;
+
+bool g_VersusModeHandledByAi[MAXPLAYERS + 1] = {false, ...};
+bool g_VersusModeAiStarted[MAXPLAYERS + 1] = {false, ...};
+int g_VersusMode_Time[MAXPLAYERS + 1] = {0, ...};
+float g_VersusModeAiStartedTime[MAXPLAYERS + 1];
+float g_VersusModeLastMimicPosition[MAXPLAYERS + 1][3];
+bool g_VersusMode_MoveRight[MAXPLAYERS + 1];
+bool g_VersusMode_Duck[MAXPLAYERS + 1];
+
+#define VersusMode_ReactTimeMIN 60
+int g_VersusMode_ReactTime = 120;
+#define VersusMode_ReactTimeMAX 300
+
+#define VersusMode_MoveDistanceMIN 60
+int g_VersusMode_MoveDistance = 60;
+#define VersusMode_MoveDistanceMAX 150
+
+ConVar g_VersusMode_AttackTimeCvar;
+ConVar g_VersusMode_SpotMultCvar;
 
 // Where did he start recording. The bot is teleported to this position on replay.
 float g_fInitialPosition[MAXPLAYERS + 1][3];
@@ -176,7 +201,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
   CreateNative("BotMimic_GetFileHeaders", GetFileHeaders);
   CreateNative("BotMimic_ChangeRecordName", ChangeRecordName);
-  CreateNative("BotMimic_ChangeGameMode", ChangeGameMode);
+  CreateNative("BotMimic_IsVersusGameMode", IsVersusGameMode);
+  CreateNative("BotMimic_GetVersusModeReactionTime", GetVersusModeReactionTime);
+  CreateNative("BotMimic_GetVersusModeMoveDistance", GetVersusModeMoveDistance);
   CreateNative("BotMimic_GetLoadedRecordList", GetLoadedRecordList);
   CreateNative("BotMimic_GetLoadedRecordCategoryList", GetLoadedRecordCategoryList);
   CreateNative("BotMimic_GetFileCategory", GetFileCategory);
@@ -198,6 +225,30 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 public void OnPluginStart() {
+  Handle hGameConfig = LoadGameConfigFile("botstuff.games");
+  if (hGameConfig == INVALID_HANDLE)
+    SetFailState("Failed to find botstuff.games game config.");
+
+  if(!(g_pVersusModeTheBots = GameConfGetAddress(hGameConfig, "TheBots")))
+		SetFailState("Failed to get TheBots address.");
+
+  // CCSBot::MoveTo
+  StartPrepSDKCall(SDKCall_Player);
+  PrepSDKCall_SetFromConf(hGameConfig, SDKConf_Signature, "CCSBot::MoveTo");
+  PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_Pointer); // Move Position As Vector, Pointer
+  PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain); // Move Type As Integer
+  if ((g_hVersusModeMoveTo = EndPrepSDKCall()) == INVALID_HANDLE)
+    SetFailState("Failed to create SDKCall for CCSBot::MoveTo signature!");
+
+  // CBotManager::IsLineBlockedBySmoke
+  StartPrepSDKCall(SDKCall_Raw);
+  PrepSDKCall_SetFromConf(hGameConfig, SDKConf_Signature, "CBotManager::IsLineBlockedBySmoke");
+  PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_Pointer);
+  PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_Pointer);
+  PrepSDKCall_SetReturnInfo(SDKType_Bool, SDKPass_Plain);
+  if ((g_hVersusModeIsLineBlockedBySmoke = EndPrepSDKCall()) == INVALID_HANDLE)
+    SetFailState("Failed to create SDKCall for CBotManager::IsLineBlockedBySmoke offset!");
+
   CreateConVar("sm_botmimic_version", PLUGIN_VERSION, "Bot Mimic version", FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
   // Save the position of clients every 10000 ticks
@@ -217,12 +268,10 @@ public void OnPluginStart() {
   g_hSortedRecordList = new ArrayList(ByteCountToCells(PLATFORM_MAX_PATH));
   g_hSortedCategoryList = new ArrayList(ByteCountToCells(64));
 
-  g_BotMimic_VersusMode_ReactTimeCvar = CreateConVar("sm_botmimic_react_time", "80",
-                              "How much ticks until bot starts shooting.", 0, true, 30.0, true, 150.0);
-  g_BotMimic_VersusMode_AttackTimeCvar = CreateConVar("sm_botmimic_attack_time", "30",
+  g_VersusMode_AttackTimeCvar = CreateConVar("sm_botmimic_attack_time", "30",
                               "How much ticks until bot stops shooting.", 0, true, 0.0, true, 100.0);
-  g_BotMimic_VersusMode_MoveDistanceCvar = CreateConVar("sm_botmimic_move_distance", "60",
-                              "How much ticks will the bot move before shooting.", 0, true, 0.0, true, 150.0);
+  g_VersusMode_SpotMultCvar = CreateConVar("sm_botmimic_spot_mult", "1.1",
+                              "Only for testing purposes.", 0, true, 1.0, true, 2.0);
 
   HookEvent("player_spawn", Event_OnPlayerSpawn);
   HookEvent("player_death", Event_OnPlayerDeath);
@@ -458,11 +507,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     return Plugin_Continue;
   }
 
-  // Here attack logic ?
-
   if (g_iBotMimicTick[client] >= g_iBotMimicRecordTickCount[client]) {
-
-  // IF ATTACK dont execute any of this 
     // Reset Mimic
     g_iBotMimicTick[client] = 0;
     g_iCurrentAdditionalTeleportIndex[client] = 0;
@@ -512,6 +557,181 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // Client_RemoveAllWeapons(client);
   } else {
     // All ticks except first one
+
+    // Sees player -> saves current position as "POS1" -> turns into bot that crouches and strafes randomly
+    // stops seeing player/kills player -> hold that position (random seconds)?
+    // stopped holding position -> ai navmesh Move To "POS1"
+    // Gets to "POS1" -> continues replay
+    // Replay finishes -> Hold Zone(Custom CT AI), Defend Zone(Custom TT AI)
+
+    int currentTarget = -1;
+    if (g_BotMimic_VersusMode) {
+      float nearestDist = -1.0;
+      bool HoldingWeapon = true;
+      if (g_iBotActiveWeapon[client] != INVALID_ENT_REFERENCE) {
+        char sAlias[64];
+        Entity_GetClassName(g_iBotActiveWeapon[client], sAlias, sizeof(sAlias));
+        if (StrContains(sAlias, "grenade") != -1
+        || StrContains(sAlias, "flashbang") != -1
+        || StrContains(sAlias, "knife") != -1
+        || StrContains(sAlias, "decoy") != -1
+        || StrContains(sAlias, "molotov") != -1) {
+          HoldingWeapon = false;
+        }
+      }
+      
+      if (GetEntityFlags(client) & FL_ONGROUND && HoldingWeapon && GetFlashDuration(client) < 2.0) {
+        for (int i = 0; i < MaxClients; i++) {
+          int target = i;
+          if (IsPlayer(target)) {
+            if (!IsPlayerAlive(target)) {
+              continue;
+            }
+            if (GetClientTeam(target) == GetClientTeam(client)) {
+              continue;
+            }
+            float clientVec[3], targetVec[3];
+            GetClientEyePosition(client, clientVec);
+            GetClientEyePosition(target, targetVec);
+            float Dist = GetVectorDistance(clientVec, targetVec);
+            if (LineGoesThroughSmoke(clientVec, targetVec)) {
+              continue;
+            }
+            if (Dist > nearestDist && nearestDist > -1.0) {
+              continue;
+            }
+            if (!IsAbleToSee(client, target, 0.9)) {
+              continue;
+            }
+            nearestDist = Dist;
+            currentTarget = target;
+            break;
+          }
+        }
+      }
+
+      if (currentTarget > 0) { // Target Found
+        // PrintHintTextToAll("attackmode");
+        g_VersusModeHandledByAi[client] = false;
+        g_VersusModeAiStarted[client] = false;
+        float clientEyepos[3], viewTarget[3];
+        GetClientEyePosition(client, clientEyepos);
+        GetClientEyePosition(currentTarget, viewTarget);
+        viewTarget[2] -= 5.0; // headshot or bodyshot(30.0) ?
+        SubtractVectors(viewTarget, clientEyepos, viewTarget);
+        GetVectorAngles(viewTarget, viewTarget);
+        TeleportEntity(client, NULL_VECTOR, viewTarget, NULL_VECTOR);
+        // Strafe movement perpendicular to player->bot vector
+        // bot will stop and attack every g_VersusMode_ReactTime frames
+        if (g_VersusMode_Time[client] >= g_VersusMode_ReactTime &&
+            g_VersusMode_Time[client] <= (g_VersusMode_ReactTime+g_VersusMode_AttackTimeCvar.IntValue)) { // bot will attack for (2 + 1) frames
+          vel[1] = 0.0;
+          buttons |= IN_ATTACK;
+          // buttons &= ~IN_SPEED;
+          if (g_VersusMode_Time[client] == (g_VersusMode_ReactTime+g_VersusMode_AttackTimeCvar.IntValue)) {
+            g_VersusMode_Duck[client] = !!GetRandomInt(0, 1);
+            g_VersusMode_Time[client] = 0;
+          }
+          else g_VersusMode_Time[client]++;
+        } else {
+          buttons &= ~IN_ATTACK;
+          buttons &= ~IN_DUCK;
+          // buttons &= ~IN_SPEED;
+          if (g_VersusMode_Time[client] == g_VersusMode_ReactTime - g_VersusMode_MoveDistance) { // the bot will be moving RKBOT_MOVEDISTANCE frames
+            g_VersusMode_MoveRight[client] = !!GetRandomInt(0, 1);
+            g_VersusMode_Duck[client] = !!GetRandomInt(0, 1);
+            // g_RetakeBotWalk[client] = GetRandomInt(0, 1);
+          } else {
+            if (g_VersusMode_Time[client] > g_VersusMode_ReactTime - g_VersusMode_MoveDistance) { // while the bot is moving
+              if (g_VersusMode_MoveRight[client]) vel[1] = 250.0;
+              else vel[1] = -250.0;
+              if (g_VersusMode_Duck[client]) buttons |= IN_DUCK;
+
+              // if (g_RetakeBotWalk[client]) buttons |= IN_SPEED;
+              if (g_VersusMode_Time[client] == g_VersusMode_ReactTime - g_VersusMode_MoveDistance + 5) { // just after the bot started moving to check if IS STUCK
+                float fAbsVel[3];
+                Entity_GetAbsVelocity(client, fAbsVel);
+                if (GetVectorLength(fAbsVel) < 5.0) {
+                  // Jump to Attack Time ?
+                  // g_VersusMode_Time[client] = g_VersusMode_ReactTime;
+                  g_VersusMode_MoveRight[client] = !g_VersusMode_MoveRight[client];
+                }
+              }
+            } else {
+              // unknown status (bot is standing?)
+            }
+          }
+          g_VersusMode_Time[client]++;
+        }
+        return Plugin_Changed;
+      } else { // No Target, but spotted a target before
+        g_VersusMode_Time[client] = 0;
+        // bot should continue mimicing, so first we check if its in the correct position, if not send him there
+        float currentPosition[3];
+        GetClientAbsOrigin(client, currentPosition);
+        float vec1[3], vec2[3], zDiff;
+        vec1 = currentPosition;
+        vec1[2] = 0.0;
+        vec2 = g_VersusModeLastMimicPosition[client];
+        vec2[2] = 0.0;
+        zDiff = FloatAbs(currentPosition[2]-g_VersusModeLastMimicPosition[client][2]);
+        float distance = GetVectorDistance(vec1, vec2); //, true?
+        if (distance <= VersusMode_MaxPositionDiff && zDiff <= 80) {
+          // PrintHintTextToAll("checkmode, validpos");
+          // its on a valid position
+          g_VersusModeHandledByAi[client] = false;
+        } else {
+          // PrintHintTextToAll("checkmode, invalidpos");
+          g_VersusModeHandledByAi[client] = true;
+        }
+      }
+
+      if (g_VersusModeHandledByAi[client]) {
+        if (!g_VersusModeAiStarted[client]) {
+          // Bot started to being handle by AI
+          g_VersusModeAiStarted[client] = true;
+          g_VersusModeAiStartedTime[client] = GetGameTime();
+          BotMoveTo(client, g_VersusModeLastMimicPosition[client], FASTEST_ROUTE);
+        }
+        if (g_VersusModeAiStarted[client]) {
+          // Bot is being handled by AI
+          float currentPosition[3];
+          GetClientAbsOrigin(client, currentPosition);
+          float vec1[3], vec2[3], zDiff;
+          vec1 = currentPosition;
+          vec1[2] = 0.0;
+          vec2 = g_VersusModeLastMimicPosition[client];
+          vec2[2] = 0.0;
+          zDiff = FloatAbs(currentPosition[2]-g_VersusModeLastMimicPosition[client][2]);
+          float distance = GetVectorDistance(vec1, vec2); //, true?
+          if (distance <= VersusMode_MaxPositionDiff && zDiff <= 90) { // Entity_GetAbsVelocity(client, currentVelocity); also?
+            // Reached Expected Point
+            g_VersusModeHandledByAi[client] = false;
+            g_VersusModeAiStarted[client] = false;
+          } else {
+            // Bot should still be moving towards last mimic pos
+            float currentTime = GetGameTime();
+            if (currentTime-g_VersusModeAiStartedTime[client] > 0.8) {
+              // Too much time, help him by teleporting him closer to its last position <- ?
+              // PrintToConsoleAll("got stuck, pushed him closer to last position");
+              //   g_VersusModeLastMimicPosition[client][1], g_VersusModeLastMimicPosition[client][2]);
+              g_VersusModeAiStartedTime[client] = currentTime;
+              //   currentPosition[1], currentPosition[2]);
+              SubtractVectors(g_VersusModeLastMimicPosition[client], currentPosition, currentPosition);
+              NormalizeVector(currentPosition, currentPosition);
+              ScaleVector(currentPosition, 250.0); //1.5 is the velocity multiplier
+              currentPosition[2] = 0.0;
+              //   currentPosition[1], currentPosition[2]);
+              TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, currentPosition);
+              BotMoveTo(client, g_VersusModeLastMimicPosition[client], FASTEST_ROUTE); //////
+            }
+            return Plugin_Continue;
+          }
+        }
+      }
+    }
+    // PrintHintTextToAll("mimicmode");
+
     buttons = iFrame.playerButtons;
     impulse = iFrame.playerImpulse;
     vel = iFrame.predictedVelocity;
@@ -522,39 +742,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
     // To apply changes and not use plugin_changed <- Not Sure
     TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
-  }
-
-  // We're supposed to teleport stuff?
-  if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL)) {
-    AdditionalTeleport iAT;
-    ArrayList hAdditionalTeleport;
-    char sPath[PLATFORM_MAX_PATH];
-    GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
-    g_hLoadedRecordsAdditionalTeleport.GetValue(sPath, hAdditionalTeleport);
-    if (g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length) {
-      PrintToServer("[BOTMIMIC-RUNCMD]ERROR: g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length");
-      BotMimic_StopPlayerMimic(client);
-      return Plugin_Handled;
-    }
-    hAdditionalTeleport.GetArray(g_iCurrentAdditionalTeleportIndex[client], iAT, sizeof(iAT));
-
-    // Only pass the arguments, if they were set..
-    if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN)) {
-      // PrintToChatAll("teleport origin to %f %f %f", iAT.atOrigin[0], iAT.atOrigin[1], iAT.atOrigin[2]);
-      g_bValidTeleportCall[client] = true;
-      TeleportEntity(client, iAT.atOrigin, NULL_VECTOR, NULL_VECTOR);
-    }
-    if (iFrame.additionalFields & (ADDFIELD_TP_ANGLES)) {
-      // PrintToChatAll("teleport angles to %f %f %f", iAT.atAngles[0], iAT.atAngles[1], iAT.atAngles[2]);
-      g_bValidTeleportCall[client] = true;
-      TeleportEntity(client, NULL_VECTOR, iAT.atAngles, NULL_VECTOR);
-    }
-    if (iFrame.additionalFields & (ADDFIELD_TP_VEL)) {
-      // PrintToChatAll("teleport velocity to %f %f %f", iAT.atVelocity[0], iAT.atVelocity[1], iAT.atVelocity[2]);
-      g_bValidTeleportCall[client] = true;
-      TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, iAT.atVelocity);
-    }
-    g_iCurrentAdditionalTeleportIndex[client]++;
   }
 
   // Check New Weapon
@@ -573,7 +760,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     } else {
       // Bot doesnt have Weapon, Give It
       weapon = GivePlayerItem(client, sAlias);
-      // PrintToChatAll("client %N doesnt have weapon: %d", client, weapon);
       if (weapon != INVALID_ENT_REFERENCE) {
         g_iBotActiveWeapon[client] = weapon;
         // Switch to that new weapon on the next frame.
@@ -595,6 +781,44 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     g_bBotSwitchedWeapon[client] = false;
     SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", g_iBotActiveWeapon[client]);
     Client_SetActiveWeapon(client, g_iBotActiveWeapon[client]);
+  }
+
+  GetClientAbsOrigin(client, g_VersusModeLastMimicPosition[client]);
+
+  if (g_BotMimic_VersusMode) {
+    g_iBotMimicTick[client]++;
+    return Plugin_Changed;
+  }
+
+  // TODO: Allow Teleport only When attacked, not never 
+  // We're supposed to teleport stuff?
+  if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL)) {
+    AdditionalTeleport iAT;
+    ArrayList hAdditionalTeleport;
+    char sPath[PLATFORM_MAX_PATH];
+    GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
+    g_hLoadedRecordsAdditionalTeleport.GetValue(sPath, hAdditionalTeleport);
+    if (g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length) {
+      PrintToServer("[BOTMIMIC-RUNCMD]ERROR: g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length");
+      BotMimic_StopPlayerMimic(client);
+      return Plugin_Handled;
+    }
+    hAdditionalTeleport.GetArray(g_iCurrentAdditionalTeleportIndex[client], iAT, sizeof(iAT));
+
+    // Only pass the arguments, if they were set..
+    if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN)) {
+      g_bValidTeleportCall[client] = true;
+      TeleportEntity(client, iAT.atOrigin, NULL_VECTOR, NULL_VECTOR);
+    }
+    if (iFrame.additionalFields & (ADDFIELD_TP_ANGLES)) {
+      g_bValidTeleportCall[client] = true;
+      TeleportEntity(client, NULL_VECTOR, iAT.atAngles, NULL_VECTOR);
+    }
+    if (iFrame.additionalFields & (ADDFIELD_TP_VEL)) {
+      g_bValidTeleportCall[client] = true;
+      TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, iAT.atVelocity);
+    }
+    g_iCurrentAdditionalTeleportIndex[client]++;
   }
 
   // (FIX|CHECK) DONT NEED BOOKMARKS
@@ -624,9 +848,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
   return Plugin_Changed;
 }
 
-/**
- * Event Callbacks
- */
 public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
   int client = GetClientOfUserId(event.GetInt("userid"));
   if (!client)
@@ -672,11 +893,6 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
   return Plugin_Stop;
 }*/
 
-
-/**
- * SDKHooks Callbacks
- */
-// Don't allow mimicing players any other weapon than the one recorded!!
 // (FIX|CHECK) Does this help for double flash issue?
 public Action Hook_WeaponCanSwitchTo(int client, int weapon) {
   if (g_hBotMimicsRecord[client] == null)
@@ -688,9 +904,6 @@ public Action Hook_WeaponCanSwitchTo(int client, int weapon) {
   return Plugin_Continue;
 }
 
-/**
- * DHooks Callbacks
- */
 public MRESReturn DHooks_OnTeleport(int client, Handle hParams) {
   // This one is currently mimicing something.
   if (g_hBotMimicsRecord[client] != null) {
@@ -1176,6 +1389,11 @@ public int StopPlayerMimic(Handle plugin, int numParams) {
   g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
   g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
 
+  // Versus Mode
+  g_VersusModeHandledByAi[client] = false;
+  g_VersusModeAiStarted[client] = false;
+  g_VersusMode_Time[client] = 0;
+
   FileHeader iFileHeader;
   g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
 
@@ -1450,9 +1668,34 @@ public int ChangeRecordName(Handle plugin, int numParams) {
   return view_as<int>(BM_NoError);
 }
 
-public int ChangeGameMode(Handle plugin, int numParams) {
-  g_BotMimic_VersusMode = !g_BotMimic_VersusMode;
+public int IsVersusGameMode(Handle plugin, int numParams) {
+  bool change = GetNativeCell(1);
+  if (change) {
+    g_BotMimic_VersusMode = !g_BotMimic_VersusMode;
+  }
   return view_as<int>(g_BotMimic_VersusMode);
+}
+
+public int GetVersusModeReactionTime(Handle plugin, int numParams) {
+  bool change = GetNativeCell(1);
+  if (change) {
+    g_VersusMode_ReactTime += 30;
+    g_VersusMode_ReactTime = (g_VersusMode_ReactTime > VersusMode_ReactTimeMAX)
+      ? VersusMode_ReactTimeMIN
+      : g_VersusMode_ReactTime;
+  }
+  return g_VersusMode_ReactTime;
+}
+
+public int GetVersusModeMoveDistance(Handle plugin, int numParams) {
+  bool change = GetNativeCell(1);
+  if (change) {
+    g_VersusMode_MoveDistance += 30;
+    g_VersusMode_MoveDistance = (g_VersusMode_MoveDistance > VersusMode_MoveDistanceMAX)
+      ? VersusMode_MoveDistanceMIN
+      : g_VersusMode_MoveDistance;
+  }
+  return g_VersusMode_MoveDistance;
 }
 
 public int GetLoadedRecordList(Handle plugin, int numParams) {
@@ -1871,4 +2114,178 @@ stock void GetFileFromFrameHandle(ArrayList frames, char[] path, int maxlen) {
     strcopy(path, maxlen, sPath);
     break;
   }
+}
+
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+//////////////////////////////// ACTIVE BOT MODE ////////////////////////////////
+
+void BotMoveTo(int client, float fOrigin[3], RouteType routeType) {
+	SDKCall(g_hVersusModeMoveTo, client, fOrigin, routeType);
+}
+
+bool LineGoesThroughSmoke(const float fFrom[3], const float fTo[3]) {
+	return SDKCall(g_hVersusModeIsLineBlockedBySmoke, g_pVersusModeTheBots, fFrom, fTo);
+} 
+
+bool IsAbleToSee(int entity, int client, float spotValue) {
+  // Skip all traces if the player isn't within the field of view.
+  // - Temporarily disabled until eye angle prediction is added.
+  // if (IsInFieldOfView(g_vEyePos[client], g_vEyeAngles[client], g_vAbsCentre[entity]))
+  
+  float vecOrigin[3], vecEyePos[3];
+  GetClientAbsOrigin(entity, vecOrigin);
+  GetClientEyePosition(client, vecEyePos);
+  
+  // Check if centre is visible.
+  if (IsPointVisible(vecEyePos, vecOrigin)) {
+      return true;
+  }
+  
+  float vecEyePos_ent[3], vecEyeAng[3];
+  GetClientEyeAngles(entity, vecEyeAng);
+  GetClientEyePosition(entity, vecEyePos_ent);
+  
+  float mins[3], maxs[3];
+  GetClientMins(client, mins);
+  GetClientMaxs(client, maxs);
+  // Check outer 4 corners of player.
+  if (IsRectangleVisible(vecEyePos, vecOrigin, mins, maxs, spotValue)) {
+      return true;
+  }
+
+  // Check if weapon tip is visible.
+  // if (IsFwdVecVisible(vecEyePos, vecEyeAng, vecEyePos_ent)) {
+  //     return true;
+  // }
+
+  // // Check outer 4 corners of player.
+  // if (IsRectangleVisible(vecEyePos, vecOrigin, mins, maxs, 1.30)) {
+  //     return true;
+  // }
+  // // Check inner 4 corners of player.
+  // if (IsRectangleVisible(vecEyePos, vecOrigin, mins, maxs, 0.65)) {
+  //     return true;
+  // }
+
+  return false;
+}
+
+bool IsRectangleVisible(const float start[3], const float end[3], const float mins[3], const float maxs[3], float scale=1.0) {
+  float ZpozOffset = maxs[2];
+  float ZnegOffset = mins[2];
+  float WideOffset = ((maxs[0] - mins[0]) + (maxs[1] - mins[1])) / 4.0;
+
+  // This rectangle is just a point!
+  if (ZpozOffset == 0.0 && ZnegOffset == 0.0 && WideOffset == 0.0) {
+      return IsPointVisible(start, end);
+  }
+
+  // Adjust to scale.
+  ZpozOffset *= scale;
+  ZnegOffset *= scale;
+  WideOffset *= scale;
+  
+  // Prepare rotation matrix.
+  float angles[3], fwd[3], right[3];
+
+  SubtractVectors(start, end, fwd);
+  NormalizeVector(fwd, fwd);
+
+  GetVectorAngles(fwd, angles);
+  GetAngleVectors(angles, fwd, right, NULL_VECTOR);
+
+  float vRectangle[4][3], vTemp[3];
+
+  // If the player is on the same level as us, we can optimize by only rotating on the z-axis.
+  if (FloatAbs(fwd[2]) <= 0.7071) {
+    ScaleVector(right, WideOffset);
+    // Corner 1, 2
+    vTemp = end;
+    vTemp[2] += ZpozOffset;
+    AddVectors(vTemp, right, vRectangle[0]);
+    SubtractVectors(vTemp, right, vRectangle[1]);
+    // Corner 3, 4
+    vTemp = end;
+    vTemp[2] += ZnegOffset;
+    AddVectors(vTemp, right, vRectangle[2]);
+    SubtractVectors(vTemp, right, vRectangle[3]);
+  } else if (fwd[2] > 0.0) { // Player is below us.
+    fwd[2] = 0.0;
+    NormalizeVector(fwd, fwd);
+    
+    ScaleVector(fwd, scale);
+    ScaleVector(fwd, WideOffset);
+    ScaleVector(right, WideOffset);
+    
+    // Corner 1
+    vTemp = end;
+    vTemp[2] += ZpozOffset;
+    AddVectors(vTemp, right, vTemp);
+    SubtractVectors(vTemp, fwd, vRectangle[0]);
+    
+    // Corner 2
+    vTemp = end;
+    vTemp[2] += ZpozOffset;
+    SubtractVectors(vTemp, right, vTemp);
+    SubtractVectors(vTemp, fwd, vRectangle[1]);
+    
+    // Corner 3
+    vTemp = end;
+    vTemp[2] += ZnegOffset;
+    AddVectors(vTemp, right, vTemp);
+    AddVectors(vTemp, fwd, vRectangle[2]);
+    
+    // Corner 4
+    vTemp = end;
+    vTemp[2] += ZnegOffset;
+    SubtractVectors(vTemp, right, vTemp);
+    AddVectors(vTemp, fwd, vRectangle[3]);
+  } else { // Player is above us.
+    fwd[2] = 0.0;
+    NormalizeVector(fwd, fwd);
+    
+    ScaleVector(fwd, scale);
+    ScaleVector(fwd, WideOffset);
+    ScaleVector(right, WideOffset);
+
+    // Corner 1
+    vTemp = end;
+    vTemp[2] += ZpozOffset;
+    AddVectors(vTemp, right, vTemp);
+    AddVectors(vTemp, fwd, vRectangle[0]);
+    
+    // Corner 2
+    vTemp = end;
+    vTemp[2] += ZpozOffset;
+    SubtractVectors(vTemp, right, vTemp);
+    AddVectors(vTemp, fwd, vRectangle[1]);
+    
+    // Corner 3
+    vTemp = end;
+    vTemp[2] += ZnegOffset;
+    AddVectors(vTemp, right, vTemp);
+    SubtractVectors(vTemp, fwd, vRectangle[2]);
+    
+    // Corner 4
+    vTemp = end;
+    vTemp[2] += ZnegOffset;
+    SubtractVectors(vTemp, right, vTemp);
+    SubtractVectors(vTemp, fwd, vRectangle[3]);
+  }
+
+  // Run traces on all corners.
+  for (int i = 0; i < 4; i++) {
+    if (IsPointVisible(start, vRectangle[i])) {
+        return true;
+    }
+  }
+
+  return false;
 }

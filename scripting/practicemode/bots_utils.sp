@@ -12,6 +12,7 @@ public void SetNotPracticeBot(int bot) {
   g_IsNadeDemoBot[bot] = false;
   g_IsCrossfireBot[bot] = false;
   g_BotMindControlOwner[bot] = -1;
+  g_IsDemoVersusBot[bot] = false;
   strcopy(g_BotOriginalName[bot], sizeof(g_BotOriginalName[]), "-1");
 }
 

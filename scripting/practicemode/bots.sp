@@ -40,6 +40,9 @@ public Action PMBot_PlayerRunCmd(int client, int &buttons, float vel[3], float a
     }
   }
 
+  vel = ZERO_VECTOR;
+  buttons &= ~IN_ATTACK;
+
   if (g_BotCrouch[client]) {
     buttons |= IN_DUCK;
   } else {
@@ -48,10 +51,12 @@ public Action PMBot_PlayerRunCmd(int client, int &buttons, float vel[3], float a
   if (g_BotJump[client]) {
     buttons |= IN_JUMP;
     g_BotJump[client] = false;
+  } else {
+    buttons &= ~IN_JUMP;
   }
   TeleportEntity(client, NULL_VECTOR, g_BotSpawnAngles[client], NULL_VECTOR);
 
-  return Plugin_Continue;
+  return Plugin_Changed;
 }
 
 stock void CreateBot(int client) {
@@ -147,6 +152,14 @@ public Action Timer_RespawnClient(Handle timer, int serial) {
   }
 
   int client = GetClientFromSerial(serial);
+
+  if (g_InBotDemoMode) {
+    if (IsPlayer(client) && !IsPlayerAlive(client)) {
+      CS_RespawnPlayer(client);
+      return Plugin_Stop;
+    }
+  }
+
   if (IsValidClient(client) && !IsPlayerAlive(client)) {
     bool respawn = true;
     if (GetClientTeam(client) == CS_TEAM_CT) {
@@ -216,7 +229,7 @@ public void KickAllClientBots(int client) {
   for (int i = 0; i < g_ClientBots[client].Length; i++) {
     int bot = g_ClientBots[client].Get(i);
     if (IsPMBot(bot)) {
-      ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+      ServerCommand("bot_kick \"%s\"", g_BotOriginalName[bot]);
       g_IsPMBot[bot] = false;
       g_BotMindControlOwner[bot] = -1;
     }
@@ -246,7 +259,7 @@ public void KickAllBotsInServer() {
         if (IsPMBot(bot)) {
           g_IsPMBot[bot] = false;
           g_BotMindControlOwner[bot] = -1;
-          ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+          ServerCommand("bot_kick \"%s\"", g_BotOriginalName[bot]);
         }
       }
       g_ClientBots[client].Clear();
@@ -289,7 +302,7 @@ public Action Event_BotDamageDealtEvent(Event event, const char[] name, bool don
     int postDamageHealth = event.GetInt("health");
     char botName[128];
     GetClientName(victim, botName, sizeof(botName));
-    PM_Message(attacker, "%t", "BotDamageEvent", attacker, damage, botName, postDamageHealth);
+    PM_Message(attacker, "%t", "BotDamageEvent", damage, botName, postDamageHealth);
   }
 
   return Plugin_Continue;

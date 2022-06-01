@@ -208,7 +208,7 @@ stock int SaveGrenadeToKv(int client, const float origin[3], const float angles[
       char weaponName[128];
       GetGrenadeWeapon(type, weaponName, sizeof(weaponName));
       bool predictJumpThrow = view_as<bool>(StrContains(execution, "Jump", false) + 1);
-      CreateTrajectory(client, weaponName, predictJumpThrow, predictedEndPos, origin, angles);
+      CreateTrajectory(client, weaponName, predictJumpThrow, GetEntityFlags(client) & FL_DUCKING, predictedEndPos, origin, angles);
       g_GrenadeLocationsKv.SetVector("grenadeDetonationOrigin", predictedEndPos);
     }
     g_GrenadeLocationsKv.SetString("execution", execution);

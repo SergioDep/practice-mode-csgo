@@ -12,10 +12,85 @@ int g_Predict_GenerateViewPointDelay[MAXPLAYERS + 1] = {GenerateViewPointDelay, 
 float g_Predict_LastClientPos[MAXPLAYERS + 1][3]; // g_LastGrenadePinPulledOrigin
 float g_Predict_LastClientAng[MAXPLAYERS + 1][3];
 
+// database
+Database g_PredictionDb = null;
+ArrayList g_PredictionResults[MAXPLAYERS + 1] = {null, ...};
+int g_PredictionCurrentLineup[MAXPLAYERS + 1];
+float g_PredictionClientPos[MAXPLAYERS + 1][3];
+
+enum struct S_PredictedPositions {
+  char startingPosId[32];
+  float origin[3];
+  float angles[3];
+  char grenadeThrowType[128];
+  float airTime;
+  float endPos[3];
+}
+
 enum GrenadePredict_Mode {
   GRENADEPREDICT_NONE = 0,
   GRENADEPREDICT_NORMAL,
   GRENADEPREDICT_JUMPTHROW
+}
+
+public void NadePrediction_PluginStart() {
+  if (g_PredictionDb == null) {
+    Database.Connect(SQLConnectPredictionsCallback, "prediction-test");
+  }
+
+  for (int i = 0; i <= MaxClients; i++) {
+    g_PredictionResults[i] = new ArrayList(sizeof(S_PredictedPositions));
+  }
+}
+
+public void SQLConnectPredictionsCallback(Database database, const char[] error, any data) {
+  if (database == null) {
+    LogError("Database failure: %s", error);
+  } else {
+    g_PredictionDb = database;
+    char dbIdentifier[10];
+    g_PredictionDb.Driver.GetIdentifier(dbIdentifier, sizeof(dbIdentifier));
+    
+    char createQuery[2560];
+    Format(createQuery, sizeof(createQuery),
+      "CREATE TABLE IF NOT EXISTS predict_startpos("...
+      "  x float,"...
+      "  y float,"...
+      "  z float,"...
+      "  pitch float,"...
+      "  yaw float,"...
+      "  i int,"...
+      "  id varchar(25),"...
+      "  map varchar(25),"...
+      "  type varchar(25),"...
+      "  UNIQUE(id, map, type))"...
+      ");"...
+
+      "CREATE TABLE IF NOT EXISTS predict_endpos("...
+      "  parentId varchar(25),"...
+      "  endx float,"...
+      "  endy float,"...
+      "  endz float,"...
+      "  ang_x float,"...
+      "  ang_y float,"...
+      "  n_bounces int,"...
+      "  airtime float,"...
+      "  id varchar(25),"...
+      "  map varchar(25),"...
+      "  throwtype varchar(25),"...
+      "  type varchar(25),"...
+      "  UNIQUE(parentId, id, map, type))"
+    );
+    g_PredictionDb.Query(Predict_CreateTables_ErrorCheckCallback, createQuery, _, DBPrio_High);
+  }
+}
+
+public void Predict_CreateTables_ErrorCheckCallback(Database database, DBResultSet results, const char[] error, any data) {
+  if (results == null) {
+    LogError("SQLite Creating the main prediction tables has failed! %s", error);
+  } else {
+    PrintToServer("=================Connected to DB!=================");
+  }
 }
 
 public int CreateInvisibleEnt() {
@@ -88,11 +163,12 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         GetClientEyeAngles(client, g_Predict_LastClientAng[client]);
         float endPoint[3];
         if (g_PredictMode[client] == GRENADEPREDICT_NONE) {
-          // CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW,
+          // CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, buttons & IN_DUCK,
           //  endPoint, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]);
           // TeleportEntity(g_Predict_FinalDestinationEnt[client], endPoint, NULL_VECTOR, NULL_VECTOR);
         } else {
-          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, endPoint, g_Predict_LastClientPos[client]);
+          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, buttons & IN_DUCK,
+            endPoint, g_Predict_LastClientPos[client]);
           if (!g_Predict_ViewEndpoint[client]) {
             SetClientViewEntity(client, g_Predict_FinalDestinationEnt[client]);
             Client_SetFOV(client, 120);
@@ -108,7 +184,7 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         }
       } else {
         if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
-          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW);
+          CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, buttons & IN_DUCK);
         }
       }
     } else if (IsValidEntity(g_LastGrenadeEntity[client]) && g_LastGrenadeEntity[client] > 0 &&
@@ -124,7 +200,7 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
         }
     } else if (g_Predict_HoldingReload[client]) {
       if (g_PredictMode[client] > GRENADEPREDICT_NONE) {
-        CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW,
+        CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, buttons & IN_DUCK,
           _, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]);
       }
       if (GetEntityMoveType(client) == MOVETYPE_NONE && g_Predict_ObservingGrenade[client] > 1) {
@@ -132,7 +208,7 @@ public Action NadePrediction_PlayerRunCmd(int client, int &buttons, char[] weapo
       }
     }
   } else if (g_Predict_ObservingGrenade[client] > 0) {
-    CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW,
+    CreateTrajectory(client, weaponName, g_PredictMode[client]==GRENADEPREDICT_JUMPTHROW, buttons & IN_DUCK,
       _, g_Predict_LastClientPos[client], g_Predict_LastClientAng[client]);
     SetEntityRenderMode(client, RENDER_NONE); //?
   }
@@ -170,6 +246,7 @@ stock void CreateTrajectory(
   int client,
   const char[] weapon,
   bool jumpthrow = false,
+  int crouching = false,
   float endPos[3] = {},
   const float customOrigin[3] = {0.0, 0.0, 0.0},
   const float customAngles[3] = {0.0, 0.0, 0.0},
@@ -203,11 +280,11 @@ stock void CreateTrajectory(
   GetAngleVectors(angThrow, vforward, NULL_VECTOR, NULL_VECTOR);
   NormalizeVector(vforward, vforward);
 
-  gStart[2] += (jumpthrow) ? 27.90365600585937 : 0.0;
+  gStart[2] += (jumpthrow) ? ((!crouching) ? 27.9035568237 : 28.245349884) : 0.0;
   for (int i = 0; i < 3; i++)
     gStart[i] += vforward[i] * 16.0000142601273616094204044;
 
-  if (jumpthrow) PlayerVelocity[2] = 211.3683776855468;
+  PlayerVelocity[2] = (jumpthrow) ? ((!crouching) ? 211.3683776855468 : 214.4933776855468000) : PlayerVelocity[2];
   ScaleVector(PlayerVelocity, 1.25);
 
   for (int i = 0; i < 3; i++)
@@ -430,4 +507,161 @@ public void ClientStopObserveEntities(int client) {
   SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", -1);
   SetEntityRenderMode(client, RENDER_NORMAL);
   SetEntityMoveType(client, MOVETYPE_WALK);
+}
+
+public Action Command_PredictNades(int client, int args) {
+  GetClientAbsOrigin(client, g_PredictionClientPos[client]);
+  PM_Message(client, "{ORANGE} Predicting a smoke for your current position [{GREEN}%.2f, %.2f, %.2f{ORANGE}]...",
+    g_PredictionClientPos[client][0], g_PredictionClientPos[client][1], g_PredictionClientPos[client][2]);
+  char map[PLATFORM_MAX_PATH];
+  GetCleanMapName(map, sizeof(map));
+  float precision = 10.0;
+  float zprecision = 35.0;
+  PM_Message(client, "{ORANGE}Radius: %.2f, Z Precision = %.2f", precision, zprecision);
+  char query[512];
+  SQL_FormatQuery(g_PredictionDb, query, sizeof(query),
+    "  SELECT s.x, s.y, s.z, e.ang_x, e.ang_y, e.throwtype, e.airtime, e.parentId, e.endx, e.endy, e.endz"...
+    "  FROM predict_endpos e, predict_startpos s"...
+    "  WHERE e.map = '%s' AND e.parentId = s.id"...
+    "  AND e.endx BETWEEN %f AND %f"...
+    "  AND e.endy BETWEEN %f AND %f"...
+    "  AND e.endz BETWEEN %f AND %f",
+    map,
+    g_PredictionClientPos[client][0] - precision,
+    g_PredictionClientPos[client][0] + precision,
+    g_PredictionClientPos[client][1] - precision,
+    g_PredictionClientPos[client][1] + precision,
+    g_PredictionClientPos[client][2] - zprecision,
+    g_PredictionClientPos[client][2] + zprecision
+  );
+  g_PredictionDb.Query(T_PredictGrenadesCallback, query, client);
+  
+  return Plugin_Handled;
+}
+
+public void T_PredictGrenadesCallback(Database database, DBResultSet results, const char[] error, int client) {
+  if (!IsPlayer(client)) {
+    PrintToServer("error T_PredictGrenadesCallback, invalid player (disconnected)");
+    return;
+  }
+  if (results == null) {
+    PrintToServer("Query T_PredictGrenadesCallback failed! %s", error);
+  } else if (results.RowCount == 0) {
+    PM_Message(client, "{LIGHT_RED}No se encontraron coincidencias");
+  } else {
+    g_PredictionResults[client].Clear();
+    while (SQL_FetchRow(results)) {
+      S_PredictedPositions predictedPosition;
+      predictedPosition.origin[0] = results.FetchFloat(0);
+      predictedPosition.origin[1] = results.FetchFloat(1);
+      predictedPosition.origin[2] = results.FetchFloat(2);
+
+      predictedPosition.angles[0] = results.FetchFloat(3);
+      predictedPosition.angles[1] = results.FetchFloat(4);
+
+      results.FetchString(5, predictedPosition.grenadeThrowType, sizeof(predictedPosition.grenadeThrowType));
+
+      predictedPosition.airTime = results.FetchFloat(6);
+
+      results.FetchString(7, predictedPosition.startingPosId, sizeof(predictedPosition.startingPosId));
+
+      predictedPosition.endPos[0] = results.FetchFloat(8);
+      predictedPosition.endPos[1] = results.FetchFloat(9);
+      predictedPosition.endPos[2] = results.FetchFloat(10);
+      g_PredictionResults[client].PushArray(predictedPosition, sizeof(predictedPosition));
+    }
+    g_PredictionCurrentLineup[client] = -1;
+    // bubble sort
+    S_PredictedPositions predictionj;
+    S_PredictedPositions predictionj_1;
+    for (int i = 1; i < g_PredictionResults[client].Length; i++) {
+      for (int j = i; j > 0 ; j--) {
+        g_PredictionResults[client].GetArray(j, predictionj, sizeof(predictionj));
+        g_PredictionResults[client].GetArray(j-1, predictionj_1, sizeof(predictionj_1));
+        if (strcmp(predictionj.startingPosId, predictionj_1.startingPosId) == -1) {
+          g_PredictionResults[client].SwapAt(j, j-1);
+        }
+        else break;
+      }
+    }
+    PM_Message(client, "{ORANGE}%d resultados encontrados!", results.RowCount);
+    Command_PredictResultsMenu(client, 0);
+  }
+}
+
+public Action Command_PredictResultsMenu(int client, int args) {
+  Menu menu = new Menu(PredictionResultsMenuHandler);
+  menu.SetTitle("Prediction Results:");
+
+  int currentStartPos, startPosCount;
+  char exploringPositionId[32] = "";
+  S_PredictedPositions currentPredictedInfo;
+  for (int i=0; i < g_PredictionResults[client].Length; i++) {
+    g_PredictionResults[client].GetArray(i, currentPredictedInfo, sizeof(currentPredictedInfo));
+    if (i == g_PredictionCurrentLineup[client]) {
+      currentStartPos = startPosCount;
+    }
+    if (!StrEqual(currentPredictedInfo.startingPosId, exploringPositionId)) {
+      startPosCount++;
+      strcopy(exploringPositionId, sizeof(exploringPositionId), currentPredictedInfo.startingPosId);
+    }
+  }
+
+  char displayStr[128];
+  Format(displayStr, sizeof(displayStr), "Lineup Actual [%d/%d]", g_PredictionCurrentLineup[client]+1, g_PredictionResults[client].Length);
+  menu.AddItem("", displayStr, ITEMDRAW_DISABLED);
+  Format(displayStr, sizeof(displayStr), "Posicion Actual [%d/%d]\n ", currentStartPos, startPosCount);
+  menu.AddItem("", displayStr, ITEMDRAW_DISABLED);
+
+  menu.AddItem("prev_startpos", "Ir a anterior Lineup");
+  menu.AddItem("next_startpos", "Ir a Siguiente Lineup");
+  
+  if (g_PredictionCurrentLineup[client] > -1) {
+    g_PredictionResults[client].GetArray(g_PredictionCurrentLineup[client], currentPredictedInfo, sizeof(currentPredictedInfo));
+    Format(displayStr, sizeof(displayStr), "Distancia hacia el Objetivo: %.2f", GetVectorDistance(g_PredictionClientPos[client], currentPredictedInfo.endPos));
+    menu.AddItem("", displayStr, ITEMDRAW_DISABLED);
+    Format(displayStr, sizeof(displayStr), "Ejecucion: %s", currentPredictedInfo.grenadeThrowType);
+    menu.AddItem("", displayStr, ITEMDRAW_DISABLED);
+    Format(displayStr, sizeof(displayStr), "Tiempo en Aire: %.2f", currentPredictedInfo.airTime);
+    menu.AddItem("", displayStr, ITEMDRAW_DISABLED);
+  } else {
+    menu.AddItem("", "", ITEMDRAW_NOTEXT);
+    menu.AddItem("", "", ITEMDRAW_NOTEXT);
+    menu.AddItem("", "", ITEMDRAW_NOTEXT);
+  }
+
+  menu.Pagination = MENU_NO_PAGINATION;
+  menu.ExitButton = true;
+  menu.DisplayAt(client, 0, MENU_TIME_FOREVER);
+  return Plugin_Handled;
+}
+
+public int PredictionResultsMenuHandler(Menu menu, MenuAction action, int client, int item) {
+  if (action == MenuAction_Select) {
+    char buffer[128];
+    menu.GetItem(item, buffer, sizeof(buffer));
+    S_PredictedPositions predictedPos;
+    if (StrEqual(buffer, "next_startpos")) {
+      g_PredictionCurrentLineup[client]++;
+      if (g_PredictionCurrentLineup[client] >= g_PredictionResults[client].Length) {
+        g_PredictionCurrentLineup[client] = 0;
+      }
+      g_PredictionResults[client].GetArray(g_PredictionCurrentLineup[client], predictedPos, sizeof(predictedPos));
+    } else if (StrEqual(buffer, "prev_startpos")) {
+      g_PredictionCurrentLineup[client]--;
+      if (g_PredictionCurrentLineup[client] < 0) {
+        g_PredictionCurrentLineup[client] = g_PredictionResults[client].Length-1;
+      }
+      g_PredictionResults[client].GetArray(g_PredictionCurrentLineup[client], predictedPos, sizeof(predictedPos));
+    }
+
+    predictedPos.origin[2] -= 64.0;
+    SetEntityMoveType(client, MOVETYPE_WALK);
+    TeleportEntity(client, predictedPos.origin, predictedPos.angles, ZERO_VECTOR);
+
+    Command_PredictResultsMenu(client, 0);
+  } else if (action == MenuAction_End) {
+    delete menu;
+  }
+  return 0;
 }

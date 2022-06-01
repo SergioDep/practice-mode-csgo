@@ -196,11 +196,25 @@ native BMError BotMimic_GetFileHeaders(const char[] path, any iFileHeader[sizeof
 native bool BotMimic_GetFileCategory(const char[] path, char[] category, int maxlen);
 
 /**
- * Change the Gamemode of a record.
+ * Get the Gamemode of a record.
  *
- * @return				true if attack mode, false if normal mode
+ * @return				true if versus mode, false if normal mode
  */
-native bool BotMimic_ChangeGameMode();
+native bool BotMimic_IsVersusGameMode(bool change = false);
+
+/**
+ * Get Reaction Time of Versus Mode Bots.
+ *
+ * @return				reaction time of bots
+ */
+native int BotMimic_GetVersusModeReactionTime(bool change = false);
+
+/**
+ * Get Move Distance of Versus Mode Bots.
+ *
+ * @return				move distance of bots
+ */
+native int BotMimic_GetVersusModeMoveDistance(bool change = false);
 
 /**
  * Change the name of a record. This doesn't change the filename, but the stored record name inside the file. (BMTP_recordName)
@@ -392,6 +406,8 @@ public void __pl_botmimic_SetNTVOptional()
 	MarkNativeAsOptional("BotMimic_GetFileCategory");
 	MarkNativeAsOptional("BotMimic_ChangeRecordName");
 	MarkNativeAsOptional("BotMimic_GetRecordBookmarks");
-	MarkNativeAsOptional("BotMimic_ChangeGameMode");
+	MarkNativeAsOptional("BotMimic_IsVersusGameMode");
+	MarkNativeAsOptional("BotMimic_GetVersusModeReactionTime");
+	MarkNativeAsOptional("BotMimic_GetVersusModeMoveDistance");
 }
 #endif

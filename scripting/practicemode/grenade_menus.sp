@@ -160,7 +160,7 @@ stock void GiveNadeFilterMenu(int client, GrenadeType grenadeType = GrenadeType_
   if (nadesCount == 0) {
     g_ClientLastMenuType[client] = GrenadeMenuType_NadeGroup;
     delete menu;
-    GiveDemoMenuInContext(client);
+    GiveNadeMenuInContext(client);
     return;
   }
   menu.ExitButton = true;

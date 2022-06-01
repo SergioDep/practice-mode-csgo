@@ -6,6 +6,8 @@
 bool g_UpdatedDemoKv = false;
 char g_SelectedDemoId[MAXPLAYERS + 1][DEMO_ID_LENGTH];
 int g_SelectedRoleId[MAXPLAYERS + 1] = {-1, ...}; //g_CurrentEditingRole[client] = -1;
+#define DemoOption_RoundRestart_MAX 8
+int g_DemoOption_RoundRestart[MAXPLAYERS + 1] = {0, ...};
 int g_CurrentEditingDemoRole[MAXPLAYERS + 1] = {-1, ...};
 float g_CurrentDemoRecordingStartTime[MAXPLAYERS + 1];
 int g_CurrentDemoNadeIndex[MAXPLAYERS + 1] = {0, ...};
@@ -14,8 +16,6 @@ bool g_DemoPlayRoundTimer[MAXPLAYERS + 1] = {false, ...};
 
 bool g_RecordingFullDemo = false;
 int g_RecordingFullDemoClient = -1;
-
-bool g_BotMimic_VersusMode = false;
 
 ArrayList g_DemoBots;
 
@@ -61,7 +61,7 @@ public void ExitDemoMode() {
   for (int i = 0; i < g_DemoBots.Length; i++) {
     int bot = g_DemoBots.Get(i);
     if (IsDemoBot(bot)) {
-      ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+      ServerCommand("bot_kick \"%s\"", g_BotOriginalName[bot]);
     }
   }
   g_DemoBots.Clear();
@@ -84,8 +84,6 @@ public void InitDemoFunctions() {
   g_RecordingFullDemo = false;
 
   // NOTE: mp_death_drop_gun should be set to 1, or bots dont get weapon when executing give weapon_... command
-  SetCvarIntSafe("mp_respawn_on_death_ct", 0);
-  SetCvarIntSafe("mp_respawn_on_death_t", 0);
 }
 
 public void ResetDemoClientsData() {
@@ -128,12 +126,7 @@ public Action Timer_GetDemoBots(Handle timer) {
   return Plugin_Handled;
 }
 
-public Action Command_TestDemo(int client, int args) {
-  DemosMenu(client);
-  return Plugin_Handled;
-}
-
-public Action Command_Demos(int client, int args) {
+public Action Command_DemosMenu(int client, int args) {
   if (!g_InPracticeMode || g_InRetakeMode) {
     return Plugin_Handled;
   }
@@ -153,18 +146,10 @@ public Action Command_Demos(int client, int args) {
     InitDemoFunctions();
   }
 
-  if (args >= 1) {
-    char arg[128];
-    GetCmdArg(1, arg, sizeof(arg));
-    if (DemoExists(arg)) {
-      strcopy(g_SelectedDemoId[client], DEMO_ID_LENGTH, arg);
-      SingleDemoEditorMenu(client);
-    } else {
-      PM_Message(client, "No existe demo con id %s.", arg);
-    }
-
-    return Plugin_Handled;
-  }
+  SetCvarIntSafe("mp_respawn_on_death_ct", 0);
+  SetCvarIntSafe("mp_respawn_on_death_t", 0);
+  SetCvarIntSafe("mp_suicide_penalty", 0);
+  SetCvarIntSafe("mp_suicide_time", 0);
 
   GiveDemoMenuInContext(client);
   return Plugin_Handled;
@@ -180,8 +165,8 @@ public void GiveDemoMenuInContext(int client) {
       SingleDemoEditorMenu(client);
     }
   } else {
-    // All Demos menu.
-    DemosMainMenu(client);
+    // Demos menu.
+    DemosMenu(client);
   }
 }
 
@@ -255,17 +240,14 @@ public void BotMimic_OnRecordSaved(int client, char[] name, char[] category, cha
       IntToString(g_CurrentEditingDemoRole[client], roleIdStr, sizeof(roleIdStr));
       SetDemoRoleKVString(g_SelectedDemoId[client], roleIdStr, "file", file);
       SetDemoRoleKVNades(client, g_SelectedDemoId[client], roleIdStr);
-      SetDemoRoleKVString(g_SelectedDemoId[client], roleIdStr, "team", GetClientTeam(client) == CS_TEAM_CT ? "CT" : "T");
+      SetDemoRoleKVString(g_SelectedDemoId[client], roleIdStr, "team", GetClientTeam(client) == CS_TEAM_CT ? "CT" : "TT");
 
-      if (!g_RecordingFullDemo) {
+      if (g_RecordingFullDemo && g_RecordingFullDemoClient == client) {
+        PM_MessageToAll("{ORANGE}Terminó la grabación completa de esta demo.");
+        RequestFrame(ResetFullDemoRecording, GetClientSerial(client));
+      } else {
         PM_Message(client, "{ORANGE}Terminó la grabación de jugador rol %d", g_CurrentEditingDemoRole[client] + 1);
         GiveDemoMenuInContext(client);
-      } else {
-        if (g_RecordingFullDemoClient == client) {
-          g_CurrentEditingDemoRole[client] = -1;
-          PM_MessageToAll("{ORANGE}Terminó la grabación completa de esta demo.");
-          RequestFrame(ResetFullDemoRecording, GetClientSerial(client));
-        }
       }
       MaybeWriteNewDemoData();
     }
@@ -285,8 +267,13 @@ public void BotMimic_OnPlayerStopsMimicing(int client, char[] name, char[] categ
   if (g_CurrentDemoNadeIndex[client] < g_DemoNadeData[client].Length) {
     PrintToServer("[BotMimic_OnPlayerStopsMimicing]ERROR: %d didnt throw all his nades", client);
   }
-  if (IsDemoBot(client) && !g_BotMimic_VersusMode) {
-    ForcePlayerSuicide(client);
+  if (IsDemoBot(client)) {
+    if (BotMimic_IsVersusGameMode()) {
+      SetupVersusDemoBot(client);
+      CreateTimer(0.1, Timer_CheckVersusDemoPlayerFast, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+    } else {
+      ForcePlayerSuicide(client);
+    }
   } else if (g_IsNadeDemoBot[client]) {
     CreateTimer(1.5, Timer_KickBot, client);
   }
@@ -299,7 +286,7 @@ public Action Timer_KickBot(Handle timer, int client) {
     TeleportEntity(playerSpec, g_LastSpecPlayerPos[playerSpec], g_LastSpecPlayerAng[playerSpec], ZERO_VECTOR);
   }
   if (IsValidClient(client)) {
-    ServerCommand("bot_kick %s", g_BotOriginalName[client]);
+    ServerCommand("bot_kick \"%s\"", g_BotOriginalName[client]);
   }
   return Plugin_Stop;
 }
@@ -332,11 +319,11 @@ public void FinishRecordingDemo(int client, bool printOnFail) {
         BotMimic_StopRecording(i, true /* save */);
       }
     }
-
+    
   } else {
     if (BotMimic_IsPlayerRecording(client)) {
       BotMimic_StopRecording(client, true /* save */);
-      CancelAllDemos();
+      // CancelAllDemos();
     } else if (printOnFail) {
       PM_Message(client, "No estas grabando una demo ahora mismo.");
     }

@@ -8,6 +8,8 @@
 #include <smlib>
 #include <sourcemod>
 #include <vector>
+#include <navmesh>
+#include <profiler>
 
 #undef REQUIRE_PLUGIN
 #include "botmimic.inc"
@@ -20,6 +22,8 @@
 #pragma newdecls required
 
 #define MAX_PASSWORD_LENGTH 32
+
+int g_PracticeSetupClient = -2;
 
 bool g_InPracticeMode = false;
 bool g_InDryMode = false;
@@ -188,6 +192,8 @@ bool g_ClientButtonsInUse[MAXPLAYERS + 1] = {false, ...};
 
 #include "practicemode/grenade_iterators.sp"
 
+#include "practicemode/manico_botsimprover.sp"
+
 #include "practicemode/backups.sp"
 #include "practicemode/bots.sp"
 #include "practicemode/bots_menu.sp"
@@ -320,9 +326,7 @@ public void OnPluginStart() {
   {
     RegConsoleCmd("sm_botsmenu", Command_BotsMenu);
     PM_AddChatAlias(".bots", "sm_botsmenu");
-
-    RegConsoleCmd("sm_bot", Command_Bot);
-    PM_AddChatAlias(".bot", "sm_bot");
+    PM_AddChatAlias(".bot", "sm_botsmenu");
 
     RegConsoleCmd("sm_nadesmenu", Command_NadesMenu);
     PM_AddChatAlias(".nades", "sm_nadesmenu");
@@ -337,6 +341,12 @@ public void OnPluginStart() {
 
     RegConsoleCmd("sm_prueba", FUNCION_PRUEBA);
     PM_AddChatAlias(".prueba", "sm_prueba");
+
+    RegConsoleCmd("sm_predictnades", Command_PredictNades);
+    PM_AddChatAlias(".pred", "sm_predictnades");
+    
+    RegConsoleCmd("sm_predictedsmenu", Command_PredictResultsMenu);
+    PM_AddChatAlias(".predmenu", "sm_predictedsmenu");
   }
 
   // // Bot replay commands
@@ -372,16 +382,9 @@ public void OnPluginStart() {
 
   // Demo commands
   {
-    RegConsoleCmd("sm_demo", Command_Demos);
+    RegConsoleCmd("sm_demo", Command_DemosMenu);
     PM_AddChatAlias(".demo", "sm_demo");
     PM_AddChatAlias(".demos", "sm_demo");
-
-    RegConsoleCmd("sm_testdemo", Command_TestDemo);
-    PM_AddChatAlias(".testdemo", "sm_testdemo");
-
-    // RegConsoleCmd("sm_demomode", CommandToggleReplayMode);
-    // PM_AddChatAlias(".versus", "sm_demomode");
-    // PM_AddChatAlias(".replaymode", "sm_demomode");
 
     // RegConsoleCmd("sm_pausemode", CommandTogglePauseMode);
     // PM_AddChatAlias(".pause", "sm_pausemode");
@@ -413,6 +416,7 @@ public void OnPluginStart() {
   {
     RegConsoleCmd("sm_spec", Command_Spec);
     PM_AddChatAlias(".spec", "sm_spec");
+    PM_AddChatAlias(".spect", "sm_spec");
 
     RegConsoleCmd("sm_joint", Command_JoinT);
     PM_AddChatAlias(".t", "sm_joint");
@@ -573,6 +577,11 @@ public void OnPluginStart() {
   HookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
   HookEvent("player_disconnect", Event_PlayerDisconnect, EventHookMode_Pre);
   HookUserMessage(GetUserMessageId("SayText2"), Hook_SayText2, true);
+  
+  HookEventEx("weapon_zoom", OnWeaponZoom);
+  HookEventEx("weapon_fire", OnWeaponFire);
+  LoadSDK();
+  LoadDetours();
 
   g_CSUtilsLoaded = LibraryExists("csutils");
 
@@ -588,14 +597,33 @@ public void OnPluginStart() {
   Retakes_PluginStart();
   Crossfire_PluginStart();
   DevEntries_PluginStart();
+  NadePrediction_PluginStart();
+  
 }
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast) {
+  if (g_InRetakeMode) {
+    return Event_Retakes_RoundStart(event, name, dontBroadcast);
+  }
+
   UpdateHoloNadeEntities();
   UpdateHoloSpawnEntities();
-  if (g_InRetakeMode) {
-    Event_Retakes_RoundStart(event, name, dontBroadcast);
+
+  g_manicoEveryoneDead = false;
+  for (int i = 1; i <= MaxClients; i++) {
+    if (IsDemoBot(i) && IsPlayerAlive(i)) {
+      g_manicoUncrouchChance[i] = Math_GetRandomInt(1, 100);
+      g_manicoDontSwitch[i] = false;
+      g_manicoTarget[i] = -1;
+        
+      if(GetClientTeam(i) == CS_TEAM_CT)
+        SetEntData(i, g_manicoBotMoraleOffset, -3);
+      else if(GetClientTeam(i) == CS_TEAM_T) {
+        SetEntData(i, g_manicoBotMoraleOffset, 1);
+      }
+    }
   }
+
   return Plugin_Continue;
 }
 
@@ -610,6 +638,9 @@ public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBr
     int client = GetClientOfUserId(event.GetInt("userid"));
     if (IsPracticeBot(client)) {
       SetEventBroadcast(event, true);
+      if (IsDemoBot(client)) {
+        SDKUnhook(client, SDKHook_OnTakeDamageAlive, OnTakeDamageAlive);
+      }
       return Plugin_Continue;
     }
     return Plugin_Continue;
@@ -785,6 +816,10 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
     }
   }
 
+  if (g_InBotDemoMode && !BotMimic_IsVersusGameMode()) {
+    Entity_SetCollisionGroup(client, COLLISION_GROUP_NONE); // COLLISION_GROUP_DEBRIS
+  }
+
   // TODO: move this elsewhere and save it properly.
   if (g_InBotDemoMode && g_BotMimicLoaded && IsDemoBot(client)) {
     Client_SetArmor(client, 100);
@@ -848,6 +883,7 @@ public void OnMapStart() {
   EnforceDirectoryExists("data/practicemode/entries/backups");
   EnforceDirectoryExists("data/practicemode/demos");
   EnforceDirectoryExists("data/practicemode/demos/backups");
+  EnforceDirectoryExists("data/practicemode/prueba");
 
   // This supports backwards compatability for grenades saved in the old location
   // data/practicemode_grenades. The data is transferred to the new
@@ -988,22 +1024,109 @@ public void OnClientPutInServer(int client) {
 }
 
 public Action FUNCION_PRUEBA(int client, int args) {
-  if (args >= 1) {
-    char arg[128];
-    GetCmdArg(1, arg, sizeof(arg));
-    int index = Client_GetWeapon(client, arg);
-    PM_Message(client, "prueba: %d", index);
-    // int ent = CreateEntityByName("prop_dynamic_override");
-    // if (ent > 0) {
-    //   SetEntityModel(ent, arg);
-    //   float fOrigin[3];
-    //   GetClientAbsOrigin(client, fOrigin);
-    //   if (DispatchSpawn(ent)) {
-    //     TeleportEntity(ent, fOrigin, NULL_VECTOR, NULL_VECTOR);
-    //     PrintToChatAll("yes");
-    //   }
-    // }
+  for (float x=-85; x<=85; x+=0.04) {
+    for (float y=-180; y<180; y+=0.04) {
+      PrintToChatAll("possible angle: %d %d");
+    }
   }
+  return Plugin_Handled;
+  bool jumpthrow = false;
+  int crouching = GetEntityFlags(client) & FL_DUCKING;
+  char arg[128];
+  if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
+    if (StrEqual(arg, "jumpthrow")) {
+      jumpthrow = true;
+    }
+  }
+
+  float jumpthrowHeightDiff = (!crouching) ? 27.9035568237 : 28.245349884;
+  // for normal, No Idea why too many random values
+  //27.903553009
+  //27.9035491943
+  //27.9036560059
+  //27.9035568237
+  //27.9036560059
+  //27.90365600585937
+  // for crouching:
+  // forgot to copy all found values here, but on average 28.245349884
+  float jumpthrowZVelDiff = (!crouching) ? 211.3683776855468 : 214.4933776855468000;
+  // for normal
+  //  211.36837768554680
+  // for crouching: either one of those, maybe not, no idea why too many values
+  //  208.2433776855468000
+  //  214.4933776855468000
+
+  // Predict Position
+  float clientfwd[3], clienteyepos[3], clienteyeang[3], clientvelocity[3], predictednadepos[3];
+  GetClientEyePosition(client, clienteyepos);
+  clienteyepos[2] += (jumpthrow) ? jumpthrowHeightDiff : 0.0;
+  // PM_MessageToAll("{PURPLE}predicted player height: [%.32f, %.32f, %.32f]", clienteyepos[0], clienteyepos[1], clienteyepos[2]);
+  GetClientEyeAngles(client, clienteyeang);
+  Entity_GetAbsVelocity(client, clientvelocity);
+  clientvelocity[2] = (jumpthrow) ? jumpthrowZVelDiff : clientvelocity[2];
+
+  if (clienteyeang[0] < -90.0) clienteyeang[0] += 360.0;
+  else if (clienteyeang[0] > 90.0) clienteyeang[0] -= 360.0;
+
+  clienteyeang[0] -= (90.0 - FloatAbs(clienteyeang[0]))*10.0/90.0;
+  
+  GetAngleVectors(clienteyeang, clientfwd, NULL_VECTOR, NULL_VECTOR);
+  float secondparameter[3];
+  float fwd22[3], fwd6[3];
+  fwd22 = clientfwd;
+  fwd6 = clientfwd;
+  ScaleVector(fwd22, 22.0);
+  ScaleVector(fwd6, 6.0);
+  AddVectors(clienteyepos, fwd22, secondparameter);
+
+  float fmins[3] = {-2.0, -2.0, -2.0};
+  float fmaxs[3] = {2.0, 2.0, 2.0};
+  Handle trace = TR_TraceHullFilterEx(clienteyepos, secondparameter, fmins, fmaxs, MASK_SOLID|CONTENTS_CURRENT_90, Trace_BaseFilter, client);
+  TR_GetEndPosition(predictednadepos, trace);
+
+  SubtractVectors(predictednadepos, fwd6, predictednadepos);
+  // PM_MessageToAll("{PURPLE}predicted nadeorigin: [%.32f, %.32f, %.32f]", predictednadepos[0], predictednadepos[1], predictednadepos[2]);
+
+  // Predict Position
+
+  // Predict Velocity
+  float predictednadevel[3];
+  ScaleVector(clientvelocity, 1.25);
+
+  for (int i=0; i < 3; i++) {
+    predictednadevel[i] = clientfwd[i]*675.0 + clientvelocity[i];
+  }
+  // PM_MessageToAll("{PURPLE}predicted nadevelocity: [%.32f, %.32f, %.32f]", predictednadevel[0], predictednadevel[1], predictednadevel[2]);
+
+  // Predict Velocity
+
+  // Spawn Grenade
+  int grenadeTest = CreateEntityByName("smokegrenade_projectile");
+  if (grenadeTest > 0) {
+    if (DispatchSpawn(grenadeTest)) {
+      DispatchKeyValue(grenadeTest, "globalname", "custom");
+      AcceptEntityInput(grenadeTest, "InitializeSpawnFromWorld");
+      AcceptEntityInput(grenadeTest, "FireUser1", client);
+      SetEntProp(grenadeTest, Prop_Send, "m_iTeamNum", GetClientTeam(client));
+      SetEntPropEnt(grenadeTest, Prop_Send, "m_hOwnerEntity", client);
+      SetEntPropVector(grenadeTest, Prop_Data, "m_vecVelocity", predictednadevel);
+      SetEntPropVector(grenadeTest, Prop_Send, "m_vInitialVelocity", predictednadevel);
+      SetEntPropFloat(grenadeTest, Prop_Data, "m_flGravity", 0.4);
+      SetEntPropFloat(grenadeTest, Prop_Data, "m_flFriction", 0.2);
+      SetEntPropFloat(grenadeTest, Prop_Data, "m_flDamage", 100.0);
+      SetEntPropFloat(grenadeTest, Prop_Data, "m_flElasticity", 0.45);
+      SetEntPropEnt(grenadeTest, Prop_Send, "m_hThrower", client);
+      float angVelocity[3];
+      angVelocity[0] = 600.0;
+      angVelocity[1] = GetRandomFloat(-1200.0, 1200.0);
+      angVelocity[2] = 0.0;
+      SetEntPropVector(grenadeTest, Prop_Data, "m_vecAngVelocity", angVelocity);
+      SetEntProp(grenadeTest, Prop_Send, "m_nSmokeEffectTickBegin", 0);
+      Entity_SetCollisionGroup(grenadeTest, COLLISION_GROUP_PROJECTILE);
+      TeleportEntity(grenadeTest, predictednadepos, NULL_VECTOR, predictednadevel);
+    }
+  }
+
   return Plugin_Handled;
 }
 
@@ -1023,6 +1146,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
       return RetakeBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
     } else if (IsCrossfireBot(client)) {
       return CrossfireBot_PlayerRunCmd(client, buttons, vel, angles, weapon);
+    } else if (g_IsDemoVersusBot[client]) {
+      return DemoVersusBot_PlayerRunCmd(client, buttons);
     }
     return Plugin_Continue;
   }
@@ -1086,11 +1211,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         char spawnclassName[CLASS_LENGTH];
         int spawnEnt = g_Spawns.Get(spawnIndex, 0);
         if (IsValidEntity(spawnEnt)) {
-          GetEntityClassname(g_Spawns.Get(spawnIndex, 0), spawnclassName, sizeof(spawnclassName));
+          GetEntityClassname(spawnEnt, spawnclassName, sizeof(spawnclassName));
           if (StrEqual(spawnclassName, "info_player_counterterrorist")) {
-            PM_Message(client, "{ORANGE}%t: {GREEN}%d", "TeleportingToCTSpawn", client, spawnIndex + 1);
+            PM_Message(client, "%t", "TeleportingToCTSpawn", spawnIndex + 1);
           } else {
-            PM_Message(client, "{ORANGE}%t: {GREEN}%d", "TeleportingToTSpawn", client, spawnIndex + 1 - ctSpawnsLength);
+            PM_Message(client, "%t", "TeleportingToTSpawn", spawnIndex + 1 - ctSpawnsLength);
           }
         }
         return Plugin_Continue;
@@ -1102,7 +1227,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
   
   char weaponName[64];
   GetClientWeapon(client, weaponName, sizeof(weaponName));
-
   if((StrContains(nadelist, weaponName, false) != -1)) {
     if(((buttons & IN_ATTACK) || (buttons & IN_ATTACK2)) && !g_ClientPulledPin[client]) {
         GetClientAbsOrigin(client, g_LastGrenadePinPulledOrigin[client]);
@@ -1124,7 +1248,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
     } else if (g_ClientPulledPin[client] && !((buttons & IN_ATTACK) || (buttons & IN_ATTACK2))) {
         g_ClientPulledPinButtons[client] |= buttons;
-        g_ClientPulledPin[client] = false;
         // DEMOS
         if (g_recordingNadeDemoStatus[client]) {
           if (!g_InBotDemoMode && BotMimic_IsPlayerRecording(client)) {
@@ -1165,6 +1288,7 @@ static bool MovingButtons(int buttons) {
 
 public Action Timer_Botmimic_PauseRecording(Handle timer, int serial) {
   int client = GetClientFromSerial(serial);
+  g_ClientPulledPin[client] = false;
   if (BotMimic_IsPlayerRecording(client)) {
     if (BotMimic_IsRecordingPaused(client)) {
       BotMimic_StopRecording(client, false); // delete
@@ -1270,8 +1394,6 @@ public void PerformNoclipAction(int client) {
 }
 
 public void LaunchPracticeMode() {
-  ServerCommand("exec sourcemod/practicemode_start.cfg");
-
   g_InPracticeMode = true;
   ServerCommand("exec practicemode.cfg");
   SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
@@ -1287,6 +1409,9 @@ public void LaunchPracticeMode() {
   SetCvarIntSafe("sv_showimpacts", 1);
   SetCvarIntSafe("sm_holo_spawns", 1);
   SetCvarIntSafe("sm_bot_collision", 0);
+  SetCvarIntSafe("mp_suicide_time", 0);
+  SetCvarIntSafe("mp_suicide_penalty", 0);
+  SetCvarIntSafe("bot_difficulty", 3);
 
   HoloNade_LaunchPracticeMode();
 
@@ -1318,7 +1443,7 @@ public void ExitPracticeMode() {
   SetCvarIntSafe("sv_grenade_trajectory", 0);
   SetCvarIntSafe("mp_ignore_round_win_conditions", 0);
   SetCvarIntSafe("sv_grenade_trajectory", 0);
-  SetCvarIntSafe("sv_infinite_ammo", 2);
+  SetCvarIntSafe("sv_infinite_ammo", 0);
   SetCvarIntSafe("sm_allow_noclip", 0);
   SetCvarIntSafe("mp_respawn_on_death_ct", 0);
   SetCvarIntSafe("mp_respawn_on_death_t", 0);
@@ -1327,6 +1452,9 @@ public void ExitPracticeMode() {
   SetCvarIntSafe("sv_showimpacts", 0);
   SetCvarIntSafe("sm_holo_spawns", 0);
   SetCvarIntSafe("sm_bot_collision", 1);
+  SetCvarIntSafe("mp_suicide_time", 0);
+  SetCvarIntSafe("mp_suicide_penalty", 0);
+  SetCvarIntSafe("bot_difficulty", 3);
   
   SetConVarStringSafe("sv_password", "");
 
@@ -1343,7 +1471,6 @@ public void ExitPracticeMode() {
 
   HoloNade_ExitPracticeMode();
   Spawns_ExitPracticeMode();
-  ServerCommand("exec sourcemod/practicemode_end.cfg");
   // PM_MessageToAll("Modo Práctica esta desactivado.");
 }
 
@@ -1351,7 +1478,6 @@ public void OnEntityCreated(int entity, const char[] className) {
   if (!IsValidEntity(entity)) {
     return;
   }
-
   SDKHook(entity, SDKHook_SpawnPost, OnEntitySpawned);
 }
 
@@ -1371,8 +1497,23 @@ public void DelayedOnEntitySpawned(int entity) {
   GetEdictClassname(entity, className, sizeof(className));
 
   if (IsGrenadeProjectile(className)) {
+
     // Get the cl_color value for the client that threw this grenade.
     int client = Entity_GetOwner(entity);
+    
+    // float grenadeOrigin[3], grenadeVel[3];
+    // Entity_GetAbsOrigin(entity, grenadeOrigin);
+    // PM_MessageToAll("{ORANGE}grenade ent origin {GREEN}[%.32f, %.32f, %.32f]", grenadeOrigin[0], grenadeOrigin[1], grenadeOrigin[2]);
+    // Entity_GetAbsVelocity(entity, grenadeVel);
+    // PM_MessageToAll("{ORANGE}grenade abs velocity {GREEN}[%.32f, %.32f, %.32f]", grenadeVel[0], grenadeVel[1], grenadeVel[2]);
+
+    // float clientEyePos[3], clientVel[3];
+    // GetClientEyePosition(client, clientEyePos);
+    // PM_MessageToAll("{ORANGE}player abs origin {GREEN}[%.32f, %.32f, %.32f]", clientEyePos[0], clientEyePos[1], clientEyePos[2]);
+
+    // Entity_GetAbsVelocity(client, clientVel);
+    // PM_MessageToAll("{ORANGE}player abs velocity {GREEN}[%.32f, %.32f, %.32f]", clientVel[0], clientVel[1], clientVel[2]);
+
     if (IsPlayer(client) && g_InPracticeMode &&
     GrenadeFromProjectileName(className) == GrenadeType_Smoke) {
       int index = g_ClientGrenadeThrowTimes[client].Push(EntIndexToEntRef(entity));
@@ -1414,12 +1555,14 @@ public void DelayedOnEntitySpawned(int entity) {
 
       // If the user recently indicated they are testing a flash (.flash),
       // teleport to that spot.
-      if (GrenadeFromProjectileName(className) == GrenadeType_Flash && g_TestingFlash[client]) {
-        float delay = g_TestFlashTeleportDelayCvar.FloatValue;
-        if (delay <= 0.0) {
-          delay = 0.1;
+      if (IsPlayer(client)) {
+        if (GrenadeFromProjectileName(className) == GrenadeType_Flash && g_TestingFlash[client]) {
+          float delay = g_TestFlashTeleportDelayCvar.FloatValue;
+          if (delay <= 0.0) {
+            delay = 0.1;
+          }
+          CreateTimer(delay, Timer_TeleportClient, GetClientSerial(client));
         }
-        CreateTimer(delay, Timer_TeleportClient, GetClientSerial(client));
       }
     }
   }
@@ -1469,11 +1612,13 @@ public Action Event_PlayerBlind(Event event, const char[] name, bool dontBroadca
       if(GetFlashDuration(victim)>=g_FlashEffectiveThresholdCvar.FloatValue) T_CB="{GREEN}";
       else T_CB="{DARK_RED}";
       PM_Message(i, "{PURPLE}---------------");
-      PM_Message(i, "{ORANGE}%t: %N", "BlindedPlayer", i, victim);
+      char victimName[MAX_NAME_LENGTH];
+      GetClientName(victim, victimName, sizeof(victimName));
+      PM_Message(i, "%t", "BlindedPlayer", victimName);
       float accuracy = GetFlashDuration(victim)/5.21*100;
       accuracy > 100.0 ? (accuracy=100.0) : accuracy;
-      PM_Message(i, "%t: %s%.1f%%", "FlashPrecision", i, T_CB, accuracy);
-      PM_Message(i, "%t: %s%.1f{NORMAL}s", "FlashDuration", i, T_CB, GetFlashDuration(victim));
+      PM_Message(i, "%t", "FlashPrecision", T_CB, accuracy);
+      PM_Message(i, "%t", "FlashDuration", T_CB, GetFlashDuration(victim));
       PM_Message(i, "{PURPLE}---------------");
       break;
     }
@@ -1526,7 +1671,7 @@ public Action GrenadeDetonateTimerHelper(Event event, const char[] name, bool do
         GrenadeType grenadeType = GrenadeTypeFromWeapon(client, grenadeName);
         GrenadeTypeString(grenadeType, grenadeName, sizeof(grenadeName));
         UpperString(grenadeName);
-        PM_Message(client, "{ORANGE}%t (%s): %.1f segundos, %d rebotes", "AirTime", client, grenadeName, dt, bounces);
+        PM_Message(client, "%t", "AirTime", grenadeName, dt, bounces);
         if (grenadeType == GrenadeType_Smoke) {
           ForceGlow(entity);
         }
@@ -1627,9 +1772,13 @@ public Action Event_FreezeEnd(Event event, const char[] name, bool dontBroadcast
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
-
   for (int i = 1; i <= MaxClients; i++) {
     if (!IsPlayer(i)) {
+      if (IsDemoBot(i)) {
+        if (!BotMimic_IsPlayerMimicing(i) && IsPlayerAlive(i)) {
+          ForcePlayerSuicide(i);
+        }
+      }
       continue;
     }
 
@@ -1726,67 +1875,67 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
   if (g_WaitForSaveNade[client]) {
     g_WaitForSaveNade[client] = false;
     if (StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       SaveClientNade(client, cleanArgs);
     }
   } else if (g_WaitForServerPassword && client == g_PracticeSetupClient) {
     g_WaitForServerPassword = false;
     if (StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       SetConVarStringSafe("sv_password", cleanArgs);
-      PM_Message(client, "%t \"{ORANGE}%s{NORMAL}\".", "PasswordChangedTo", client, cleanArgs);
+      PM_Message(client, "%t", "PasswordChangedTo", cleanArgs);
     }
     PracticeSetupMenu(client);
   } else if(g_WaitForRetakeSave[client]) {
     g_WaitForRetakeSave[client] = false;
     if(StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       IntToString(GetRetakesNextId(), g_SelectedRetakeId, RETAKE_ID_LENGTH);
       SetRetakeName(g_SelectedRetakeId, cleanArgs);
-      PM_Message(client, "{ORANGE}%t", "CreatedRetake", client, cleanArgs, g_SelectedRetakeId);
+      PM_Message(client, "%t", "CreatedRetake", cleanArgs, g_SelectedRetakeId);
       SingleRetakeEditorMenu(client);
     }
   } else if(g_WaitForCrossfireSave[client]) {
     g_WaitForCrossfireSave[client] = false;
     if(StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       IntToString(GetCrossfiresNextId(), g_SelectedCrossfireId, CROSSFIRE_ID_LENGTH);
       SetCrossfireName(g_SelectedCrossfireId, cleanArgs);
-      PM_Message(client, "{ORANGE}%t", "CreatedCrossfire", client, cleanArgs, g_SelectedCrossfireId);
+      PM_Message(client, "%t", "CreatedCrossfire", cleanArgs, g_SelectedCrossfireId);
       SingleCrossfireEditorMenu(client);
     }
   } else if (g_WaitForDemoSave[client]) {
     g_WaitForDemoSave[client] = false;
     if(StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       IntToString(GetDemosNextId(), g_SelectedDemoId[client], DEMO_ID_LENGTH);
       SetDemoName(g_SelectedDemoId[client], cleanArgs);
-      PM_Message(client, "{ORANGE}%t", "CreatedDemo", client, cleanArgs, g_SelectedDemoId[client]);
+      PM_Message(client, "%t", "CreatedDemo", cleanArgs, g_SelectedDemoId[client]);
       SingleDemoEditorMenu(client);
     }
   } else if (g_WaitForSingleDemoRoleName[client]) {
     g_WaitForSingleDemoRoleName[client] = false;
     if(StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       char demoRoleStr[DEMO_ID_LENGTH];
       IntToString(g_CurrentEditingDemoRole[client], demoRoleStr, sizeof(demoRoleStr));
       SetDemoRoleKVString(g_SelectedDemoId[client], demoRoleStr, "name", cleanArgs);
-      PM_Message(client, "{ORANGE}%t", "NameChangedTo", client, cleanArgs);
+      PM_Message(client, "%t", "NameChangedTo", cleanArgs);
       SingleDemoRoleMenu(client, g_CurrentEditingDemoRole[client]);
     }
   } else if (g_WaitForSingleDemoName[client]) {
     g_WaitForSingleDemoName[client] = false;
     if(StrEqual(cleanArgs, "!no")) {
-      PM_Message(client, "{ORANGE}%t", "ActionCanceled", client);
+      PM_Message(client, "%t", "ActionCanceled");
     } else {
       SetDemoName(g_SelectedDemoId[client], cleanArgs);
-      PM_Message(client, "{ORANGE}%t", "NameChangedTo", client, cleanArgs);
+      PM_Message(client, "%t", "NameChangedTo", cleanArgs);
       SingleDemoEditorMenu(client);
     }
   }
@@ -1834,33 +1983,33 @@ stock void PracticeSetupMenu(int client, int pos = 0) {
   Format(buffer, sizeof(buffer), "%t", "KickPlayers", client);
   menu.AddItem("kickplayers", buffer);
 
-  Format(buffer, sizeof(buffer), "%t: %t", "Option_ShowImpacts", client,
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_ShowImpacts",
   (GetCvarIntSafe("sv_showimpacts") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("showimpacts", buffer);
 
-  Format(buffer, sizeof(buffer), "%t: %t", "Option_InfiniteAmmo", client,
-  (GetCvarIntSafe("sv_infinite_ammo") != 1) ? "Disabled" : "Enabled", client);
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_InfiniteAmmo",
+  (GetCvarIntSafe("sv_infinite_ammo") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("infiniteammo", buffer);
 
-  Format(buffer, sizeof(buffer), "%t: %t", "Option_BotsWallhack", client,
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_BotsWallhack",
   (GetCvarIntSafe("sm_glow_pmbots") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("glowbots", buffer);
 
-  Format(buffer, sizeof(buffer), "%t: %t", "Option_GrenadeTrajectory", client,
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_GrenadeTrajectory",
   (GetCvarIntSafe("sv_grenade_trajectory") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("grenadetrajectory", buffer);
 
-  Format(buffer, sizeof(buffer), "%t: %t", "Option_ShowSpawns", client,
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_ShowSpawns",
   (GetCvarIntSafe("sm_holo_spawns") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("glowspawns", buffer);
 
-  Format(buffer, sizeof(buffer), "%t: %t", "Option_AllowNoclip", client,
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_AllowNoclip",
   (GetCvarIntSafe("sm_allow_noclip") == 0) ? "Disabled" : "Enabled", client);
   menu.AddItem("noclip", buffer);
 
-  // Format(buffer, sizeof(buffer), "%t: %t", "Colisiones: ", client,
-  // (GetCvarIntSafe("sm_bot_collision") == 0) ? "Disabled" : "Enabled", client);
-  // menu.AddItem("collision", buffer);
+  Format(buffer, sizeof(buffer), "%t: %t", "Option_Collisions",
+  (GetCvarIntSafe("sm_bot_collision") == 0) ? "Disabled" : "Enabled", client);
+  menu.AddItem("collision", buffer);
 
   // menu.Pagination = MENU_NO_PAGINATION;
   menu.ExitButton = true;
@@ -1880,11 +2029,11 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
       if (!StrEqual(SvPassword, "")) {
         SetConVarString(FindConVar("sv_password"), "");
       } else {
-        PM_Message(client, "%t", "WriteInput", client, "la nueva contraseña");
+        PM_Message(client, "%t", "WriteNewPassword");
         g_WaitForServerPassword = true;
       }
     } else if (StrEqual(buffer, "changepassword")) {
-        PM_Message(client, "%t", "WriteInput", client, "la nueva contraseña");
+        PM_Message(client, "%t", "WriteNewPassword");
         g_WaitForServerPassword = true;
     } else if (StrEqual(buffer, "kickplayers")) {
       Command_Kick(client, 0);
@@ -1900,7 +2049,7 @@ public int PracticeSetupMenuHandler(Menu menu, MenuAction action, int client, in
       }
       else if (StrEqual(buffer, "infiniteammo")) {
         (GetCvarIntSafe("sv_infinite_ammo") == 1)
-        ? SetCvarIntSafe("sv_infinite_ammo", 2)
+        ? SetCvarIntSafe("sv_infinite_ammo", 0)
         : SetCvarIntSafe("sv_infinite_ammo", 1);
       }
       else if (StrEqual(buffer, "glowbots")) {
@@ -1943,8 +2092,10 @@ stock void GivePracticeMenu(int client, int style = ITEMDRAW_DEFAULT) {
   char displayStr[OPTION_NAME_LENGTH];
   Format(displayStr, sizeof(displayStr), "%t", "BotsMenu", client);
   menu.AddItem("bots_menu", displayStr);
-  Format(displayStr, sizeof(displayStr), "%t\n ", "NadesMenu", client);
+  Format(displayStr, sizeof(displayStr), "%t", "NadesMenu", client);
   menu.AddItem("nades_menu", displayStr);
+  Format(displayStr, sizeof(displayStr), "%t\n ", "DemosMenu", client);
+  menu.AddItem("demos_menu", displayStr);
   
   Format(displayStr, sizeof(displayStr), "%t\n ", "Help", client);
   menu.AddItem("help", displayStr);
@@ -1961,9 +2112,11 @@ public int PracticeMenuHandler(Menu menu, MenuAction action, int client, int par
     menu.GetItem(param2, buffer, sizeof(buffer));
     
     if (StrEqual(buffer, "bots_menu")) {
-      GiveBotsMenu(client);
+      Command_BotsMenu(client, 0);
     } else if (StrEqual(buffer, "nades_menu")) {
-      GiveNadesMainMenu(client);
+      Command_NadesMenu(client, 0);
+    } else if (StrEqual(buffer, "demos_menu")) {
+      Command_DemosMenu(client, 0);
     } else {
       if (StrEqual(buffer, "help")) {
         ShowHelpInfo(client);
@@ -1996,34 +2149,50 @@ stock void ShowHelpInfo(int client, int page = 1) {
     if (IsPlayer(g_PracticeSetupClient)) {
       GetClientName(g_PracticeSetupClient, setupClientName, MAX_NAME_LENGTH);
     }
-    PM_Message(client, "{GREEN}.setup: {PURPLE}%t {ORANGE}(%s)", "Help_Setup", client, setupClientName);
-    PM_Message(client, "{GREEN}.menu: {PURPLE}%t", "Help_Menu", client);
-    PM_Message(client, "%t", "Help_Save", client);
-    PM_Message(client, "{GREEN}.copy: {PURPLE}%t", "Help_Copy", client);
-    PM_Message(client, "{GREEN}.throw: {PURPLE}%t", "Help_Throw", client);
-    PM_Message(client, "{GREEN}.flash: {PURPLE}%t", "Help_Flash", client);
-    PM_Message(client, "{GREEN}.last: {PURPLE}%t", "Help_Last", client);
-    PM_Message(client, "{GREEN}.clear: {PURPLE}%t", "Help_Clear", client);
-    PM_Message(client, "{GREEN}.clearmap/.cleanmap: {PURPLE}%t", "Help_ClearMap", client);
-    PM_Message(client, "{GREEN}.map: {PURPLE}%t", "Help_Map", client);
-    PM_Message(client, "{GREEN}.bots: {PURPLE}%t", "Help_Bots", client);
-    PM_Message(client, "%t", "Help_Predict1", client);
-    PM_Message(client, "%t", "Help_Predict2", client);
-    PM_Message(client, "%t", "Help_Predict3", client);
-    PM_Message(client, "%t", "Help_Predict4", client);
-    PM_Message(client, "%t", "Help_Page", client);
+    PM_Message(client, "%t", "Help_Setup", setupClientName);
+    PM_Message(client, "%t", "Help_Menu");
+    PM_Message(client, "%t", "Help_Save");
+    PM_Message(client, "%t", "Help_Copy");
+    PM_Message(client, "%t", "Help_Throw");
+    PM_Message(client, "%t", "Help_Flash");
+    PM_Message(client, "%t", "Help_Last");
+    PM_Message(client, "%t", "Help_Clear");
+    PM_Message(client, "%t", "Help_ClearMap");
+    PM_Message(client, "%t", "Help_Map");
+    PM_Message(client, "%t", "Help_Bots");
+    PM_Message(client, "%t", "Help_Predict1");
+    PM_Message(client, "%t", "Help_Predict2");
+    PM_Message(client, "%t", "Help_Predict3");
+    PM_Message(client, "%t", "Help_Predict4");
+    PM_Message(client, "%t", "Help_Page");
   } else if (page == 2) {
-    PM_Message(client, "%t", "Help_Back", client);
-    PM_Message(client, "%t", "Help_Next", client);
-    PM_Message(client, "%t", "Help_NoFlash", client);
-    PM_Message(client, "%t", "Help_Timer", client);
-    PM_Message(client, "%t", "Help_God", client);
-    PM_Message(client, "%t", "Help_RR", client);
+    PM_Message(client, "%t", "Help_Back");
+    PM_Message(client, "%t", "Help_Next");
+    PM_Message(client, "%t", "Help_NoFlash");
+    PM_Message(client, "%t", "Help_Timer");
+    PM_Message(client, "%t", "Help_God");
+    PM_Message(client, "%t", "Help_RR");
   }
+}
+
+bool IsPracticeSetupClient(int client) {
+  if (client != g_PracticeSetupClient) {
+    if (IsPlayer(g_PracticeSetupClient)) {
+      PM_Message(client, "{ORANGE}Cliente con permisos de Administrador: {NORMAL}%N.", g_PracticeSetupClient);
+      return false;
+    } else {
+      PrintToServer("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
+      g_PracticeSetupClient = client;
+    }
+  }
+  return true;
 }
 
 public void CSU_OnThrowGrenade(int client, int entity, GrenadeType grenadeType, const float origin[3],
                         const float velocity[3]) {
+  if (client <= 0) {
+    return;
+  }
   g_LastGrenadeType[client] = grenadeType;
   g_LastGrenadeOrigin[client] = origin;
   g_LastGrenadeVelocity[client] = velocity;

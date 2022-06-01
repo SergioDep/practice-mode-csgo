@@ -1,8 +1,6 @@
 #define DEFAULT_MENU_LENGTH 128
 #define ZERO_VECTOR {0.0, 0.0, 0.0}
 
-int g_PracticeSetupClient = -2;
-
 enum struct CEffectData {
     float m_vOrigin[3];
     float m_vStart[3];
@@ -68,19 +66,6 @@ public bool Trace_BaseFilter(int entity, int contentsMask, any data) {
   return true;
 }
 
-stock bool IsPracticeSetupClient(int client) {
-  if (client != g_PracticeSetupClient) {
-    if (IsPlayer(g_PracticeSetupClient)) {
-      PM_Message(client, "{ORANGE}Cliente con permisos de Administrador: {NORMAL}%N.", g_PracticeSetupClient);
-      return false;
-    } else {
-      PrintToServer("ERROR: %d not valid, %N promoted to SetupClient", g_PracticeSetupClient , client);
-      g_PracticeSetupClient = client;
-    }
-  }
-  return true;
-}
-
 stock void SendVectorToGround(float origin[3]) {
   if(TR_PointOutsideWorld(origin)){
     return;
@@ -115,7 +100,7 @@ stock void Colorize(char[] msg, int size, bool stripColor = false) {
 public void SetCvarIntSafe(const char[] name, int value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    PrintToServer("1Failed to find cvar: \"%s\"", name);
+    PrintToServer("1-Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarInt(cvar, value);
   }
@@ -124,7 +109,7 @@ public void SetCvarIntSafe(const char[] name, int value) {
 public void SetConVarFloatSafe(const char[] name, float value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    PrintToServer("2Failed to find cvar: \"%s\"", name);
+    PrintToServer("2-Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarFloat(cvar, value);
   }
@@ -133,7 +118,7 @@ public void SetConVarFloatSafe(const char[] name, float value) {
 stock void SetConVarStringSafe(const char[] name, const char[] value) {
   Handle cvar = FindConVar(name);
   if (cvar == INVALID_HANDLE) {
-    PrintToServer("3Failed to find cvar: \"%s\"", name);
+    PrintToServer("3-Failed to find cvar: \"%s\"", name);
   } else {
     SetConVarString(cvar, value);
   }
@@ -154,7 +139,7 @@ stock int FindAndErase(ArrayList array, int value) {
 stock int GetCvarIntSafe(const char[] cvarName, int defaultValue = 0) {
   Handle cvar = FindConVar(cvarName);
   if (cvar == INVALID_HANDLE) {
-    PrintToServer("4Failed to find cvar \"%s\"", cvar);
+    PrintToServer("4-Failed to find cvar \"%s\"", cvar);
     return defaultValue;
   } else {
     return GetConVarInt(cvar);
@@ -164,7 +149,7 @@ stock int GetCvarIntSafe(const char[] cvarName, int defaultValue = 0) {
 stock void GetCvarStringSafe(const char[] cvarName, char[] buffer, int size, char[] defaultValue = "") {
   Handle cvar = FindConVar(cvarName);
   if (cvar == INVALID_HANDLE) {
-    PrintToServer("5Failed to find cvar \"%s\"", cvar);
+    PrintToServer("5-Failed to find cvar \"%s\"", cvar);
     strcopy(buffer, size, defaultValue);
   } else {
     GetConVarString(cvar, buffer, size);
@@ -230,7 +215,6 @@ public bool EnforceDirectoryExists(const char[] smPath) {
 }
 
 stock void ChangeMap(const char[] map, float delay = 3.0) {
-  PM_MessageToAll("Cambiando mapa a %s...", map);
   DataPack pack = CreateDataPack();
   pack.WriteString(map);
   CreateTimer(delay, Timer_DelayedChangeMap, pack);

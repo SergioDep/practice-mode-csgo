@@ -9,14 +9,7 @@ public Action Command_BotsMenu(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
-  GiveBotsMenu(client);
-  return Plugin_Handled;
-}
 
-public Action Command_Bot(int client, int args) {
-  if (!g_InPracticeMode) {
-    return Plugin_Handled;
-  }
   GiveBotsMenu(client);
   return Plugin_Handled;
 }
@@ -77,7 +70,7 @@ public Action Command_Time(int client, int args) {
 
   if (!g_RunningTimeCommand[client]) {
     // Start command.
-    PM_Message(client, "%t", "Timer1", client);
+    PM_Message(client, "%t", "Timer1");
     g_RunningTimeCommand[client] = true;
     g_RunningLiveTimeCommand[client] = false;
     g_TimerType[client] = TimerType_Increasing_Movement;
@@ -96,7 +89,7 @@ public Action Command_Time2(int client, int args) {
 
   if (!g_RunningTimeCommand[client]) {
     // Start command.
-    PM_Message(client, "%t", "Timer2", client);
+    PM_Message(client, "%t", "Timer2");
     g_RunningTimeCommand[client] = true;
     g_RunningLiveTimeCommand[client] = false;
     g_TimerType[client] = TimerType_Increasing_Manual;
@@ -145,7 +138,7 @@ public void StopClientTimer(int client) {
   if (timer_type == TimerType_Increasing_Manual || timer_type == TimerType_Increasing_Movement) {
     float dt = GetEngineTime() - g_LastTimeCommand[client];
     // PM_Message(client, "Resultado Cronómetro: %.2f segundos", dt);
-    PrintCenterText(client, "%t: %.2f", "Time", client, dt);
+    PrintCenterText(client, "%t", "Time", client, dt);
   }
 }
 
@@ -161,7 +154,7 @@ public Action Timer_DisplayClientTimer(Handle timer, int serial) {
       }
       if (time_left >= 0.0) {
         int seconds = RoundToCeil(time_left);
-        PrintCenterText(client, "%t: %d:%2ds", "Time", client, seconds / 60, seconds % 60);
+        PrintCenterText(client, "%t", "Time2", client, seconds / 60, seconds % 60);
       } else {
         StopClientTimer(client);
       }
@@ -169,7 +162,7 @@ public Action Timer_DisplayClientTimer(Handle timer, int serial) {
       // call works?
     } else {
       float dt = GetEngineTime() - g_LastTimeCommand[client];
-      PrintCenterText(client, "%t: %.1fs.", "Time", client, dt);
+      PrintCenterText(client, "%t", "Time", client, dt);
     }
     return Plugin_Continue;
   }
@@ -195,8 +188,9 @@ public Action Command_Spec(int client, int args) {
   }
 
   for (int i = 0; i <= MaxClients; i++) {
-    if (IsPlayer(i)) {
+    if (IsPlayer(i) && i != client) {
       FakeClientCommand(i, "jointeam 1");
+      SetEntPropEnt(i, Prop_Send, "m_hObserverTarget", client);
     }
   }
 
@@ -267,11 +261,17 @@ public Action Command_ClearNades(int client, int args) {
   if (!g_InPracticeMode) {
     return Plugin_Handled;
   }
+
+  bool clearAll = false;
+  char arg[128];
+  if (args >= 1 && GetCmdArg(1, arg, sizeof(arg))) {
+    if (StrEqual(arg, "all")) {
+      clearAll = true;
+    }
+  }
   CEffectData smokeData;
   smokeData.m_nEntIndex = 0;
   smokeData.m_nHitBox = GetParticleSystemIndex("explosion_smokegrenade_fallback");
-
-  bool clearAll = false;
   DispatchEffect(clearAll ? 0 : client, "ParticleEffectStop", smokeData);
   int clearEntity = -1;
   while ((clearEntity = FindEntityByClassname(clearEntity, "smokegrenade_projectile")) != -1) {
@@ -425,8 +425,11 @@ public Action Command_Map(int client, int args) {
     // Before trying to change to the arg first, check to see if
     // there's a clear match in the maplist
     int mapIndex = FindStringInArray2(_mapNames, sizeof(_mapNames), arg, false);
-    ChangeMap(_mapCodes[mapIndex]);
-    return Plugin_Handled;
+    if (mapIndex > -1) {
+      PM_MessageToAll("{ORANGE}Cambiando mapa a %s...", _mapNames[mapIndex]);
+      ChangeMap(_mapCodes[mapIndex]);
+      return Plugin_Handled;
+    }
   }
   Menu menu = new Menu(ChangeMapHandler);
   menu.ExitButton = true;
@@ -443,6 +446,7 @@ public Action Command_Map(int client, int args) {
 public int ChangeMapHandler(Menu menu, MenuAction action, int param1, int param2) {
   if (action == MenuAction_Select) {
     int index = GetMenuInt(menu, param2);
+    PM_MessageToAll("{ORANGE}Cambiando mapa a %s...", _mapNames[index]);
     ChangeMap(_mapCodes[index]);
   } else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack) {
     PracticeSetupMenu(param1);
@@ -459,10 +463,10 @@ public Action Command_DryRun(int client, int args) {
     return Plugin_Handled;
   }
 
+  int startMoney = 800;
+  float roundTime = 2.0;
   g_InDryMode = !g_InDryMode;
   if (g_InDryMode || args >= 1) {
-    int startMoney = 800;
-    float roundTime = 2.0;
     if (args >= 1) {
       char startMoneyStr[COMMAND_LENGTH];
       GetCmdArg(1, startMoneyStr, sizeof(startMoneyStr));
@@ -501,7 +505,9 @@ public Action Command_DryRun(int client, int args) {
       }
     }
   } else {
-    SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
+    startMoney = 10000;
+    roundTime = 60.0;
+    SetConVarFloatSafe("mp_roundtime_defuse", roundTime);
     SetCvarIntSafe("mp_freezetime", 0);
     SetCvarIntSafe("mp_radar_showall", 1);
     SetCvarIntSafe("sm_glow_pmbots", 1);
@@ -519,7 +525,7 @@ public Action Command_DryRun(int client, int args) {
     SetCvarIntSafe("sm_bot_collision", 0);
   }
 
-  PM_Message(client, "%t", "DryParams", client);
+  PM_Message(client, "%t", "DryParams", startMoney, roundTime);
   ServerCommand("mp_restartgame 1");
   return Plugin_Handled;
 }

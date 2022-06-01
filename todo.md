@@ -1,5 +1,11 @@
 # TODO
 
+- [ ] get fraction and velocity of an actual grenade, improve predictor
+- [ ] get position, get predicted initial grenade velocity, spawn 10000, dont let them detonate or server will explode
+- [ ] store them in arraylist(check max), startpos, endpos, throwtype, grenadetype, map
+- [ ] store all that in db
+- [ ] done?
+
 ## Performance and Bugs
 
 

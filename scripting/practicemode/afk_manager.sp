@@ -47,7 +47,7 @@ public Action CheckAfkUsers(Handle timer) {
 				if (CheckClientIsAfk(client)) {
 					if (time - AFK_LastMovementTime[client] >= GetConVarFloat(AFK_MaxTime)) {
 						// AFK_LastMovementTime[client] = time;
-						KickClient(client, "%t", GetConVarFloat(AFK_MaxTime)/60);
+						KickClient(client, "%t", "AFK_KickReason", GetConVarFloat(AFK_MaxTime)/60);
 					} else if (time - AFK_LastMovementTime[client] >= GetConVarFloat(AFK_MaxTime) - AFK_WARNING_DELAY) {
 						if (!AFK_Warned[client]) {
 							PM_Message(client, "%t", "AFK_Warning", client, view_as<int>(AFK_WARNING_DELAY));

@@ -2,9 +2,13 @@
 public void CancelAllDemos() {
   for (int i = 0; i < g_DemoBots.Length; i++) {
     int bot = g_DemoBots.Get(i);
-    if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) {
-      BotMimic_StopPlayerMimic(bot);
-      // RequestFrame(Timer_DelayKillBot, GetClientSerial(g_ReplayBotClients[i]));
+    if (IsDemoBot(bot)) {
+      if (BotMimic_IsPlayerMimicing(bot)) {
+        BotMimic_StopPlayerMimic(bot);
+      }
+      if (BotMimic_IsVersusGameMode() && IsPlayerAlive(bot)) {
+        ForcePlayerSuicide(bot);
+      }
     }
   }
 }
@@ -17,12 +21,12 @@ stock bool IsDemoPlaying(int role = -1) {
     }
 
     int bot = g_DemoBots.Get(i);
-    if (IsDemoBot(bot) && BotMimic_IsPlayerMimicing(bot)) return true; //(versusMode && IsPlayerAlive(bot)
+    if (IsDemoBot(bot) && (BotMimic_IsPlayerMimicing(bot) || (IsPlayerAlive(bot) && BotMimic_IsVersusGameMode()))) return true; //(versusMode && IsPlayerAlive(bot)
   }
   return false;
 }
 
-stock void PlayDemo(const char[] demoId, int exclude = -1) {
+stock void PlayDemo(const char[] demoId, int exclude = -1, float delay = 0.0) {
   g_currentDemoGrenade = -1;
   for (int i = 0; i < g_DemoBots.Length; i++) {
     if (i == exclude) {
@@ -30,7 +34,7 @@ stock void PlayDemo(const char[] demoId, int exclude = -1) {
     }
     int bot = g_DemoBots.Get(i);
     if (IsDemoBot(bot) && CheckDemoRoleKVString(demoId, i, "file")) {
-      PlayRoleFromDemo(bot, demoId, i);
+      PlayRoleFromDemo(bot, demoId, i, delay);
     }
   }
 }
@@ -61,7 +65,7 @@ public void StartBotMimicDemo(DataPack pack) {
   delete pack;
 }
 
-public void PlayRoleFromDemo(int client, const char[] demoId, int roleId) {
+stock void PlayRoleFromDemo(int client, const char[] demoId, int roleId, float delay = 0.0) {
   if (!IsDemoBot(client)) {
     PrintToServer("[PlayRoleFromDemo][ERROR] Called PlayRoleFromDemo on non-demo bot %L", client);
     return;
@@ -113,7 +117,7 @@ public void PlayRoleFromDemo(int client, const char[] demoId, int roleId) {
   DataPack pack = new DataPack();
   pack.WriteCell(client);
   pack.WriteString(filepath);
-  pack.WriteFloat(0.0);
+  pack.WriteFloat(delay);
   RequestFrame(StartBotMimicDemo, pack);
   g_DemoBotStopped[client] = false;
   g_CurrentDemoNadeIndex[client] = 0;

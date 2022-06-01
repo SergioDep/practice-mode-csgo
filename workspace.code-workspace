@@ -4,17 +4,18 @@
 			"path": "."
 		},
 		{
-			"path": "C:\\csgoserver\\csgo\\addons\\sourcemod\\configs"
+			"path": "C:\\GameServerManager\\servers\\1\\serverfiles\\csgo\\addons\\sourcemod\\configs"
 		},
 		{
-			"path": "C:\\csgoserver\\csgo\\cfg\\sourcemod"
+			"path": "C:\\GameServerManager\\servers\\1\\serverfiles\\csgo\\cfg"
 		},
 		{
-			"path": "..\\..\\..\\..\\..\\csgoserver\\csgo\\addons\\sourcemod\\translations"
+			"path": "C:\\GameServerManager\\servers\\1\\serverfiles\\csgo\\addons\\sourcemod\\translations"
 		}
 	],
 	"settings": {
 		"sourcepawn.GithubName": "sergioDep",
-		"editor.tabSize": 2
+		"editor.tabSize": 2,
+		"sourcepawn.outputDirectoryPath": "C:\\GameServerManager\\servers\\1\\serverfiles\\csgo\\addons\\sourcemod\\plugins/"
 	}
 }

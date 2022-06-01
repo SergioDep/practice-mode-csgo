@@ -49,7 +49,7 @@ public int BotsMenuHandler(Menu menu, MenuAction action, int client, int param2)
           int owner = GetBotsOwner(bot);
           if (owner > 0){
             g_CurrentBotControl[owner] = -1; // In case another player is using this bot in menu
-            ServerCommand("bot_kick %s", g_BotOriginalName[bot]);
+            ServerCommand("bot_kick \"%s\"", g_BotOriginalName[bot]);
             FindAndErase(g_ClientBots[client], bot);
             GiveBotsMenu(client);
           }
@@ -91,10 +91,10 @@ stock void GiveBotEditorMenu(int client) {
     Format(displayStr, sizeof(displayStr), "%t", "BringBot", client);
     menu.AddItem("bring", displayStr);
     if (g_BotCrouch[bot]) {
-      Format(displayStr, sizeof(displayStr), "%t", "Crouch", client);
+      Format(displayStr, sizeof(displayStr), "%t", "StandUp", client);
       menu.AddItem("togglecrouch", displayStr);
     } else {
-      Format(displayStr, sizeof(displayStr), "%t", "StandUp", client);
+      Format(displayStr, sizeof(displayStr), "%t", "Crouch", client);
       menu.AddItem("togglecrouch", displayStr);
     }
     Format(displayStr, sizeof(displayStr), "%t", "Boost", client);
