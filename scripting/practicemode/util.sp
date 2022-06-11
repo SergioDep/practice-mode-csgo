@@ -1,25 +1,24 @@
-#define DEFAULT_MENU_LENGTH 128
 #define ZERO_VECTOR {0.0, 0.0, 0.0}
 
 enum struct CEffectData {
-    float m_vOrigin[3];
-    float m_vStart[3];
-    float m_vNormal[3];
-    float m_vAngles[3];
-    int m_fFlags;
-    int m_nEntIndex;
-    float m_flScale;
-    float m_flMagnitude;
-    float m_flRadius;
-    int m_nAttachmentIndex;
-    int m_nSurfaceProp;
-    int m_nMaterial;
-    int m_nDamageType;
-    int m_nHitBox;
-    int m_nOtherEntIndex;
-    int m_nColor;
-    bool m_bPositionsAreRelativeToEntity;
-    int m_iEffectName;
+  float m_vOrigin[3];
+  float m_vStart[3];
+  float m_vNormal[3];
+  float m_vAngles[3];
+  int m_fFlags;
+  int m_nEntIndex;
+  float m_flScale;
+  float m_flMagnitude;
+  float m_flRadius;
+  int m_nAttachmentIndex;
+  int m_nSurfaceProp;
+  int m_nMaterial;
+  int m_nDamageType;
+  int m_nHitBox;
+  int m_nOtherEntIndex;
+  int m_nColor;
+  bool m_bPositionsAreRelativeToEntity;
+  int m_iEffectName;
 }
 
 static char _colorNames[][] = {"{NORMAL}", "{DARK_RED}",    "{PINK}",      "{GREEN}",
@@ -365,4 +364,8 @@ public void GetRandomColor(int colors[4], int alpha) {
   colors[1] = GetRandomInt(0, 255);
   colors[2] = GetRandomInt(0, 255);
   colors[3] = alpha;
+}
+
+public bool VecEqual(const float vec1[3], const float vec2[3]) {
+  return vec1[0]==vec2[0] && vec1[1]==vec2[1] && vec1[2]==vec2[2];
 }

@@ -1,10 +1,20 @@
 # TODO
+- [ ] include pugsetup and server configuration
+- [ ] demo record (32, 64, 128)(no es el tickrate del server que siempre será 128, solo la fluidez al momento de ver la demo) when +1$ ?
 
-- [ ] get fraction and velocity of an actual grenade, improve predictor
+- [ ] (ruby on rails)
+- [ ] yape webhook, recibe x -> timer delay for check -> start server (pm || scrim) -> min 3h?
+- [ ] plugin html request every 10min (or same as AFK)
+
+- [ ] use edited version of unkowncheats predictor in an alt steam acc and save data from there, 
+- [x] check why botmimic needs teleport everytime, (check all velocity vectors and compare?)
+- [x] fix teleport while not seen <- (attack mode)
+
+<!-- memory leak somewhere-->
 - [ ] get position, get predicted initial grenade velocity, spawn 10000, dont let them detonate or server will explode
-- [ ] store them in arraylist(check max), startpos, endpos, throwtype, grenadetype, map
-- [ ] store all that in db
-- [ ] done?
+
+<!-- too much time-->
+- [ ] using the grenade predictor 99.9% accuracy
 
 ## Performance and Bugs
 

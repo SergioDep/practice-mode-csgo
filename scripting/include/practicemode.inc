@@ -5,6 +5,7 @@
 
 // #include "pugsetup.inc"
 
+#define OPTION_ID_LENGTH 16
 #define OPTION_NAME_LENGTH 128  // max length of a setting name/id
 #define CVAR_NAME_LENGTH 64     // max length of a cvar
 #define CVAR_VALUE_LENGTH 128   // max length of a cvar value

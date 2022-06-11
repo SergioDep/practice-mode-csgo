@@ -70,13 +70,14 @@ enum struct Bookmarks {
 }
 
 // Used to fire the OnPlayerMimicBookmark effciently during playback
-enum BookmarkWhileMimicing {
-  BWM_frame, // The frame this bookmark was saved in
-  BWM_index // The index into the FH_bookmarks array in the fileheader for the corresponding bookmark (to get the name)
-};
+enum struct BookmarkWhileMimicing {
+  int BWM_frame; // The frame this bookmark was saved in
+  int BWM_index; // The index into the FH_bookmarks array in the fileheader for the corresponding bookmark (to get the name)
+}
 
 // Real Bot
-bool g_BotMimic_VersusMode = false;
+BMGameMode g_BotMimic_GameMode = BM_GameMode_Spect;
+
 enum RouteType {
 	DEFAULT_ROUTE = 0,
 	FASTEST_ROUTE,
@@ -92,7 +93,7 @@ Address g_pVersusModeTheBots;
 
 bool g_VersusModeHandledByAi[MAXPLAYERS + 1] = {false, ...};
 bool g_VersusModeAiStarted[MAXPLAYERS + 1] = {false, ...};
-int g_VersusMode_Time[MAXPLAYERS + 1] = {0, ...};
+int g_VersusMode_Time[MAXPLAYERS + 1] = {-1, ...};
 float g_VersusModeAiStartedTime[MAXPLAYERS + 1];
 float g_VersusModeLastMimicPosition[MAXPLAYERS + 1][3];
 bool g_VersusMode_MoveRight[MAXPLAYERS + 1];
@@ -147,7 +148,7 @@ int g_iBotActiveWeapon[MAXPLAYERS + 1] = {-1,...};
 bool g_bBotSwitchedWeapon[MAXPLAYERS + 1];
 bool g_bValidTeleportCall[MAXPLAYERS + 1];
 bool g_bBotWaitingDelay[MAXPLAYERS + 1];
-int g_iBotMimicNextBookmarkTick[MAXPLAYERS + 1][BookmarkWhileMimicing];
+BookmarkWhileMimicing g_iBotMimicNextBookmarkTick[MAXPLAYERS + 1];
 
 Handle g_hfwdOnStartRecording;
 Handle g_hfwdOnRecordingPauseStateChanged;
@@ -201,7 +202,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
   CreateNative("BotMimic_GetFileHeaders", GetFileHeaders);
   CreateNative("BotMimic_ChangeRecordName", ChangeRecordName);
-  CreateNative("BotMimic_IsVersusGameMode", IsVersusGameMode);
+  CreateNative("BotMimic_GetGameMode", GetGameMode);
   CreateNative("BotMimic_GetVersusModeReactionTime", GetVersusModeReactionTime);
   CreateNative("BotMimic_GetVersusModeMoveDistance", GetVersusModeMoveDistance);
   CreateNative("BotMimic_GetLoadedRecordList", GetLoadedRecordList);
@@ -380,11 +381,46 @@ public void OnClientPutInServer(int client) {
 }
 
 public void OnClientDisconnect(int client) {
+  g_VersusModeHandledByAi[client] = false;
+  g_VersusModeAiStarted[client] = false;
+  g_VersusMode_Time[client] = -1;
+  // g_VersusModeAiStartedTime[client];
+  g_VersusModeLastMimicPosition[client] = ZERO_VECTOR;
+  g_VersusMode_MoveRight[client] = false;
+  g_VersusMode_Duck[client] = false;
+  g_fInitialPosition[client] = ZERO_VECTOR;
+  g_fInitialAngles[client] = ZERO_VECTOR;
+  g_hRecordingSizeLimit[client] = 0;
   if (g_hRecording[client] != null)
     BotMimic_StopRecording(client);
-
+  delete g_hRecording[client];
+  g_hRecording[client] = null;
+  delete g_hRecordingAdditionalTeleport[client];
+  g_hRecordingAdditionalTeleport[client] = null;
+  delete g_hRecordingBookmarks[client];
+  g_hRecordingBookmarks[client] = null;
+  g_iCurrentAdditionalTeleportIndex[client] = 0;
+  g_bRecordingPaused[client] = false;
+  g_bSaveFullSnapshot[client] = false;
+  g_iRecordedTicks[client] = 0;
+  g_iRecordPreviousWeapon[client] = -1;
+  g_iOriginSnapshotInterval[client] = 0;
+  g_sRecordName[client][0] = 0;
+  g_sRecordPath[client][0] = 0;
+  g_sRecordCategory[client][0] = 0;
+  g_sRecordSubDir[client][0] = 0;
   if (g_hBotMimicsRecord[client] != null)
     BotMimic_StopPlayerMimic(client);
+  delete g_hBotMimicsRecord[client];
+  g_hBotMimicsRecord[client] = null;
+  g_iBotMimicTick[client] = 0;
+  g_iBotMimicRecordTickCount[client] = 0;
+  g_iBotActiveWeapon[client] = -1;
+  g_bBotSwitchedWeapon[client] = false;
+  g_bValidTeleportCall[client] = false;
+  g_bBotWaitingDelay[client] = false;
+  g_iBotMimicNextBookmarkTick[client].BWM_frame = 0;
+  g_iBotMimicNextBookmarkTick[client].BWM_index = 0;
 }
 
 public void OnPlayerRunCmdPost(int client, int buttons, int impulse, const float vel[3], const float angles[3], int weapon, int subtype, int cmdnum, int tickcount, int seed, const int mouse[2]) {
@@ -565,7 +601,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     // Replay finishes -> Hold Zone(Custom CT AI), Defend Zone(Custom TT AI)
 
     int currentTarget = -1;
-    if (g_BotMimic_VersusMode) {
+    if (g_BotMimic_GameMode == BM_GameMode_Versus) {
       float nearestDist = -1.0;
       bool HoldingWeapon = true;
       if (g_iBotActiveWeapon[client] != INVALID_ENT_REFERENCE) {
@@ -611,7 +647,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
       }
 
       if (currentTarget > 0) { // Target Found
-        // PrintHintTextToAll("attackmode");
         g_VersusModeHandledByAi[client] = false;
         g_VersusModeAiStarted[client] = false;
         float clientEyepos[3], viewTarget[3];
@@ -664,25 +699,29 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
           g_VersusMode_Time[client]++;
         }
         return Plugin_Changed;
-      } else { // No Target, but spotted a target before
-        g_VersusMode_Time[client] = 0;
-        // bot should continue mimicing, so first we check if its in the correct position, if not send him there
-        float currentPosition[3];
-        GetClientAbsOrigin(client, currentPosition);
-        float vec1[3], vec2[3], zDiff;
-        vec1 = currentPosition;
-        vec1[2] = 0.0;
-        vec2 = g_VersusModeLastMimicPosition[client];
-        vec2[2] = 0.0;
-        zDiff = FloatAbs(currentPosition[2]-g_VersusModeLastMimicPosition[client][2]);
-        float distance = GetVectorDistance(vec1, vec2); //, true?
-        if (distance <= VersusMode_MaxPositionDiff && zDiff <= 80) {
-          // PrintHintTextToAll("checkmode, validpos");
-          // its on a valid position
-          g_VersusModeHandledByAi[client] = false;
-        } else {
-          // PrintHintTextToAll("checkmode, invalidpos");
-          g_VersusModeHandledByAi[client] = true;
+      } else { // No Target, but could have spotted a target before
+        // If it even has mimiced before
+        if (g_VersusMode_Time[client] > -1) {
+          g_VersusMode_Time[client] = 0;
+          // bot should continue mimicing, so first we check if its in the correct position, if not send him there
+          float currentPosition[3];
+          GetClientAbsOrigin(client, currentPosition);
+          float vec1[3], vec2[3], zDiff;
+          vec1 = currentPosition;
+          vec1[2] = 0.0;
+          vec2 = g_VersusModeLastMimicPosition[client];
+          vec2[2] = 0.0;
+          zDiff = FloatAbs(currentPosition[2]-g_VersusModeLastMimicPosition[client][2]);
+          float distance = GetVectorDistance(vec1, vec2); //, true?
+          // maybe change VersusMode_MaxPositionDiff because it doesnt matter if players cant see them
+          if (distance <= VersusMode_MaxPositionDiff && zDiff <= 80) {
+            // PrintHintTextToAll("validpos");
+            // its on a valid position
+            g_VersusModeHandledByAi[client] = false;
+          } else {
+            // PrintHintTextToAll("invalidpos");
+            g_VersusModeHandledByAi[client] = true;
+          }
         }
       }
 
@@ -722,10 +761,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
               ScaleVector(currentPosition, 250.0); //1.5 is the velocity multiplier
               currentPosition[2] = 0.0;
               //   currentPosition[1], currentPosition[2]);
-              TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, currentPosition);
+              // TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, currentPosition);
               BotMoveTo(client, g_VersusModeLastMimicPosition[client], FASTEST_ROUTE); //////
             }
-            return Plugin_Continue;
+            return Plugin_Changed;
           }
         }
       }
@@ -740,8 +779,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     seed = iFrame.playerSeed;
     weapon = 0;
 
-    // To apply changes and not use plugin_changed <- Not Sure
-    TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+    // TeleportEntity(client, NULL_VECTOR, angles, NULL_VECTOR);
+    TeleportEntity(client, NULL_VECTOR, angles, iFrame.actualVelocity);
   }
 
   // Check New Weapon
@@ -785,12 +824,13 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
   GetClientAbsOrigin(client, g_VersusModeLastMimicPosition[client]);
 
-  if (g_BotMimic_VersusMode) {
+  if (g_BotMimic_GameMode == BM_GameMode_Practice ||
+    (g_BotMimic_GameMode == BM_GameMode_Versus && g_VersusMode_Time[client] >= 0)) {
     g_iBotMimicTick[client]++;
     return Plugin_Changed;
   }
 
-  // TODO: Allow Teleport only When attacked, not never 
+  // TODO: (versusmode) Disable Teleport only When attacked
   // We're supposed to teleport stuff?
   if (iFrame.additionalFields & (ADDFIELD_TP_ORIGIN|ADDFIELD_TP_ANGLES|ADDFIELD_TP_VEL)) {
     AdditionalTeleport iAT;
@@ -801,7 +841,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     if (g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length) {
       PrintToServer("[BOTMIMIC-RUNCMD]ERROR: g_iCurrentAdditionalTeleportIndex[client] > hAdditionalTeleport.Length");
       BotMimic_StopPlayerMimic(client);
-      return Plugin_Handled;
+      return Plugin_Changed;
     }
     hAdditionalTeleport.GetArray(g_iCurrentAdditionalTeleportIndex[client], iAT, sizeof(iAT));
 
@@ -823,7 +863,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
   // (FIX|CHECK) DONT NEED BOOKMARKS
   // See if there's a bookmark on this tick
-  if (g_iBotMimicTick[client] == g_iBotMimicNextBookmarkTick[client][BWM_frame]) {
+  if (g_iBotMimicTick[client] == g_iBotMimicNextBookmarkTick[client].BWM_frame) {
     // Get the file header of the current playing record.
     char sPath[PLATFORM_MAX_PATH];
     GetFileFromFrameHandle(g_hBotMimicsRecord[client], sPath, sizeof(sPath));
@@ -831,7 +871,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
 
     Bookmarks iBookmark;
-    iFileHeader.FH_bookmarks.GetArray(g_iBotMimicNextBookmarkTick[client][BWM_index], iBookmark, sizeof(Bookmarks));
+    iFileHeader.FH_bookmarks.GetArray(g_iBotMimicNextBookmarkTick[client].BWM_index, iBookmark, sizeof(Bookmarks));
     
     // Cache the next tick in which we should fire the forward.
     UpdateNextBookmarkTick(client);
@@ -850,7 +890,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
   int client = GetClientOfUserId(event.GetInt("userid"));
-  if (!client)
+  if (!IsValidClient(client))
     return;
 
   // Restart moving on spawn!
@@ -862,7 +902,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 
 public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast) {
   int client = GetClientOfUserId(event.GetInt("userid"));
-  if (!client)
+  if (!IsValidClient(client))
     return;
 
   if (g_hRecording[client] != null) {
@@ -870,28 +910,28 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
     BotMimic_StopRecording(client, true);
   } else if (g_hBotMimicsRecord[client] != null) {
     // This bot has been mimicing
-    BotMimic_StopPlayerMimic(client);
-    // // Respawn the bot after death! <--- why?
-    //   g_iBotMimicTick[client] = 0;
-    //   g_iCurrentAdditionalTeleportIndex[client] = 0;
-    // if (g_hCVRespawnOnDeath.BoolValue && GetClientTeam(client) >= CS_TEAM_T)
-    //   CreateTimer(1.0, Timer_DelayedRespawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+    if (g_BotMimic_GameMode == BM_GameMode_Practice) {
+      // Respawn the bot after death
+      g_iBotMimicTick[client] = 0;
+      g_iCurrentAdditionalTeleportIndex[client] = 0;
+      CreateTimer(0.1, Timer_DelayedRespawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
+    } else {
+      BotMimic_StopPlayerMimic(client);
+    }
   }
 }
 
-/**
- * Timer Callbacks
- */
-/*public Action Timer_DelayedRespawn(Handle timer, any userid) {
+/* Timer Callbacks */
+public Action Timer_DelayedRespawn(Handle timer, any userid) {
   int client = GetClientOfUserId(userid);
-  if (!client)
+  if (!IsValidClient(client))
     return Plugin_Stop;
 
   if (g_hBotMimicsRecord[client] != null && IsClientInGame(client) && !IsPlayerAlive(client) && IsFakeClient(client) && GetClientTeam(client) >= CS_TEAM_T)
     CS_RespawnPlayer(client);
 
   return Plugin_Stop;
-}*/
+}
 
 // (FIX|CHECK) Does this help for double flash issue?
 public Action Hook_WeaponCanSwitchTo(int client, int weapon) {
@@ -1361,8 +1401,8 @@ public int ResetPlayback(Handle plugin, int numParams) {
   g_iBotMimicTick[client] = 0;
   g_iCurrentAdditionalTeleportIndex[client] = 0;
   g_bValidTeleportCall[client] = false;
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
+  g_iBotMimicNextBookmarkTick[client].BWM_frame = -1;
+  g_iBotMimicNextBookmarkTick[client].BWM_index = -1;
   UpdateNextBookmarkTick(client);
   return 0;
 }
@@ -1386,13 +1426,13 @@ public int StopPlayerMimic(Handle plugin, int numParams) {
   g_iCurrentAdditionalTeleportIndex[client] = 0;
   g_iBotMimicRecordTickCount[client] = 0;
   g_bValidTeleportCall[client] = false;
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
+  g_iBotMimicNextBookmarkTick[client].BWM_frame = -1;
+  g_iBotMimicNextBookmarkTick[client].BWM_index = -1;
 
   // Versus Mode
   g_VersusModeHandledByAi[client] = false;
   g_VersusModeAiStarted[client] = false;
-  g_VersusMode_Time[client] = 0;
+  g_VersusMode_Time[client] = -1;
 
   FileHeader iFileHeader;
   g_hLoadedRecords.GetArray(sPath, iFileHeader, sizeof(FileHeader));
@@ -1553,8 +1593,8 @@ public int GoToBookmark(Handle plugin, int numParams) {
   g_iCurrentAdditionalTeleportIndex[client] = iBookmark.BKM_additionalTeleportTick;
 
   // Remember that we're now at this bookmark.
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = iBookmark.BKM_frame;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = iBookmarkIndex;
+  g_iBotMimicNextBookmarkTick[client].BWM_frame = iBookmark.BKM_frame;
+  g_iBotMimicNextBookmarkTick[client].BWM_index = iBookmarkIndex;
   return 0;
 }
 
@@ -1668,12 +1708,16 @@ public int ChangeRecordName(Handle plugin, int numParams) {
   return view_as<int>(BM_NoError);
 }
 
-public int IsVersusGameMode(Handle plugin, int numParams) {
-  bool change = GetNativeCell(1);
-  if (change) {
-    g_BotMimic_VersusMode = !g_BotMimic_VersusMode;
+public int GetGameMode(Handle plugin, int numParams) {
+  BMGameMode newGameMode = GetNativeCell(1);
+  if (newGameMode != BM_GameMode_Invalid) {
+    if (BM_GameMode_Spect <= newGameMode && newGameMode <= BM_GameMode_Practice) {
+      g_BotMimic_GameMode = newGameMode;
+    } else {
+      ThrowNativeError(SP_ERROR_NATIVE, "Invalid gamemode given (param 1 = %d).", newGameMode);
+    }
   }
-  return view_as<int>(g_BotMimic_VersusMode);
+  return view_as<int>(g_BotMimic_GameMode);
 }
 
 public int GetVersusModeReactionTime(Handle plugin, int numParams) {
@@ -2018,8 +2062,8 @@ BMError PlayRecord(int client, const char[] path, float startDelay) {
   }
 
   // Cache at which tick we should fire the first OnPlayerMimicBookmark forward.
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
+  g_iBotMimicNextBookmarkTick[client].BWM_frame = -1;
+  g_iBotMimicNextBookmarkTick[client].BWM_index = -1;
   UpdateNextBookmarkTick(client);
 
   Array_Copy(iFileHeader.FH_initialPosition, g_fInitialPosition[client], 3);
@@ -2046,8 +2090,8 @@ BMError PlayRecord(int client, const char[] path, float startDelay) {
   if (result >= Plugin_Handled) {
     g_hBotMimicsRecord[client] = null;
     g_iBotMimicRecordTickCount[client] = 0;
-    g_iBotMimicNextBookmarkTick[client][BWM_frame] = -1;
-    g_iBotMimicNextBookmarkTick[client][BWM_index] = -1;
+    g_iBotMimicNextBookmarkTick[client].BWM_frame = -1;
+    g_iBotMimicNextBookmarkTick[client].BWM_index = -1;
   }
 
   return BM_NoError;
@@ -2077,7 +2121,7 @@ void UpdateNextBookmarkTick(int client) {
   if (iSize == 0)
     return;
 
-  int iCurrentIndex = g_iBotMimicNextBookmarkTick[client][BWM_index];
+  int iCurrentIndex = g_iBotMimicNextBookmarkTick[client].BWM_index;
   // We just reached some bookmark regularly and want to proceed to wait for the next one sequentially.
   // If there is no further bookmarks, restart from the first one.
   iCurrentIndex++;
@@ -2086,8 +2130,8 @@ void UpdateNextBookmarkTick(int client) {
 
   Bookmarks iBookmark;
   iFileHeader.FH_bookmarks.GetArray(iCurrentIndex, iBookmark, sizeof(Bookmarks));
-  g_iBotMimicNextBookmarkTick[client][BWM_frame] = iBookmark.BKM_frame;
-  g_iBotMimicNextBookmarkTick[client][BWM_index] = iCurrentIndex;
+  g_iBotMimicNextBookmarkTick[client].BWM_frame = iBookmark.BKM_frame;
+  g_iBotMimicNextBookmarkTick[client].BWM_index = iCurrentIndex;
 }
 
 stock bool CheckCreateDirectory(const char[] sPath, int mode) {

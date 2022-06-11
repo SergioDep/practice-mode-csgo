@@ -310,7 +310,7 @@
 // }
 
 // public void LearnPrintGrenade(const int client, const int id) {
-//   char name[GRENADE_NAME_LENGTH];
+//   char name[OPTION_NAME_LENGTH];
 //   GetClientGrenadeData(id, "name", name, sizeof(name));
 //   PM_Message(client, "Lanza {ORANGE}\%s{NORMAL}.", name);
 // }

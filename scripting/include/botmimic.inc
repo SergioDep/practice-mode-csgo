@@ -7,6 +7,13 @@
 #define MAX_BOOKMARK_NAME_LENGTH 64
 #define DEFAULT_CATEGORY "default"
 
+enum BMGameMode {
+	BM_GameMode_Invalid = -1,
+  BM_GameMode_Spect = 0, // only mimics
+  BM_GameMode_Versus, // mimics and versus when enemy seen
+  BM_GameMode_Practice // mimics and loops when finished or died
+}
+
 enum BMError {
 	BM_NoError = 0,
 	BM_BadClient, // Provided client index is invalid
@@ -198,9 +205,11 @@ native bool BotMimic_GetFileCategory(const char[] path, char[] category, int max
 /**
  * Get the Gamemode of a record.
  *
- * @return				true if versus mode, false if normal mode
+ * @param change  (optional) Change gamemode.
+ * @return				Current GameMode.
+ * @error 				Invalid GameMode Given.
  */
-native bool BotMimic_IsVersusGameMode(bool change = false);
+native BMGameMode BotMimic_GetGameMode(BMGameMode change = BM_GameMode_Invalid);
 
 /**
  * Get Reaction Time of Versus Mode Bots.
@@ -406,7 +415,7 @@ public void __pl_botmimic_SetNTVOptional()
 	MarkNativeAsOptional("BotMimic_GetFileCategory");
 	MarkNativeAsOptional("BotMimic_ChangeRecordName");
 	MarkNativeAsOptional("BotMimic_GetRecordBookmarks");
-	MarkNativeAsOptional("BotMimic_IsVersusGameMode");
+	MarkNativeAsOptional("BotMimic_GetGameMode");
 	MarkNativeAsOptional("BotMimic_GetVersusModeReactionTime");
 	MarkNativeAsOptional("BotMimic_GetVersusModeMoveDistance");
 }

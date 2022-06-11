@@ -219,7 +219,7 @@ public bool HandleNativeRequestedNade(int entity) {
 public Action KillNade(Handle timer, int ref) {
   int ent = EntRefToEntIndex(ref);
   if (ent != INVALID_ENT_REFERENCE) {
-    AcceptEntityInput(ent, "kill");
+    AcceptEntityInput(ent, "Kill");
   }
   return Plugin_Handled;
 }

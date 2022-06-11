@@ -944,3 +944,82 @@ public SharedPlugin __pl_navmesh =
 	required = 0,
 #endif
 };
+
+#if !defined REQUIRE_PLUGIN
+public __pl_navmesh_SetNTVOptional() {
+	MarkNativeAsOptional("NavMesh_Exists");
+	MarkNativeAsOptional("NavMesh_GetMagicNumber");
+	MarkNativeAsOptional("NavMesh_GetVersion");
+	MarkNativeAsOptional("NavMesh_GetSubVersion");
+	MarkNativeAsOptional("NavMesh_GetSaveBSPSize");
+	MarkNativeAsOptional("NavMesh_IsAnalyzed");
+	MarkNativeAsOptional("NavMesh_GetGroundHeight");
+	MarkNativeAsOptional("NavMesh_FindAreaByID");
+	MarkNativeAsOptional("NavMesh_GetArea");
+	MarkNativeAsOptional("NavMesh_GetNearestArea");
+	MarkNativeAsOptional("NavMesh_FindHidingSpotByID");
+	MarkNativeAsOptional("NavMesh_GetRandomHidingSpot");
+	MarkNativeAsOptional("NavMesh_WorldToGridX");
+	MarkNativeAsOptional("NavMesh_WorldToGridY");
+	MarkNativeAsOptional("NavMesh_GetAreasOnGrid");
+	MarkNativeAsOptional("NavMesh_GetGridSizeX");
+	MarkNativeAsOptional("NavMesh_GetGridSizeY");
+	MarkNativeAsOptional("NavMesh_CollectSurroundingAreas");
+	MarkNativeAsOptional("NavMesh_BuildPath");
+	MarkNativeAsOptional("NavMeshArea_GetID");
+	MarkNativeAsOptional("NavMeshArea_GetFlags");
+	MarkNativeAsOptional("NavMeshArea_GetPlace");
+	MarkNativeAsOptional("NavMeshArea_GetCenter");
+	MarkNativeAsOptional("NavMeshArea_GetAdjacentList");
+	MarkNativeAsOptional("NavMeshArea_GetLadderList");
+	MarkNativeAsOptional("NavMeshArea_GetHidingSpots");
+	MarkNativeAsOptional("NavMeshArea_GetClosestPointOnArea");
+	MarkNativeAsOptional("NavMeshArea_GetTotalCost");
+	MarkNativeAsOptional("NavMeshArea_GetCostSoFar");
+	MarkNativeAsOptional("NavMeshArea_GetParent");
+	MarkNativeAsOptional("NavMeshArea_GetParentHow");
+	MarkNativeAsOptional("NavMeshArea_SetParent");
+	MarkNativeAsOptional("NavMeshArea_SetParentHow");
+	MarkNativeAsOptional("NavMeshArea_GetExtentLow");
+	MarkNativeAsOptional("NavMeshArea_GetExtentHigh");
+	MarkNativeAsOptional("NavMeshArea_IsOverlappingPoint");
+	MarkNativeAsOptional("NavMeshArea_IsOverlappingArea");
+	MarkNativeAsOptional("NavMeshArea_GetNECornerZ");
+	MarkNativeAsOptional("NavMeshArea_GetSWCornerZ");
+	MarkNativeAsOptional("NavMeshArea_GetCorner");
+	MarkNativeAsOptional("NavMeshArea_GetZ");
+	MarkNativeAsOptional("NavMeshArea_GetZFromXAndY");
+	MarkNativeAsOptional("NavMeshArea_IsEdge");
+	MarkNativeAsOptional("NavMeshArea_Contains");
+	MarkNativeAsOptional("NavMeshArea_GetRandomPoint");
+	MarkNativeAsOptional("NavMeshArea_IsConnected");
+	MarkNativeAsOptional("NavMeshArea_ComputePortal");
+	MarkNativeAsOptional("NavMeshArea_ComputeClosestPointInPortal");
+	MarkNativeAsOptional("NavMeshArea_ComputeDirection");
+	MarkNativeAsOptional("NavMeshArea_GetLightIntensity");
+	MarkNativeAsOptional("GetAdjacentList");
+	MarkNativeAsOptional("GetIncomingConnections");
+	MarkNativeAsOptional("GetApproachInfoList");
+	MarkNativeAsOptional("GetZombiePopulation");
+	MarkNativeAsOptional("NavHidingSpot_GetID");
+	MarkNativeAsOptional("NavHidingSpot_GetFlags");
+	MarkNativeAsOptional("NavHidingSpot_GetPosition");
+	MarkNativeAsOptional("NavHidingSpot_GetArea");
+	MarkNativeAsOptional("NavMeshLadder_GetLength");
+	MarkNativeAsOptional("NavMeshLadder_GetWidth");
+	MarkNativeAsOptional("NavMeshLadder_GetTopForwardArea");
+	MarkNativeAsOptional("NavMeshLadder_GetTopLeftArea");
+	MarkNativeAsOptional("NavMeshLadder_GetTopRightArea");
+	MarkNativeAsOptional("NavMeshLadder_GetTopBehindArea");
+	MarkNativeAsOptional("NavMeshLadder_GetBottomArea");
+	MarkNativeAsOptional("NavMeshLadder_GetTop");
+	MarkNativeAsOptional("NavMeshLadder_GetBottom");
+	MarkNativeAsOptional("NavSpotEncounter_GetFrom");
+	MarkNativeAsOptional("NavSpotEncounter_GetFromDirection");
+	MarkNativeAsOptional("NavSpotEncounter_GetTo");
+	MarkNativeAsOptional("NavSpotEncounter_GetToDirection");
+	MarkNativeAsOptional("NavSpotEncounter_GetSpots");
+	MarkNativeAsOptional("NavSpotOrder_GetHidingSpot");
+	MarkNativeAsOptional("NavSpotOrder_GetParametricDistance");
+}
+#endif
