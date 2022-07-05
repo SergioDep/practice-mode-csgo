@@ -29,7 +29,7 @@ void GetPlayerData(int client)
 public void T_GetPlayerDataCallback(Database database, DBResultSet results, const char[] error, int userid)
 {
 	int clientIndex = GetClientOfUserId(userid);
-	if(IsValidClient(clientIndex))
+	if(IsValidClient(clientIndex) && !IsFakeClient(clientIndex))
 	{
 		if (results == null)
 		{

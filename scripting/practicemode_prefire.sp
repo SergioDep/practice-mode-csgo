@@ -47,7 +47,7 @@ float g_PFBotOrigin[MAX__BOTS_PER_ZONE][3];
 float g_PFBotAngles[MAX__BOTS_PER_ZONE][3];
 
 ////////////////timer
-bool g_RunningTimeCommand = false;
+bool g_Timer_RunningCommand = false;
 bool g_RunningTimeZoneCommand = false;
 Handle HTMTimer;
 float g_LastTimeCommand;
@@ -442,7 +442,7 @@ public Action CMD_ExitPrefireMode(int client, int args) {
     if(!g_InBotPrefireMode) {
         return Plugin_Handled;
     }
-    g_RunningTimeCommand = false;
+    g_Timer_RunningCommand = false;
     g_RunningTimeZoneCommand = false;
     ExitPrefire();
     PrintToChatAll(" \x05[Prefire] \x01 Exited prefire mode.");
@@ -680,7 +680,7 @@ public bool IsPossiblePrefireBot(int client) {
   if (!PM_IsValidClient(client) || !IsFakeClient(client) || IsClientSourceTV(client)) {
     return false;
   }
-  return IsFakeClient(client); //&& !g_IsPMBot[client] si es bot fake no dispara practicemode retorna 0, para compatibilidad
+  return IsFakeClient(client); //&& !g_Is_PMBot[client] si es bot fake no dispara practicemode retorna 0, para compatibilidad
 }
 
 public void AddZonePoint(int client, int pointID, const float personOrigin[3], const float personAngles[3]) {
@@ -1030,8 +1030,8 @@ stock void Start_PFTimer() {
     return;
   }
 
-  if (!g_RunningTimeCommand) {
-    g_RunningTimeCommand = true;
+  if (!g_Timer_RunningCommand) {
+    g_Timer_RunningCommand = true;
     StartClientTimer();
   } else {
     StopClientTimer();
@@ -1043,7 +1043,7 @@ public void StartClientTimer() {
 }
 
 public float StopClientTimer() {
-    g_RunningTimeCommand = false;
+    g_Timer_RunningCommand = false;
     return GetEngineTime() - g_LastTimeCommand;
 }
 

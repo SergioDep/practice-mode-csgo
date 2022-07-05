@@ -301,7 +301,7 @@
 //   SetEntityMoveType(client, MOVETYPE_WALK);
 
 //   // same global behavior as .goto. enables .rename etc.
-//   g_CurrentSavedGrenadeId[client] = id;
+//   g_Nade_CurrentSavedId[client] = id;
   
 //   // lol. TBD whether we need a more elegant solution for spawning.
 //   SlapPlayer(client, .health = 0, .sound = false);

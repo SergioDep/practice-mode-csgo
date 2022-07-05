@@ -85,7 +85,6 @@ public void OnPluginStart()
 	g_Cvar_EnableStatTrak 			= CreateConVar("sm_weapons_enable_stattrak", 		"1", 				"Enable/Disable StatTrak options");
 	g_Cvar_EnableSeed				= CreateConVar("sm_weapons_enable_seed",			"1",				"Enable/Disable Seed options");
 	g_Cvar_FloatIncrementSize 		= CreateConVar("sm_weapons_float_increment_size", 	"0.05", 			"Increase/Decrease by value for weapon float");
-	g_Cvar_EnableWeaponOverwrite 	= CreateConVar("sm_weapons_enable_overwrite", 		"1", 				"Enable/Disable players overwriting other players' weapons (picked up from the ground) by using !ws command");
 	g_Cvar_GracePeriod 			= CreateConVar("sm_weapons_grace_period", 			"0", 				"Grace period in terms of seconds counted after round start for allowing the use of !ws command. 0 means no restrictions");
 	g_Cvar_InactiveDays 			= CreateConVar("sm_weapons_inactive_days", 			"30", 				"Number of days before a player (SteamID) is marked as inactive and his data is deleted. (0 or any negative value to disable deleting)");
 	
@@ -108,7 +107,7 @@ public void OnPluginStart()
 	// if(g_cvGameType.IntValue == 1 && g_cvGameMode.IntValue == 2)
 	// {
 	PTaH(PTaH_WeaponCanUsePre, Hook, WeaponCanUsePre);
-	PTaH(PTaH_WeaponCanUsePost, Hook, WeaponCanUsePost);
+	// PTaH(PTaH_WeaponCanUsePost, Hook, WeaponCanUsePost);
 	// }
 	
 	AddCommandListener(ChatListener, "say");
@@ -252,7 +251,8 @@ public Action CommandNameTag(int client, int args)
 
 void SetWeaponProps(int client, int entity)
 {
-	int target = g_iEquipTempKnife[client] > 0 ? g_iEquipTempKnife[client] : client;
+	bool isKnife = IsKnife(entity);
+	int target = (isKnife && g_iEquipTempKnife[client] > 0 && IsValidClient(g_iEquipTempKnife[client])) ? g_iEquipTempKnife[client] : client;
 	int index = GetWeaponIndex(entity);
 	if (index > -1 && g_iSkins[target][index] != 0)
 	{
@@ -271,7 +271,7 @@ void SetWeaponProps(int client, int entity)
 			SetEntProp(entity, Prop_Send, "m_nFallbackSeed", g_iSeedRandom[target][index]);
 		}
 		
-		if(!IsKnife(entity))
+		if(!isKnife)
 		{
 			if(g_bEnableStatTrak)
 			{
@@ -292,11 +292,7 @@ void SetWeaponProps(int client, int entity)
 			SetEntDataString(entity, FindSendPropInfo("CBaseAttributableItem", "m_szCustomName"), g_NameTag[target][index], 128);
 		}
 		SetEntProp(entity, Prop_Send, "m_iAccountID", GetSteamAccountID(target));
-		int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-		int prevowner = GetEntPropEnt(entity, Prop_Send, "m_hPrevOwner");
-		PrintToChatAll("yo(%N-%d) verificando SetWeaponProps, owner %d, prevowner %d", owner, owner, owner, prevowner);
 		SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", target);
-		SetEntPropEnt(entity, Prop_Send, "m_hPrevOwner", -1);
 	}
 	g_iEquipTempKnife[client] = -1;
 }
@@ -312,16 +308,7 @@ void RefreshWeapon(int client, int index, bool defaultKnife = false)
 		{
 			bool isKnife = IsKnife(weapon);
 			if ((!defaultKnife && GetWeaponIndex(weapon) == index) || (isKnife && (defaultKnife || IsKnifeClass(g_WeaponClasses[index]))))
-			{
-				if(!g_bOverwriteEnabled)
-				{
-					int previousOwner;
-					if ((previousOwner = GetEntPropEnt(weapon, Prop_Send, "m_hPrevOwner")) != INVALID_ENT_REFERENCE && previousOwner != client)
-					{
-						return;
-					}
-				}
-				
+			{				
 				int clip = -1;
 				int ammo = -1;
 				int offset = -1;

@@ -145,10 +145,20 @@ stock int GetCvarIntSafe(const char[] cvarName, int defaultValue = 0) {
   }
 }
 
-stock void GetCvarStringSafe(const char[] cvarName, char[] buffer, int size, char[] defaultValue = "") {
+stock float GetCvarFloatSafe(const char[] cvarName, float defaultValue = 0.0) {
   Handle cvar = FindConVar(cvarName);
   if (cvar == INVALID_HANDLE) {
     PrintToServer("5-Failed to find cvar \"%s\"", cvar);
+    return defaultValue;
+  } else {
+    return GetConVarFloat(cvar);
+  }
+}
+
+stock void GetCvarStringSafe(const char[] cvarName, char[] buffer, int size, char[] defaultValue = "") {
+  Handle cvar = FindConVar(cvarName);
+  if (cvar == INVALID_HANDLE) {
+    PrintToServer("6-Failed to find cvar \"%s\"", cvar);
     strcopy(buffer, size, defaultValue);
   } else {
     GetConVarString(cvar, buffer, size);

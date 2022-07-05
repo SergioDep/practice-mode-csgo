@@ -124,7 +124,7 @@ Action FUNCION_CACACACA(int client, int args) {
   //   customAngles[0] = x;
   //   for (float y=0.0; y<=0.5; y+=0.01) {
   //     customAngles[1] = y;
-  //     CreateTrajectory(client, "weapon_smokegrenade", GRENADEPREDICT_NORMAL, false, endpos, _, customAngles, _, false);
+  //     CreateTrajectory(client, "weapon_smokegrenade", Grenade_PredictMode_Normal, false, endpos, _, customAngles, _, false);
   //     endpositions.PushArray(endpos, sizeof(endpos));
   //   }
   // }

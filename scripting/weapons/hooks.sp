@@ -27,54 +27,6 @@ public void UnhookPlayer(int client)
 		SDKUnhook(client, SDKHook_OnTakeDamageAlive, OnTakeDamageAlive);
 }
 
-Action GiveNamedItemPre(int client, char classname[64], CEconItemView &item, bool &ignoredCEconItemView, bool &OriginIsNULL, float Origin[3])
-{
-	if (IsValidClient(client))
-	{
-		int target = g_iEquipTempKnife[client] > 0 ? g_iEquipTempKnife[client] : client;
-		if (g_iKnife[target] != 0 && IsKnifeClass(classname))
-		{
-			ignoredCEconItemView = true;
-			strcopy(classname, sizeof(classname), g_WeaponClasses[g_iKnife[target]]);
-			return Plugin_Changed;
-		}
-	}
-	return Plugin_Continue;
-}
-
-void GiveNamedItemPost(int client, const char[] classname, const CEconItemView item, int entity, bool OriginIsNULL, const float Origin[3])
-{
-	if (IsValidClient(client) && IsValidEntity(entity))
-	{
-		int index;
-		if (g_smWeaponIndex.GetValue(classname, index))
-		{
-			if (IsKnifeClass(classname))
-			{
-				// RemovePlayerItem(client, GetPlayerWeaponSlot(client, CS_SLOT_KNIFE));
-				if (GetPlayerWeaponSlot(client, CS_SLOT_KNIFE) == -1) {
-					int prevowner = GetEntPropEnt(entity, Prop_Send, "m_hPrevOwner");
-					if (IsValidClient(prevowner)) {
-						PrintToChatAll("yo(%N-%d) equipandome un arma de prevowner %N-%d", client, client, prevowner, prevowner);
-					} else {
-						PrintToChatAll("yo(%N-%d) equipandome un arma de nadie(-1)", client, client);
-					}
-					EquipPlayerWeapon(client, entity);
-				}
-			}
-			SetWeaponProps(client, entity);
-			if (IsKnifeClass(classname) && GetPlayerWeaponSlot(client, CS_SLOT_KNIFE) != -1) {
-				// int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-				// int prevowner = GetEntPropEnt(entity, Prop_Send, "m_hPrevOwner");
-				// PrintToChatAll("yo(%N-%d) GiveItemPost owner %d, prevowner %d", client, client, owner, prevowner);
-				// SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", -1);
-				// SetEntPropEnt(entity, Prop_Send, "m_hPrevOwner", client);
-				// PrintToChatAll("hook after owner %d, prevowner %d", owner, prevowner);
-			}
-		}
-	}
-}
-
 public Action ChatListener(int client, const char[] command, int args)
 {
 	char msg[128];
@@ -213,33 +165,56 @@ Action WeaponCanUsePre(int client, int weapon, bool& pickup)
 {
 	if (IsKnife(weapon) && IsValidClient(client))
 	{
-		int prevOwner = GetEntPropEnt(weapon, Prop_Send, "m_hPrevOwner");
-		if (IsValidClient(prevOwner)) {
+		int originalOwner = GetEntPropEnt(weapon, Prop_Send, "m_OriginalOwnerXuidHigh");
+		if (IsValidClient(originalOwner)) {
+			// weapon was droped from client2
 			if (GetPlayerWeaponSlot(client, CS_SLOT_KNIFE) == -1) {
-				g_iEquipTempKnife[client] = prevOwner;
-				PrintToChatAll("yo(%N-%d) agarre un cuchillo que era de %N-%d", client, client, prevOwner, prevOwner);
-				int newKnife = GivePlayerItem(client, "weapon_knife");
-				SetEntPropEnt(newKnife, Prop_Send, "m_hPrevOwner", prevOwner);
+				// client doesnt have a knife
+				g_iEquipTempKnife[client] = originalOwner;
+				// destroy the picked up knife
 				AcceptEntityInput(weapon, "Kill");
+				// spawn a new one with its original owner
+				int newKnife = GivePlayerItem(client, "weapon_knife");
+				SetEntPropEnt(newKnife, Prop_Send, "m_OriginalOwnerXuidHigh", originalOwner);
 			}
 		}
 	}
 	return Plugin_Continue;
 }
 
-void WeaponCanUsePost(int client, int weapon, bool pickup) {
-	if (IsKnife(weapon) && IsValidClient(client))
+Action GiveNamedItemPre(int client, char classname[64], CEconItemView &item, bool &ignoredCEconItemView, bool &OriginIsNULL, float Origin[3])
+{
+	if (IsValidClient(client))
 	{
-		int prevOwner = GetEntPropEnt(weapon, Prop_Send, "m_hPrevOwner");
-		if (IsValidClient(prevOwner)) {
-			PrintToChatAll("yo(%N-%d) post agarre un cuchillo que era de %N-%d", client, client, prevOwner, prevOwner);
-			int currentKnife;
-			if ((currentKnife = GetPlayerWeaponSlot(client, CS_SLOT_KNIFE)) != -1) {
-				SetEntPropEnt(currentKnife, Prop_Send, "m_hPrevOwner", prevOwner);
-				PrintToChatAll("yo(%N-%d) post setie mi cuchillo a lastowner %N-%d", client, client, prevOwner, prevOwner);
+		int target = g_iEquipTempKnife[client] > 0 ? g_iEquipTempKnife[client] : client;
+		if (g_iKnife[target] != 0 && IsKnifeClass(classname))
+		{
+			ignoredCEconItemView = true;
+			strcopy(classname, sizeof(classname), g_WeaponClasses[g_iKnife[target]]);
+			return Plugin_Changed;
+		}
+	}
+	return Plugin_Continue;
+}
+
+void GiveNamedItemPost(int client, const char[] classname, const CEconItemView item, int entity, bool OriginIsNULL, const float Origin[3])
+{
+	if (IsValidClient(client) && IsValidEntity(entity))
+	{
+		int index;
+		if (g_smWeaponIndex.GetValue(classname, index))
+		{
+			if (IsKnifeClass(classname))
+			{
+				if (GetPlayerWeaponSlot(client, CS_SLOT_KNIFE) == -1) {
+					EquipPlayerWeapon(client, entity);
+				}
 			}
-		} else {
-			PrintToChatAll("yo(%N-%d) post %d agarre un cuchillo que era de nadie(-1)", client, client, pickup);
+			SetWeaponProps(client, entity);
+			if (IsKnifeClass(classname) && GetPlayerWeaponSlot(client, CS_SLOT_KNIFE) != -1) {
+				SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", -1);
+				SetEntPropEnt(entity, Prop_Send, "m_OriginalOwnerXuidHigh", client);
+			}
 		}
 	}
 }

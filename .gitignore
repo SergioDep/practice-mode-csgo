@@ -120,5 +120,5 @@ scripting/sbp.sp
 # scripting/weapons/hooks.sp
 # scripting/weapons/menus.sp
 # scripting/weapons/natives.sp
-sql_formatting.sql
 todo.md
+sql_formatting.sql

@@ -7,39 +7,39 @@
 // #define GRENADE_ACCURACY_SCORING_ORIGIN 0.3, 3.0, 100.0
 
 
-// StringMap g_GrenadeAccuracyQueue;
-// int g_GrenadeAccuracyIntent[MAXPLAYERS + 1];
-// int g_GrenadeAccuracyAllowReport[MAXPLAYERS + 1];
+// StringMap g_NadeAccuracyQueue;
+// int g_NadeAccuracyIntent[MAXPLAYERS + 1];
+// int g_NadeAccuracyAllowReport[MAXPLAYERS + 1];
 
 // public void GrenadeAccuracy_ClientDisconnect(int client) {
-//   g_GrenadeAccuracyIntent = -1;
-//   g_GrenadeAccuracyAllowReport = true;
+//   g_NadeAccuracyIntent = -1;
+//   g_NadeAccuracyAllowReport = true;
 // }
 
 // public void GrenadeAccuracy_PluginStart() {
-//   g_GrenadeAccuracyQueue = new StringMap();
+//   g_NadeAccuracyQueue = new StringMap();
 // }
 
 // public void GrenadeAccuracy_MapStart() {
-//   g_GrenadeAccuracyQueue.Clear();
+//   g_NadeAccuracyQueue.Clear();
 //   for (int i = 1; i <= MaxClients; i++) {
-//     g_GrenadeAccuracyIntent[i] = -1;
-//     g_GrenadeAccuracyAllowReport[i] = true;
+//     g_NadeAccuracyIntent[i] = -1;
+//     g_NadeAccuracyAllowReport[i] = true;
 //   }
 // }
 
 // public void GrenadeAccuracy_OnThrowGrenade(const int client, const int entity) {
 //   // We want the player coordinates, not the grenade coordinates, so we should get those ourselves.
 //   // Improbably possibility for a race condition here, if the grenade event is slow to fire somehow. 
-//   int i = g_GrenadeHistoryIndex[client] - 1;
-//   if (g_GrenadeHistoryIndex[client] == -1) {
-//     PrintToServer("g_GrenadeHistoryIndex[client] is equal to -1 from client %d with entity %d.", client, entity);
+//   int i = g_Nade_HistoryIndex[client] - 1;
+//   if (g_Nade_HistoryIndex[client] == -1) {
+//     PrintToServer("g_Nade_HistoryIndex[client] is equal to -1 from client %d with entity %d.", client, entity);
 //     return;
 //   }
 //   float angles[3]; 
-//   g_GrenadeHistoryAngles[client].GetArray(i, angles, sizeof(angles));
+//   g_Nade_HistoryAngles[client].GetArray(i, angles, sizeof(angles));
 //   float origin[3];
-//   g_GrenadeHistoryPositions[client].GetArray(i, origin, sizeof(origin));
+//   g_Nade_HistoryPositions[client].GetArray(i, origin, sizeof(origin));
 
 //   DataPack p = new DataPack();
 //   p.WriteFloat(origin[0]);
@@ -51,7 +51,7 @@
 //   char key[32];
 //   IntToString(entity, key, sizeof(key));
 //   // replacing shouldn't be possible -- 1 nade throw = 1 entity -- so let's allow exceptions.
-//   g_GrenadeAccuracyQueue.SetValue(key, p, /*replace*/ false); 
+//   g_NadeAccuracyQueue.SetValue(key, p, /*replace*/ false); 
 // }
 
 // public void GrenadeAccuracy_OnGrenadeExplode(
@@ -60,14 +60,14 @@
 //   GrenadeType type,
 //   const float detonation[3]
 // ) {
-//   if (!g_GrenadeAccuracyAllowReport[client]) {
+//   if (!g_NadeAccuracyAllowReport[client]) {
 //     return;
 //   }
 
 //   Handle p;
 //   char key[32];
 //   IntToString(entity, key, sizeof(key));
-//   if (!g_GrenadeAccuracyQueue.GetValue(key, p)) {
+//   if (!g_NadeAccuracyQueue.GetValue(key, p)) {
 //     return;
 //   }
 //   ResetPack(p);
@@ -80,17 +80,17 @@
 //   angles[1] = ReadPackFloat(p);
 //   angles[2] = ReadPackFloat(p);
 //   CloseHandle(p);
-//   g_GrenadeAccuracyQueue.Remove(key);
+//   g_NadeAccuracyQueue.Remove(key);
 
-//   int grenadeID_nearOrigin = g_GrenadeAccuracyIntent[client] != -1 
-//     ? g_GrenadeAccuracyIntent[client]
+//   int grenadeID_nearOrigin = g_NadeAccuracyIntent[client] != -1 
+//     ? g_NadeAccuracyIntent[client]
 //     : GrenadeAccuracyFindNearestIdToVectorProp(
 //       origin, 
 //       type,
 //       GrenadeAccuracyIteratorProp_Origin
 //     );
-//   int grenadeID_nearDetonation = g_GrenadeAccuracyIntent[client] != -1 
-//     ? g_GrenadeAccuracyIntent[client]
+//   int grenadeID_nearDetonation = g_NadeAccuracyIntent[client] != -1 
+//     ? g_NadeAccuracyIntent[client]
 //     : GrenadeAccuracyFindNearestIdToVectorProp(
 //       detonation, 
 //       type, 
@@ -399,7 +399,7 @@
 // }
 
 // public void GrenadeAccuracySetIntent(const int client, const int grenadeID) {
-//   g_GrenadeAccuracyIntent[client] = grenadeID;
+//   g_NadeAccuracyIntent[client] = grenadeID;
 // }
 
 // public void GrenadeAccuracyClearIntent(const int client) {
@@ -407,9 +407,9 @@
 // }
 
 // public void GrenadeAccuracyAllowReport(const int client) {
-//   g_GrenadeAccuracyAllowReport[client] = true;
+//   g_NadeAccuracyAllowReport[client] = true;
 // }
 
 // public void GrenadeAccuracyDenyReport(const int client) {
-//   g_GrenadeAccuracyAllowReport[client] = false;
+//   g_NadeAccuracyAllowReport[client] = false;
 // }

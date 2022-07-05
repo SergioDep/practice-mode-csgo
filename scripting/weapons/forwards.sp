@@ -46,7 +46,6 @@ public void OnConfigsExecuted()
 	g_bEnableSeed = g_Cvar_EnableSeed.BoolValue;
 	g_fFloatIncrementSize = g_Cvar_FloatIncrementSize.FloatValue;
 	g_iFloatIncrementPercentage = RoundFloat(g_fFloatIncrementSize * 100.0);
-	g_bOverwriteEnabled = g_Cvar_EnableWeaponOverwrite.BoolValue;
 	g_iGracePeriod = g_Cvar_GracePeriod.IntValue;
 	if(g_iGracePeriod > 0)
 	{
@@ -82,7 +81,7 @@ public void OnClientPutInServer(int client)
 
 public void OnClientPostAdminCheck(int client)
 {
-	if(g_iDatabaseState > 1 && IsValidClient(client))
+	if(g_iDatabaseState > 1 && IsValidClient(client) && !IsFakeClient(client))
 	{
 		GetPlayerData(client);
 		QueryClientConVar(client, "cl_language", ConVarCallBack);

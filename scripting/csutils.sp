@@ -166,10 +166,10 @@ public void OnGameFrame() {
     float vel[3];
     GetEntPropVector(ent, Prop_Data, "m_vecVelocity", vel);
     if (GetVectorLength(vel) <= 0.1) {
-      SetEntProp(ent, Prop_Send, "m_nSmokeEffectTickBegin", GetGameTickCount() + 1);
-      EmitSoundToAll(SMOKE_EMIT_SOUND, ent, 6, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL,
-                     SNDPITCH_NORMAL);
-      CreateTimer(15.0, KillNade, ref);
+      // SetEntProp(ent, Prop_Send, "m_nSmokeEffectTickBegin", GetGameTickCount() + 1);
+      // EmitSoundToAll(SMOKE_EMIT_SOUND, ent, 6, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL,
+      //                SNDPITCH_NORMAL);
+      // CreateTimer(15.0, KillNade, ref);
       g_SmokeList.Erase(i);
       i--;
     }
@@ -193,13 +193,15 @@ public bool HandleNativeRequestedNade(int entity) {
       angVelocity[2] = 600.0;
 
       SetEntProp(entity, Prop_Data, "m_CollisionGroup", COLLISION_GROUP_PROJECTILE);
-      SetEntPropFloat(entity, Prop_Data, "m_flElasticity", 0.45);
       SetEntPropFloat(entity, Prop_Data, "m_flGravity", 0.4);
       SetEntPropFloat(entity, Prop_Data, "m_flFriction", 0.2);
+      SetEntPropFloat(entity, Prop_Data, "m_flElasticity", 0.45);
       SetEntPropVector(entity, Prop_Data, "m_vecOrigin", origin);
       SetEntPropVector(entity, Prop_Data, "m_vecVelocity", velocity);
       SetEntPropVector(entity, Prop_Send, "m_vInitialVelocity", velocity);
       SetEntPropVector(entity, Prop_Data, "m_vecAngVelocity", angVelocity);
+      int owner = GetEntPropEnt(entity, Prop_Data, "m_hThrower");
+      PrintToChatAll("owner : %d", owner);
 
       if (type == GrenadeType_HE) {
         SetEntPropFloat(entity, Prop_Data, "m_flDamage", 99.0);
@@ -208,6 +210,10 @@ public bool HandleNativeRequestedNade(int entity) {
 
       TeleportEntity(entity, origin, NULL_VECTOR, velocity);
       if (type == GrenadeType_Smoke) {
+        SetEntProp(entity, Prop_Send, "m_bDidSmokeEffect", false);
+        SetEntProp(entity, Prop_Send, "m_nSmokeEffectTickBegin", 0);
+        // SetEntPropFloat(entity, Prop_Data, "m_flLastBounce", 0.0);
+        PrintToChatAll("setting smoke props...");
         g_SmokeList.Push(ref);
       }
       return true;
@@ -293,7 +299,7 @@ public void OnEntityDestroyed(int entity) {
     Call_PushCell(type);
     Call_PushArray(origin, 3);
     Call_Finish();
-  } 
+  }
 }
 
 public Action OnTouch(int entity, int other) {

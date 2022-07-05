@@ -20,18 +20,12 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Commands */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+/**************************** Commands *****************************/
 /*******************************************************************/
 
 public Action Command_NextCrossfire(int client, int args) {
-  int currentCrossfireIndex = g_CFireArenas.FindString(g_CFireActiveId);
-  if (currentCrossfireIndex < g_CFireArenas.Length - 1) {
+  int currentCrossfireIndex = g_Crossfire_Arenas.FindString(g_Crossfire_ActiveId);
+  if (currentCrossfireIndex < g_Crossfire_Arenas.Length - 1) {
     // go to next crossfire
     currentCrossfireIndex++;
     StartSingleCrossfire(client, currentCrossfireIndex);
@@ -40,7 +34,7 @@ public Action Command_NextCrossfire(int client, int args) {
 }
 
 public Action Command_PrevCrossfire(int client, int args) {
-  int currentCrossfireIndex = g_CFireArenas.FindString(g_CFireActiveId);
+  int currentCrossfireIndex = g_Crossfire_Arenas.FindString(g_Crossfire_ActiveId);
   if (currentCrossfireIndex > 0) {
     // go to prev crossfire
     currentCrossfireIndex--;
@@ -68,13 +62,7 @@ public Action Command_CrossfiresEditorMenu(int client, int args) {
 }
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Menus */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+/****************************** Menus ******************************/
 /*******************************************************************/
 
 public void CrossfiresSetupMenu(int client) {
@@ -84,21 +72,21 @@ public void CrossfiresSetupMenu(int client) {
   menu.AddItem("start", "Empezar Crossfire");
   char displayStr[OPTION_NAME_LENGTH];
   Format(displayStr, sizeof(displayStr), "Cambiar Dificultad: %s", 
-    (g_CFOption_BotsDifficulty == 0)
+    (g_Crossfire_BotsDifficulty == 0)
       ? "Práctica"
-    : (g_CFOption_BotsDifficulty == 1)
+    : (g_Crossfire_BotsDifficulty == 1)
       ? "Facil"
-    : (g_CFOption_BotsDifficulty == 2)
+    : (g_Crossfire_BotsDifficulty == 2)
       ? "Medio"
-    : (g_CFOption_BotsDifficulty == 3)
+    : (g_Crossfire_BotsDifficulty == 3)
       ? "Dificil"
-    : (g_CFOption_BotsDifficulty == 4)
+    : (g_Crossfire_BotsDifficulty == 4)
       ? "Mas Dificil"
-    : (g_CFOption_BotsDifficulty == 5)
+    : (g_Crossfire_BotsDifficulty == 5)
       ? "Avanzado" : "Error"
   );
   menu.AddItem("difficulty", displayStr);
-  Format(displayStr, sizeof(displayStr), "Endless: %s", (g_CFOption_EndlessMode) ? "Si" : "No");
+  Format(displayStr, sizeof(displayStr), "Endless: %s", (g_Crossfire_EndlessMode) ? "Si" : "No");
   menu.AddItem("endless", displayStr);
   menu.AddItem("options", "Opciones Personalizadas");
   menu.AddItem("stop", "Salir de Crossfire");
@@ -114,63 +102,63 @@ public int CrossfiresSetupMenuHandler(Menu menu, MenuAction action, int client, 
     if (StrEqual(buffer, "start")) {
       InitCrossfire(client);
     } else if (StrEqual(buffer, "difficulty")) {
-      g_CFOption_BotsDifficulty++;
-      g_CFOption_BotsDifficulty = (g_CFOption_BotsDifficulty > CFOption_BotsDifficultyMAX)
+      g_Crossfire_BotsDifficulty++;
+      g_Crossfire_BotsDifficulty = (g_Crossfire_BotsDifficulty > CFOption_BotsDifficultyMAX)
         ? CFOption_BotsDifficultyMIN
-        : g_CFOption_BotsDifficulty;
-      switch(g_CFOption_BotsDifficulty) {
+        : g_Crossfire_BotsDifficulty;
+      switch(g_Crossfire_BotsDifficulty) {
         case 0: {
-          g_CFOption_MaxSimBots = 2;
-          g_CFOption_BotReactTime = 180;
-          g_CFOption_BotStartDelay = 100;
-          g_CFOption_BotsAttack = false;
-          g_CFOption_BotsFlash = true;
-          g_CFOption_BotStrafeChance = 2;
+          g_Crossfire_MaxSimBots = 2;
+          g_Crossfire_BotReactTime = 180;
+          g_Crossfire_BotStartDelay = 100;
+          g_Crossfire_BotsAttack = false;
+          g_Crossfire_BotsFlash = true;
+          g_Crossfire_BotStrafeChance = 2;
         }
         case 1: {
-          g_CFOption_MaxSimBots = 1;
-          g_CFOption_BotReactTime = 300;
-          g_CFOption_BotStartDelay = 250;
-          g_CFOption_BotsAttack = true;
-          g_CFOption_BotsFlash = false;
-          g_CFOption_BotStrafeChance = 0;
+          g_Crossfire_MaxSimBots = 1;
+          g_Crossfire_BotReactTime = 300;
+          g_Crossfire_BotStartDelay = 250;
+          g_Crossfire_BotsAttack = true;
+          g_Crossfire_BotsFlash = false;
+          g_Crossfire_BotStrafeChance = 0;
         }
         case 2: {
-          g_CFOption_MaxSimBots = 2;
-          g_CFOption_BotReactTime = 240;
-          g_CFOption_BotStartDelay = 100;
-          g_CFOption_BotsAttack = true;
-          g_CFOption_BotsFlash = false;
-          g_CFOption_BotStrafeChance = 1;
+          g_Crossfire_MaxSimBots = 2;
+          g_Crossfire_BotReactTime = 240;
+          g_Crossfire_BotStartDelay = 100;
+          g_Crossfire_BotsAttack = true;
+          g_Crossfire_BotsFlash = false;
+          g_Crossfire_BotStrafeChance = 1;
         }
         case 3: {
-          g_CFOption_MaxSimBots = 2;
-          g_CFOption_BotReactTime = 180;
-          g_CFOption_BotStartDelay = 100;
-          g_CFOption_BotsAttack = true;
-          g_CFOption_BotsFlash = false;
-          g_CFOption_BotStrafeChance = 2;
+          g_Crossfire_MaxSimBots = 2;
+          g_Crossfire_BotReactTime = 180;
+          g_Crossfire_BotStartDelay = 100;
+          g_Crossfire_BotsAttack = true;
+          g_Crossfire_BotsFlash = false;
+          g_Crossfire_BotStrafeChance = 2;
         }
         case 4: {
-          g_CFOption_MaxSimBots = 2;
-          g_CFOption_BotReactTime = 180;
-          g_CFOption_BotStartDelay = 100;
-          g_CFOption_BotsAttack = true;
-          g_CFOption_BotsFlash = true;
-          g_CFOption_BotStrafeChance = 3;
+          g_Crossfire_MaxSimBots = 2;
+          g_Crossfire_BotReactTime = 180;
+          g_Crossfire_BotStartDelay = 100;
+          g_Crossfire_BotsAttack = true;
+          g_Crossfire_BotsFlash = true;
+          g_Crossfire_BotStrafeChance = 3;
         }
         case 5: {
-          g_CFOption_MaxSimBots = 2;
-          g_CFOption_BotReactTime = 120;
-          g_CFOption_BotStartDelay = 100;
-          g_CFOption_BotsAttack = true;
-          g_CFOption_BotsFlash = true;
-          g_CFOption_BotStrafeChance = 3;
+          g_Crossfire_MaxSimBots = 2;
+          g_Crossfire_BotReactTime = 120;
+          g_Crossfire_BotStartDelay = 100;
+          g_Crossfire_BotsAttack = true;
+          g_Crossfire_BotsFlash = true;
+          g_Crossfire_BotStrafeChance = 3;
         }
       }
       CrossfiresSetupMenu(client);
     } else if (StrEqual(buffer, "endless")) {
-      g_CFOption_EndlessMode = !g_CFOption_EndlessMode;
+      g_Crossfire_EndlessMode = !g_Crossfire_EndlessMode;
       CrossfiresSetupMenu(client);
     } else if (StrEqual(buffer, "options")) {
       CrossfireOptionsMenu(client);
@@ -189,39 +177,39 @@ public void CrossfireOptionsMenu(int client) {
   Menu menu = new Menu(CrossfireOptionsMenuHandler);
   menu.SetTitle("Cambiar Opciones Personalizadas");
   char displayStr[OPTION_NAME_LENGTH];
-  Format(displayStr, sizeof(displayStr), "Máximo Numero De Bots Simultaneos: %d", g_CFOption_MaxSimBots);
+  Format(displayStr, sizeof(displayStr), "Máximo Numero De Bots Simultaneos: %d", g_Crossfire_MaxSimBots);
   menu.AddItem("maxsimbots", displayStr);
-  Format(displayStr, sizeof(displayStr), "Tiempo de Reacción de Bots: %.0f ms", g_CFOption_BotReactTime*5.5556);
+  Format(displayStr, sizeof(displayStr), "Tiempo de Reacción de Bots: %.0f ms", g_Crossfire_BotReactTime*5.5556);
   menu.AddItem("reacttime", displayStr);
-  Format(displayStr, sizeof(displayStr), "Tiempo para que un Bot Salga: %.0f ms", g_CFOption_BotStartDelay*5.5556);
+  Format(displayStr, sizeof(displayStr), "Tiempo para que un Bot Salga: %.0f ms", g_Crossfire_BotStartDelay*5.5556);
   menu.AddItem("botdelay", displayStr);
-  Format(displayStr, sizeof(displayStr), "Bots Atacan: %s", g_CFOption_BotsAttack ? "Si" : "No");
+  Format(displayStr, sizeof(displayStr), "Bots Atacan: %s", g_Crossfire_BotsAttack ? "Si" : "No");
   menu.AddItem("botsattack", displayStr);
-  Format(displayStr, sizeof(displayStr), "Bots Lanzan Flash: %s", g_CFOption_BotsFlash ? "Si" : "No");
+  Format(displayStr, sizeof(displayStr), "Bots Lanzan Flash: %s", g_Crossfire_BotsFlash ? "Si" : "No");
   menu.AddItem("botsflash", displayStr);
   Format(displayStr, sizeof(displayStr), "Swingeo de Bots (A-D): %s", 
-    (g_CFOption_BotStrafeChance == 0)
+    (g_Crossfire_BotStrafeChance == 0)
       ? "Ninguno"
-    : (g_CFOption_BotStrafeChance == 1)
+    : (g_Crossfire_BotStrafeChance == 1)
       ? "Pocos"
-    : (g_CFOption_BotStrafeChance == 2)
+    : (g_Crossfire_BotStrafeChance == 2)
       ? "Normal"
-    : (g_CFOption_BotStrafeChance == 3)
+    : (g_Crossfire_BotStrafeChance == 3)
       ? "Muchos" : "Error"
   )
   menu.AddItem("botsstrafe", displayStr);
   Format(displayStr, sizeof(displayStr), "Armas de Bots: %s\n ", 
-    (g_CFOption_BotWeapons == 0)
+    (g_Crossfire_BotWeapons == 0)
       ? "Cuchillo"
-    : (g_CFOption_BotWeapons == 1)
+    : (g_Crossfire_BotWeapons == 1)
       ? "Pistola"
-    : (g_CFOption_BotWeapons == 2)
+    : (g_Crossfire_BotWeapons == 2)
       ? "MP9"
-    : (g_CFOption_BotWeapons == 3)
+    : (g_Crossfire_BotWeapons == 3)
       ? "Deagle"
-    : (g_CFOption_BotWeapons == 4)
+    : (g_Crossfire_BotWeapons == 4)
       ? "AK-47"
-    : (g_CFOption_BotWeapons == 5)
+    : (g_Crossfire_BotWeapons == 5)
       ? "AWP" : "Error"
   )
   menu.AddItem("weapons", displayStr);
@@ -237,34 +225,34 @@ public int CrossfireOptionsMenuHandler(Menu menu, MenuAction action, int client,
     char buffer[OPTION_ID_LENGTH];
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "botsstrafe")) {
-      g_CFOption_BotStrafeChance++;
-      g_CFOption_BotStrafeChance = (g_CFOption_BotStrafeChance > CFOption_BotStrafeChanceMAX)
+      g_Crossfire_BotStrafeChance++;
+      g_Crossfire_BotStrafeChance = (g_Crossfire_BotStrafeChance > CFOption_BotStrafeChanceMAX)
         ? CFOption_BotStrafeChanceMIN
-        : g_CFOption_BotStrafeChance;
+        : g_Crossfire_BotStrafeChance;
     } else if (StrEqual(buffer, "weapons")) {
-      g_CFOption_BotWeapons++;
-      g_CFOption_BotWeapons = (g_CFOption_BotWeapons > CFOption_BotWeaponsMAX)
+      g_Crossfire_BotWeapons++;
+      g_Crossfire_BotWeapons = (g_Crossfire_BotWeapons > CFOption_BotWeaponsMAX)
         ? CFOption_BotWeaponsMIN
-        : g_CFOption_BotWeapons;
+        : g_Crossfire_BotWeapons;
     } else if (StrEqual(buffer, "maxsimbots")) {
-      g_CFOption_MaxSimBots++;
-      g_CFOption_MaxSimBots = (g_CFOption_MaxSimBots > CFOption_MaxSimBotsMAX)
+      g_Crossfire_MaxSimBots++;
+      g_Crossfire_MaxSimBots = (g_Crossfire_MaxSimBots > CFOption_MaxSimBotsMAX)
         ? CFOption_MaxSimBotsMIN
-        : g_CFOption_MaxSimBots;
+        : g_Crossfire_MaxSimBots;
     } else if (StrEqual(buffer, "reacttime")) {
-      g_CFOption_BotReactTime += 30;
-      g_CFOption_BotReactTime = (g_CFOption_BotReactTime > CFOption_BotReactTimeMAX)
+      g_Crossfire_BotReactTime += 30;
+      g_Crossfire_BotReactTime = (g_Crossfire_BotReactTime > CFOption_BotReactTimeMAX)
         ? CFOption_BotReactTimeMIN
-        : g_CFOption_BotReactTime;
+        : g_Crossfire_BotReactTime;
     } else if (StrEqual(buffer, "botdelay")) {
-      g_CFOption_BotStartDelay += 50;
-      g_CFOption_BotStartDelay = (g_CFOption_BotStartDelay > CFOption_BotStartDelayMAX)
+      g_Crossfire_BotStartDelay += 50;
+      g_Crossfire_BotStartDelay = (g_Crossfire_BotStartDelay > CFOption_BotStartDelayMAX)
         ? CFOption_BotStartDelayMIN
-        : g_CFOption_BotStartDelay;
+        : g_Crossfire_BotStartDelay;
     } else if (StrEqual(buffer, "botsattack")) {
-      g_CFOption_BotsAttack = !g_CFOption_BotsAttack;
+      g_Crossfire_BotsAttack = !g_Crossfire_BotsAttack;
     } else if (StrEqual(buffer, "botsflash")) {
-      g_CFOption_BotsFlash = !g_CFOption_BotsFlash;
+      g_Crossfire_BotsFlash = !g_Crossfire_BotsFlash;
     } else if (StrEqual(buffer, "back")) {
       CrossfiresSetupMenu(client);
       return 0;
@@ -281,7 +269,7 @@ public int CrossfireOptionsMenuHandler(Menu menu, MenuAction action, int client,
 }
 
 public void CrossfiresEditorMenu(int client) {
-  strcopy(g_SelectedCrossfireId, OPTION_ID_LENGTH, "-1");
+  strcopy(g_Crossfire_SelectedId, OPTION_ID_LENGTH, "-1");
   UpdateHoloCFireEnts();
   Menu menu = new Menu(CrossfiresEditorMenuHandler);
   menu.SetTitle("Editar Zonas de Crossfire: ");
@@ -308,13 +296,13 @@ public int CrossfiresEditorMenuHandler(Menu menu, MenuAction action, int client,
     char buffer[OPTION_ID_LENGTH + 1];
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "add_new")) {
-      g_WaitForCrossfireSave[client] = true;
+      g_Crossfire_WaitForSave[client] = true;
       PM_Message(client, "{ORANGE}Ingrese el nombre del crossfire a guardar. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
     } else if (StrEqual(buffer, "exit_edit")) {
       PM_Message(client, "{ORANGE}Modo Edición Desactivado.");
       RemoveHoloCFireEnts();
     } else {
-      strcopy(g_SelectedCrossfireId, OPTION_ID_LENGTH, buffer);
+      strcopy(g_Crossfire_SelectedId, OPTION_ID_LENGTH, buffer);
       SingleCrossfireEditorMenu(client);
       UpdateHoloCFireEnts();
     }
@@ -327,8 +315,8 @@ public int CrossfiresEditorMenuHandler(Menu menu, MenuAction action, int client,
 stock void SingleCrossfireEditorMenu(int client, int pos = 0) {
   Menu menu = new Menu(SingleCrossfireEditorMenuHandler);
   char crossfireName[OPTION_NAME_LENGTH];
-  GetCrossfireName(g_SelectedCrossfireId, crossfireName, OPTION_NAME_LENGTH);
-  menu.SetTitle("Editor de Crossfire: %s (id %s)", crossfireName, g_SelectedCrossfireId);
+  GetCrossfireName(g_Crossfire_SelectedId, crossfireName, OPTION_NAME_LENGTH);
+  menu.SetTitle("Editor de Crossfire: %s (id %s)", crossfireName, g_Crossfire_SelectedId);
   menu.AddItem("edit_enemies", "Editar Spawns de Bots");
   menu.AddItem("edit_players", "Editar Spawns de Jugadores");
   menu.AddItem("edit_grenades", "Editar Spawns de Granadas");
@@ -352,7 +340,7 @@ public int SingleCrossfireEditorMenuHandler(Menu menu, MenuAction action, int cl
       CrossfireGrenadesEditorMenu(client);
     } else if (StrEqual(buffer, "delete")) {
       char crossfireName[OPTION_NAME_LENGTH];
-      GetCrossfireName(g_SelectedCrossfireId, crossfireName, OPTION_NAME_LENGTH);
+      GetCrossfireName(g_Crossfire_SelectedId, crossfireName, OPTION_NAME_LENGTH);
       CrossfireDeleteConfirmationMenu(client);
     }
   } else if (action == MenuAction_Cancel && item == MenuCancel_ExitBack) {
@@ -368,7 +356,7 @@ public void CrossfireSpawnsEditorMenu(int client, const char[] spawnType){
 
   char spawn_id[OPTION_ID_LENGTH];
   char spawn_display[OPTION_NAME_LENGTH];
-  if (g_CrossfiresKv.JumpToKey(g_SelectedCrossfireId)) {
+  if (g_CrossfiresKv.JumpToKey(g_Crossfire_SelectedId)) {
     if (g_CrossfiresKv.JumpToKey(spawnType)) {
       if (g_CrossfiresKv.GotoFirstSubKey()) {
         do {
@@ -397,7 +385,7 @@ public int CrossfireSpawnsEditorMenuHandler(Menu menu, MenuAction action, int cl
     //Editar Spawns Tipo (Bot | Player)
     if (StrEqual(buffer, "add_new")) {
       char nextSpawnId[OPTION_ID_LENGTH];
-      GetCrossfireSpawnsNextId(g_SelectedCrossfireId, SelectedCrossfireInfo[3], nextSpawnId, OPTION_ID_LENGTH);
+      GetCrossfireSpawnsNextId(g_Crossfire_SelectedId, SelectedCrossfireInfo[3], nextSpawnId, OPTION_ID_LENGTH);
       CrossfireSpawnEditorMenu(client, SelectedCrossfireInfo[3], nextSpawnId);
     } else {
       CrossfireSpawnEditorMenu(client, SelectedCrossfireInfo[3], buffer, true);
@@ -416,8 +404,8 @@ stock void CrossfireSpawnEditorMenu(int client, const char[] spawnType, char[] s
 
   if (teleport) {
     float fOrigin[3], fAngles[3];
-    GetCrossfireSpawnVectorKV(g_SelectedCrossfireId, spawnType, spawnId, "origin", fOrigin);
-    GetCrossfireSpawnVectorKV(g_SelectedCrossfireId, spawnType, spawnId, "angles", fAngles);
+    GetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, spawnType, spawnId, "origin", fOrigin);
+    GetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, spawnType, spawnId, "angles", fAngles);
     if (!VecEqual(fOrigin, ZERO_VECTOR)) {
       TeleportEntity(client, fOrigin, fAngles, ZERO_VECTOR);
     }
@@ -452,22 +440,22 @@ public int CrossfireSpawnEditorMenuHandler(Menu menu, MenuAction action, int cli
     if (StrEqual(buffer, "settomypos")) {
       GetClientAbsOrigin(client, fOrigin);
       GetClientEyeAngles(client, fAngles);
-      SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "origin", fOrigin);
-      SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "angles", fAngles);
+      SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "origin", fOrigin);
+      SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "angles", fAngles);
       // PM_Message(client, "{ORANGE}%s Spawn {GREEN}%s {ORANGE}actualizado.", SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
     } else if (StrEqual(buffer, "delete")) {
-      DeleteCrossfireSpawn(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
+      DeleteCrossfireSpawn(g_Crossfire_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
       PM_Message(client, "{ORANGE}%s Spawn {GREEN}%s {ORANGE}eliminado.", SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
       CrossfireSpawnsEditorMenu(client, SelectedSpawnInfo[1]);
       return 0;
     } else {
       GetClientAbsOrigin(client, fOrigin);
       if (StrEqual(buffer, "vecmin")) {
-        SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "vecmin", fOrigin);
+        SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "vecmin", fOrigin);
       } else if (StrEqual(buffer, "vecmax")) {
-        SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "vecmax", fOrigin);
+        SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "vecmax", fOrigin);
       } else if (StrEqual(buffer, "maxorigin")) {
-        SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "maxorigin", fOrigin);
+        SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "maxorigin", fOrigin);
       }
     }
     CrossfireSpawnEditorMenu(client, SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
@@ -484,7 +472,7 @@ public void CrossfireGrenadesEditorMenu(int client){
 
   char spawn_id[OPTION_ID_LENGTH];
   char spawn_display[OPTION_NAME_LENGTH];
-  if (g_CrossfiresKv.JumpToKey(g_SelectedCrossfireId)) {
+  if (g_CrossfiresKv.JumpToKey(g_Crossfire_SelectedId)) {
     if (g_CrossfiresKv.JumpToKey("grenade")) {
       if (g_CrossfiresKv.GotoFirstSubKey()) {
         do {
@@ -511,7 +499,7 @@ public int CrossfireGrenadesEditorMenuHandler(Menu menu, MenuAction action, int 
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "add_new")) {
       char nextSpawnId[OPTION_ID_LENGTH];
-      GetCrossfireSpawnsNextId(g_SelectedCrossfireId, "grenade", nextSpawnId, OPTION_ID_LENGTH);
+      GetCrossfireSpawnsNextId(g_Crossfire_SelectedId, "grenade", nextSpawnId, OPTION_ID_LENGTH);
       CrossfireGrenadeSpawnEditorMenu(client, nextSpawnId);
     } else {
       CrossfireGrenadeSpawnEditorMenu(client, buffer);
@@ -546,18 +534,16 @@ public int CrossfireGrenadeSpawnEditorMenuHandler(Menu menu, MenuAction action, 
     ExplodeString(title, " ", SelectedSpawnInfo, sizeof(SelectedSpawnInfo), sizeof(SelectedSpawnInfo[]));
     // spawnid = SelectedSpawnInfo[2]
     if (StrEqual(buffer, "updatenade")) {
-      if (g_CSUtilsLoaded) {
-        if (IsGrenade(g_LastGrenadeType[client])) {
-          char grenadeTypeString[128];
-          GrenadeTypeString(g_LastGrenadeType[client], grenadeTypeString, sizeof(grenadeTypeString));
-          SetCrossfireSpawnStringKV(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString);
-          SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2], "origin", g_LastGrenadeOrigin[client]);
-          SetCrossfireSpawnVectorKV(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2], "velocity", g_LastGrenadeVelocity[client]);
-          g_LastGrenadeType[client] = GrenadeType_None;
-          PM_Message(client, "{ORANGE}Spawn de Granada {GREEN}%s {ORANGE}actualizado.", SelectedSpawnInfo[2]);
-        } else {
-          PM_Message(client, "{ORANGE}Granada no Válida. Tira una Granada Primero");
-        }
+      if (g_Nade_LastType[client] != GrenadeType_None) {
+        char grenadeTypeString[128];
+        GrenadeTypeString(g_Nade_LastType[client], grenadeTypeString, sizeof(grenadeTypeString));
+        SetCrossfireSpawnStringKV(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString);
+        SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2], "origin", g_Nade_LastOrigin[client]);
+        SetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2], "velocity", g_Nade_LastVelocity[client]);
+        g_Nade_LastType[client] = GrenadeType_None;
+        PM_Message(client, "{ORANGE}Spawn de Granada {GREEN}%s {ORANGE}actualizado.", SelectedSpawnInfo[2]);
+      } else {
+        PM_Message(client, "{ORANGE}Granada no Válida. Tira una Granada Primero");
       }
     } else if (StrEqual(buffer, "updatetrigger")) {
       // edit last trigger
@@ -565,18 +551,18 @@ public int CrossfireGrenadeSpawnEditorMenuHandler(Menu menu, MenuAction action, 
     } else if (StrEqual(buffer, "throw")) {
       float grenadeOrigin[3], grenadeVelocity[3];
       char grenadeTypeString[128];
-      GetCrossfireSpawnStringKV(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString, sizeof(grenadeTypeString));
+      GetCrossfireSpawnStringKV(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString, sizeof(grenadeTypeString));
       GrenadeType grenadeType = GrenadeTypeFromString(grenadeTypeString);
-      if (IsGrenade(grenadeType)) {
-        GetCrossfireSpawnVectorKV(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2], "origin", grenadeOrigin);
-        GetCrossfireSpawnVectorKV(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2], "velocity", grenadeVelocity);
-        CSU_ThrowGrenade(client, grenadeType, grenadeOrigin, grenadeVelocity);
+      if (grenadeType != GrenadeType_None) {
+        GetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2], "origin", grenadeOrigin);
+        GetCrossfireSpawnVectorKV(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2], "velocity", grenadeVelocity);
+        PM_ThrowGrenade(client, grenadeType, grenadeOrigin, grenadeVelocity);
       } else {
         PM_Message(client, "{ORANGE}Granada no Válida. Tira una Granada Primero");
       }
     } else if (StrEqual(buffer, "delete")) {
       PM_Message(client, "{ORANGE}Spawn de Granada {GREEN}%s {ORANGE}eliminado.", SelectedSpawnInfo[2]);
-      DeleteCrossfireSpawn(g_SelectedCrossfireId, "grenade", SelectedSpawnInfo[2]);
+      DeleteCrossfireSpawn(g_Crossfire_SelectedId, "grenade", SelectedSpawnInfo[2]);
       CrossfireGrenadesEditorMenu(client);
       return 0;
     }
@@ -589,7 +575,7 @@ public int CrossfireGrenadeSpawnEditorMenuHandler(Menu menu, MenuAction action, 
 
 public void CrossfireDeleteConfirmationMenu(int client) {
   char crossfireName[OPTION_NAME_LENGTH];
-  GetCrossfireName(g_SelectedCrossfireId, crossfireName, sizeof(crossfireName));
+  GetCrossfireName(g_Crossfire_SelectedId, crossfireName, sizeof(crossfireName));
 
   Menu menu = new Menu(CrossfireDeletionMenuHandler);
   menu.SetTitle("Confirma la eliminación de zona: %s", crossfireName);
@@ -614,8 +600,8 @@ public int CrossfireDeletionMenuHandler(Menu menu, MenuAction action, int client
 
     if (StrEqual(buffer, "yes")) {
       char crossfireName[OPTION_NAME_LENGTH];
-      GetCrossfireName(g_SelectedCrossfireId, crossfireName, sizeof(crossfireName));
-      DeleteCrossfire(g_SelectedCrossfireId);
+      GetCrossfireName(g_Crossfire_SelectedId, crossfireName, sizeof(crossfireName));
+      DeleteCrossfire(g_Crossfire_SelectedId);
       PM_MessageToAll("{ORANGE}Zona {GREEN}%s {ORANGE}eliminada.", crossfireName);
       CrossfiresEditorMenu(client);
     } else {
@@ -627,13 +613,7 @@ public int CrossfireDeletionMenuHandler(Menu menu, MenuAction action, int client
 
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Events, Forwards, Hooks */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+/********************* Events, Forwards, Hooks *********************/
 /*******************************************************************/
 
 public void Crossfires_MapStart() {
@@ -673,36 +653,36 @@ public void Crossfires_MapEnd() {
 }
 
 public void Crossfire_PluginStart() {
-  g_HoloCFireEnts = new ArrayList();
-  g_CrossfirePlayers = new ArrayList();
-  g_CrossfireBots = new ArrayList();
-  g_CFireArenas = new ArrayList();
+  g_Crossfire_HoloEnts = new ArrayList();
+  g_Crossfire_Players = new ArrayList();
+  g_Crossfire_Bots = new ArrayList();
+  g_Crossfire_Arenas = new ArrayList();
 
-  g_MaxCrossfireBotsCvar = CreateConVar("sm_crossfire_max_bots", "8",
+  g_Crossfire_MaxBotsCvar = CreateConVar("sm_crossfire_max_bots", "8",
                               "How many crossfire bots spawn at max.", 0, true, 1.0, true, 10.0);
-  g_MaxCrossfirePlayersCvar = CreateConVar("sm_crossfire_max_players", "2",
+  g_Crossfire_MaxPlayersCvar = CreateConVar("sm_crossfire_max_players", "2",
                               "How many crossfire players spawn at max.", 0, true, 1.0, true, 3.0);
-  g_CFBot_AttackTimeCvar = CreateConVar("sm_crossfire_attack_time", "30",
+  g_Crossfire_BotAttackTimeCvar = CreateConVar("sm_crossfire_attack_time", "30",
                               "How much ticks until bot stops shooting.", 0, true, 0.0, true, 100.0);
 }
 
 public void Crossfire_ClientDisconnect(int client) {
-  g_WaitForCrossfireSave[client] = false;
-  g_CFBotSpawnOrigin[client] = ZERO_VECTOR;
-  g_CFBotMaxOrigin[client] = ZERO_VECTOR;
-  g_CrossfirePlayers_Points[client] = 0;
-  g_CrossfirePlayers_Room[client] = -1;
-  g_CFMisc_PlayerWeapon[client] = "-1";
-  g_CFBot_StartTime[client] = CFOption_BotStartDelayMIN;
-  g_CFBot_Time[client] = 0;
-  g_CFBotAllowedAttack[client] = false;
-  g_CFireBotDucking[client] = false;
-  g_CFBotStrafe[client] = false;
-  g_CFBotStrafeHoldTime[client] = 0;
-  g_CFBot_Seen[client] = false;
-  g_CFBot_SeenTime[client] = 0;
-  g_CFBot_SeenTotalTime[client] = 0;
-  g_CFBot_Moving[client] = false;
+  g_Crossfire_WaitForSave[client] = false;
+  g_CrossFire_SpawnOrigin[client] = ZERO_VECTOR;
+  g_CrossFire_MaxOrigin[client] = ZERO_VECTOR;
+  g_Crossfire_Players_Points[client] = 0;
+  g_Crossfire_Players_Room[client] = -1;
+  g_Crossfire_PlayerWeapon[client] = "-1";
+  g_Crossfire_StartTime[client] = CFOption_BotStartDelayMIN;
+  g_Crossfire_Time[client] = 0;
+  g_Crossfire_AllowedToAttack[client] = false;
+  g_Crossfire_Ducking[client] = false;
+  g_Crossfire_Strafe[client] = false;
+  g_Crossfire_StrafeHoldTime[client] = 0;
+  g_Crossfire_Seen[client] = false;
+  g_Crossfire_SeenTime[client] = 0;
+  g_Crossfire_SeenTotalTime[client] = 0;
+  g_Crossfire_Moving[client] = false;
 }
 
 public void CrossfireRoom_OnStartTouch(int entity, int client) {
@@ -723,7 +703,7 @@ public void CrossfireRoom_OnEndTouch(int entity, int client) {
 
 // TODO: Use Timer for calculating the closest player, store it in global -> g_crossfireBotTarget[bot] = me
 public Action CrossfireBot_PlayerRunCmd(int client, int &buttons, float vel[3], float angles[3], int &weapon) {
-  if (!g_InCrossfireMode || !g_CrossfirePlayers_Ready) {
+  if (!g_InCrossfireMode || !g_Crossfire_PlayersReady) {
     return Plugin_Continue;
   }
 
@@ -742,8 +722,8 @@ public Action CrossfireBot_PlayerRunCmd(int client, int &buttons, float vel[3], 
 
   float nearestDistance = -1.0;
   float distance;
-  for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
-    int target = g_CrossfirePlayers.Get(i);
+  for (int i = 0; i < g_Crossfire_Players.Length; i++) {
+    int target = g_Crossfire_Players.Get(i);
     if (IsPlayer(target)) {
       if (!IsPlayerAlive(target)) {
         continue;
@@ -767,54 +747,54 @@ public Action CrossfireBot_PlayerRunCmd(int client, int &buttons, float vel[3], 
 
   // ONLY 2 BOTS EXECUTE THIS LOGIC AT MAX <- set to cvar ? Make this Logic inside player_death event with global true var
   // 1) Bot Wait Random Time
-  // 2) Bot moves towards g_CFBotMaxOrigin[client]
-  // 3) Player can see the bot, g_CFBotStrafe[client] = 1(randomInt)
-  // 4) Bot moves back to SpawnOrigin, g_CFBotStrafeHoldTime[client] = 14(randomInt)
+  // 2) Bot moves towards g_CrossFire_MaxOrigin[client]
+  // 3) Player can see the bot, g_Crossfire_Strafe[client] = 1(randomInt)
+  // 4) Bot moves back to SpawnOrigin, g_Crossfire_StrafeHoldTime[client] = 14(randomInt)
   // 5) Player can't see the bot, 14 ticks has passed
-  // 6) Bot moves towards g_CFBotMaxOrigin[client]
-  // 7) Player can see the bot, g_CFBotStrafe[client] = 0(randomInt)
-  // 8) Bot gets to g_CFBotMaxOrigin[client], g_CFireBotDucking[client] = 1(randomInt)
+  // 6) Bot moves towards g_CrossFire_MaxOrigin[client]
+  // 7) Player can see the bot, g_Crossfire_Strafe[client] = 0(randomInt)
+  // 8) Bot gets to g_CrossFire_MaxOrigin[client], g_Crossfire_Ducking[client] = 1(randomInt)
   // 9) Bot crouches and starts shooting
 
-  if (g_CFBot_Moving[client]) {
-    if (g_CFBot_StartTime[client] > 0) {
-      if (g_CFBot_Time[client] == g_CFBot_StartTime[client]) {
-        g_CFBot_Time[client] = 0;
-        g_CFBot_StartTime[client] = -1;
+  if (g_Crossfire_Moving[client]) {
+    if (g_Crossfire_StartTime[client] > 0) {
+      if (g_Crossfire_Time[client] == g_Crossfire_StartTime[client]) {
+        g_Crossfire_Time[client] = 0;
+        g_Crossfire_StartTime[client] = -1;
       } else {
         // Still havent Waited Random Time (STEP 1)
-        g_CFBot_Time[client]++;
+        g_Crossfire_Time[client]++;
       }
     } else {
-      // Officially started, g_CFBot_Time[client] should be 0
-      if (g_CFBot_Time[client] == 0) {
+      // Officially started, g_Crossfire_Time[client] should be 0
+      if (g_Crossfire_Time[client] == 0) {
         TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, ZERO_VECTOR); // dont move him
-      } else if (g_CFBot_Time[client] > 0) {
+      } else if (g_Crossfire_Time[client] > 0) {
         float clientOrigin[3];
         GetClientAbsOrigin(client, clientOrigin);
         if (nearestTarget > 0) {
-          if (!g_CFBot_Seen[client]) {
+          if (!g_Crossfire_Seen[client]) {
             // Player started to see the bot (STEP 3)
-            g_CFBot_SeenTotalTime[client]++;
-            if (g_CFBot_SeenTotalTime[client] < 10) {
+            g_Crossfire_SeenTotalTime[client]++;
+            if (g_Crossfire_SeenTotalTime[client] < 10) {
               // PrintToChatAll("[%N]: player started seeing me, ignore!", client);
             } else {
-              g_CFBot_SeenTotalTime[client] = 0;
-              g_CFBot_Seen[client] = true;
-              g_CFBot_SeenTime[client] = g_CFBot_Time[client];
-              g_CFBotStrafe[client] = (GetRandomInt(1, 3*(CFOption_BotStrafeChanceMAX+1) + 3) <= (3*g_CFOption_BotStrafeChance));
-              // if (g_CFBotStrafe[client]) PrintToChatAll("[%N]: player finished seeing me, coming back to spawn!", client);
+              g_Crossfire_SeenTotalTime[client] = 0;
+              g_Crossfire_Seen[client] = true;
+              g_Crossfire_SeenTime[client] = g_Crossfire_Time[client];
+              g_Crossfire_Strafe[client] = (GetRandomInt(1, 3*(CFOption_BotStrafeChanceMAX+1) + 3) <= (3*g_Crossfire_BotStrafeChance));
+              // if (g_Crossfire_Strafe[client]) PrintToChatAll("[%N]: player finished seeing me, coming back to spawn!", client);
               // else PrintToChatAll("[%N]: player finished seeing me, peeking him!", client);
-              g_CFBotStrafeHoldTime[client] = GetRandomInt(0, 50);
+              g_Crossfire_StrafeHoldTime[client] = GetRandomInt(0, 50);
             }
           } else {
             // Player seeing The Bot
             // Move back to SpawnOrigin (STEP 4)
-            if (g_CFBotStrafe[client]) {
-              if (GetVectorDistance(clientOrigin, g_CFBotSpawnOrigin[client]) > 5.0) {
+            if (g_Crossfire_Strafe[client]) {
+              if (GetVectorDistance(clientOrigin, g_CrossFire_SpawnOrigin[client]) > 5.0) {
                 // PrintToChatAll("[%N]: moving back to spawn!", client);
                 // Go to Spawn Origin
-                SubtractVectors(g_CFBotSpawnOrigin[client], clientOrigin, clientOrigin);
+                SubtractVectors(g_CrossFire_SpawnOrigin[client], clientOrigin, clientOrigin);
                 NormalizeVector(clientOrigin, clientOrigin);
                 ScaleVector(clientOrigin, 250.0);
                 TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, clientOrigin);
@@ -825,10 +805,10 @@ public Action CrossfireBot_PlayerRunCmd(int client, int &buttons, float vel[3], 
               }
             } else {
               // Player can see bot, but he wont strafe (STEP 7)
-              if (GetVectorDistance(clientOrigin, g_CFBotMaxOrigin[client]) > 5.0) {
+              if (GetVectorDistance(clientOrigin, g_CrossFire_MaxOrigin[client]) > 5.0) {
                 // PrintToChatAll("[%N]: moving to maxorigin!", client);
                 // Go to maxOrigin
-                SubtractVectors(g_CFBotMaxOrigin[client], clientOrigin, clientOrigin);
+                SubtractVectors(g_CrossFire_MaxOrigin[client], clientOrigin, clientOrigin);
                 NormalizeVector(clientOrigin, clientOrigin);
                 ScaleVector(clientOrigin, 250.0);
                 TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, clientOrigin);
@@ -837,29 +817,29 @@ public Action CrossfireBot_PlayerRunCmd(int client, int &buttons, float vel[3], 
                 float playerPos[3];
                 GetClientEyePosition(nearestTarget, playerPos);
                 float crouchPos[3];
-                crouchPos = g_CFBotMaxOrigin[client];
+                crouchPos = g_CrossFire_MaxOrigin[client];
                 crouchPos[2] += 48.0;
-                g_CFireBotDucking[client] = !GetRandomInt(0, 1) && IsPointVisible(playerPos, crouchPos);
+                g_Crossfire_Ducking[client] = !GetRandomInt(0, 1) && IsPointVisible(playerPos, crouchPos);
                 // Get To The Next Sequence
-                g_CFBot_Moving[client] = false;
-                g_CFBotAllowedAttack[client] = true;
-                g_CFBot_Time[client] = 0;
+                g_Crossfire_Moving[client] = false;
+                g_Crossfire_AllowedToAttack[client] = true;
+                g_Crossfire_Time[client] = 0;
               }
             }
           }
         } else {
           // Player Saw Bot but now doesnt, He Is Hiding|Holding, dont do anything, let time pass
-          if (g_CFBot_Seen[client] && (g_CFBot_Time[client] - g_CFBot_SeenTime[client]) <= g_CFBotStrafeHoldTime[client]) {
+          if (g_Crossfire_Seen[client] && (g_Crossfire_Time[client] - g_Crossfire_SeenTime[client]) <= g_Crossfire_StrafeHoldTime[client]) {
             // PrintToChatAll("[%N]: Im hiding until time pass!", client);
           } else {
             // If Time passed (STEP 5)
-            if (g_CFBot_Seen[client]) {
+            if (g_Crossfire_Seen[client]) {
               // PrintToChatAll("[%N]: Time passed, I can try peek now!", client);
-              g_CFBot_Seen[client] = false;
+              g_Crossfire_Seen[client] = false;
             } else {
               // Move towards to maxOrigin (STEP 2 & STEP 6)
-              if (GetVectorDistance(clientOrigin, g_CFBotMaxOrigin[client]) > 5.0) {
-                SubtractVectors(g_CFBotMaxOrigin[client], clientOrigin, clientOrigin);
+              if (GetVectorDistance(clientOrigin, g_CrossFire_MaxOrigin[client]) > 5.0) {
+                SubtractVectors(g_CrossFire_MaxOrigin[client], clientOrigin, clientOrigin);
                 NormalizeVector(clientOrigin, clientOrigin);
                 ScaleVector(clientOrigin, 250.0);
                 TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, clientOrigin);
@@ -872,34 +852,34 @@ public Action CrossfireBot_PlayerRunCmd(int client, int &buttons, float vel[3], 
           }
         }
       }
-      g_CFBot_Time[client]++;
+      g_Crossfire_Time[client]++;
     }
-  } else if (g_CFBotAllowedAttack[client]) {
+  } else if (g_Crossfire_AllowedToAttack[client]) {
     // Should Attack
-    if (g_CFireBotDucking[client]) buttons |= IN_DUCK;
+    if (g_Crossfire_Ducking[client]) buttons |= IN_DUCK;
     if (nearestTarget > 0) {
-      if (g_CFBot_Time[client] >= g_CFOption_BotReactTime &&
-      g_CFBot_Time[client] <= (g_CFOption_BotReactTime+g_CFBot_AttackTimeCvar.IntValue)) {
+      if (g_Crossfire_Time[client] >= g_Crossfire_BotReactTime &&
+      g_Crossfire_Time[client] <= (g_Crossfire_BotReactTime+g_Crossfire_BotAttackTimeCvar.IntValue)) {
         // Has a Target
-        if (g_CFBot_Time[client] == g_CFOption_BotReactTime) {
-          if (g_CFOption_BotWeapons == 5 && !GetEntProp(client, Prop_Send, "m_bIsScoped")) {
+        if (g_Crossfire_Time[client] == g_Crossfire_BotReactTime) {
+          if (g_Crossfire_BotWeapons == 5 && !GetEntProp(client, Prop_Send, "m_bIsScoped")) {
             // zoom
             buttons |= IN_ATTACK2;
           }
         }
-        if (g_CFOption_BotsAttack) buttons |= IN_ATTACK;
-        if (g_CFBot_Time[client] == (g_CFOption_BotReactTime+g_CFBot_AttackTimeCvar.IntValue)) {
+        if (g_Crossfire_BotsAttack) buttons |= IN_ATTACK;
+        if (g_Crossfire_Time[client] == (g_Crossfire_BotReactTime+g_Crossfire_BotAttackTimeCvar.IntValue)) {
           // Reset Shooting time
           buttons &= ~IN_ATTACK;
-          // g_CFireBotDucking[client] = GetRandomInt(0, 1); CROUCH | STAND WHILE SHOOTING
-          g_CFBot_Time[client] = 0;
+          // g_Crossfire_Ducking[client] = GetRandomInt(0, 1); CROUCH | STAND WHILE SHOOTING
+          g_Crossfire_Time[client] = 0;
         } else {
-          g_CFBot_Time[client]++;
+          g_Crossfire_Time[client]++;
         }
       }
-      g_CFBot_Time[client]++;
+      g_Crossfire_Time[client]++;
     } else {
-      g_CFBot_Time[client] = 0;
+      g_Crossfire_Time[client] = 0;
     }
   }
 
@@ -931,28 +911,28 @@ public Action Event_CrossfireBot_Death(int victim, Event event, const char[] nam
     return Plugin_Continue;
   }
   int index = -1;
-  if((index = g_CrossfireBots.FindValue(victim)) != -1) {
+  if((index = g_Crossfire_Bots.FindValue(victim)) != -1) {
     int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
     CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
-    g_CFBot_Time[index] = 0;
-    if (g_CrossfirePlayers.FindValue(killer) != -1) {
-      g_CrossfirePlayers_Points[killer] += 5; // 5 points per kill
+    g_Crossfire_Time[index] = 0;
+    if (g_Crossfire_Players.FindValue(killer) != -1) {
+      g_Crossfire_Players_Points[killer] += 5; // 5 points per kill
     }
-    g_CrossfireBots.Erase(index);
+    g_Crossfire_Bots.Erase(index);
   }
-  if (g_CFBot_Moving[victim] || g_CFBotAllowedAttack[victim]) {
+  if (g_Crossfire_Moving[victim] || g_Crossfire_AllowedToAttack[victim]) {
     // he was an active bot, send the next one
-    g_CFBot_Moving[victim] = false;
-    g_CFBotAllowedAttack[victim] = false;
-    for (int i = 0; i < g_CrossfireBots.Length; i++) {
-      int bot = g_CrossfireBots.Get(i);
-      if (!g_CFBot_Moving[bot] && !g_CFBotAllowedAttack[bot]) {
-        g_CFBot_Moving[bot] = true;
+    g_Crossfire_Moving[victim] = false;
+    g_Crossfire_AllowedToAttack[victim] = false;
+    for (int i = 0; i < g_Crossfire_Bots.Length; i++) {
+      int bot = g_Crossfire_Bots.Get(i);
+      if (!g_Crossfire_Moving[bot] && !g_Crossfire_AllowedToAttack[bot]) {
+        g_Crossfire_Moving[bot] = true;
         break;
       }
     }
   }
-  if (g_CrossfireBots.Length == 0) {
+  if (g_Crossfire_Bots.Length == 0) {
     EndSingleCrossfire(true);
   }
   return Plugin_Continue;
@@ -960,12 +940,8 @@ public Action Event_CrossfireBot_Death(int victim, Event event, const char[] nam
 
 /*******************************************************************/
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Misc */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+
+/****************************** Misc *******************************/
 /*******************************************************************/
 
 public void UpdateHoloCFireEnts() {
@@ -975,19 +951,19 @@ public void UpdateHoloCFireEnts() {
 
 public void RemoveHoloCFireEnts() {
   int ent;
-  for (int i = g_HoloCFireEnts.Length - 1; i >= 0; i--) {
-    ent = g_HoloCFireEnts.Get(i);
+  for (int i = g_Crossfire_HoloEnts.Length - 1; i >= 0; i--) {
+    ent = g_Crossfire_HoloEnts.Get(i);
     if (IsValidEntity(ent)) {
       AcceptEntityInput(ent, "Kill");
     }
   }
-  g_HoloCFireEnts.Clear();
+  g_Crossfire_HoloEnts.Clear();
 }
 
 public void CreateHoloCFireEnts() {
-  if (!StrEqual(g_SelectedCrossfireId, "-1")) {
+  if (!StrEqual(g_Crossfire_SelectedId, "-1")) {
     // Show Only Selected
-    if (g_CrossfiresKv.JumpToKey(g_SelectedCrossfireId)) {
+    if (g_CrossfiresKv.JumpToKey(g_Crossfire_SelectedId)) {
       if (g_CrossfiresKv.GotoFirstSubKey()) {
           do {
             char spawnType[OPTION_ID_LENGTH];
@@ -1048,7 +1024,7 @@ public void CreateCrossfirePlayerEntity(const char[] spawnType, const char[] spa
       g_CrossfiresKv.GetVector("maxorigin", maxOrigin, origin);
       int beamEnt = CreateBeam(origin, maxOrigin);
       SetEntityRenderColor(beamEnt, color[0], color[1], color[2], color[3]);
-      g_HoloCFireEnts.Push(beamEnt);
+      g_Crossfire_HoloEnts.Push(beamEnt);
     } else if (StrEqual(spawnType, "player")) {
       DispatchKeyValue(iEnt, "model", "models/player/custom_player/legacy/ctm_sas.mdl");
       SetEntityRenderColor(iEnt, color[0], color[1], 255, color[3]);
@@ -1073,7 +1049,7 @@ public void CreateCrossfirePlayerEntity(const char[] spawnType, const char[] spa
       angles[0] = 0.0; // look paralel to ground
       TeleportEntity(iEnt, origin, angles, NULL_VECTOR);
     }
-    g_HoloCFireEnts.Push(iEnt);
+    g_Crossfire_HoloEnts.Push(iEnt);
   }
 }
 
@@ -1100,35 +1076,35 @@ stock void InitCrossfire(int client) {
     return;
   }
   // Get Crossfires
-  g_CFireArenas.Clear();
+  g_Crossfire_Arenas.Clear();
   int crossfireCount = GetCrossfiresNextId();
   if (crossfireCount > 0) {
     char iStr[OPTION_ID_LENGTH];
     for (int i = 0; i < crossfireCount; i++) {
       IntToString(i, iStr, OPTION_ID_LENGTH);
-      g_CFireArenas.PushString(iStr);
+      g_Crossfire_Arenas.PushString(iStr);
     }
     // Random Crossfires
-    SortADTArray(g_CFireArenas, Sort_Random, Sort_String);
+    SortADTArray(g_Crossfire_Arenas, Sort_Random, Sort_String);
   } else {
     PM_Message(client, "{LIGHT_RED}Error: {ORANGE}No Existen Suficientes Zonas.");
     return;
   }
   // Setup First Crossfire
-  g_CrossfirePlayers.Clear();
-  g_CrossfirePlayers.Push(client);
+  g_Crossfire_Players.Clear();
+  g_Crossfire_Players.Push(client);
   // Choose N random clients
   for (int i = 0; i <= MaxClients; i++) {
     if (IsPlayer(i) && GetClientTeam(i) > CS_TEAM_SPECTATOR) {
       if (i == client) continue; // Already In ArrayList
-      if (g_CrossfirePlayers.Length < g_MaxCrossfirePlayersCvar.IntValue) {
-        g_CrossfirePlayers.Push(i);
+      if (g_Crossfire_Players.Length < g_Crossfire_MaxPlayersCvar.IntValue) {
+        g_Crossfire_Players.Push(i);
       } else {
         ChangeClientTeam(i, CS_TEAM_SPECTATOR);
       }
     }
   }
-  PrintToServer("[RETAKES-LOG]%d jugadores conectados.", g_CrossfirePlayers.Length);
+  PrintToServer("[RETAKES-LOG]%d jugadores conectados.", g_Crossfire_Players.Length);
   
   CS_TerminateRound(0.0, CSRoundEnd_Draw);
   StartSingleCrossfire(client, 0);
@@ -1136,30 +1112,30 @@ stock void InitCrossfire(int client) {
 
 stock void StartSingleCrossfire(int client, int crossfirePos = 0) {
   ServerCommand("bot_kick");
-  g_CrossfireBots.Clear();
-  g_CFireDeathPlayersCount = 0;
-  g_CFireArenas.GetString(crossfirePos, g_CFireActiveId, OPTION_ID_LENGTH);
+  g_Crossfire_Bots.Clear();
+  g_Crossfire_DeathPlayersCount = 0;
+  g_Crossfire_Arenas.GetString(crossfirePos, g_Crossfire_ActiveId, OPTION_ID_LENGTH);
   char crossfireName[OPTION_NAME_LENGTH];
-  GetCrossfireName(g_CFireActiveId, crossfireName, OPTION_NAME_LENGTH);
+  GetCrossfireName(g_Crossfire_ActiveId, crossfireName, OPTION_NAME_LENGTH);
   PM_Message(client, "{ORANGE}Empezando Arena: {GREEN}%s", crossfireName);
   PrintToServer("[RETAKES-LOG]Empezando Arena: %s", crossfireName);
 
   // Spawn Zone Setup vecmins[3], vecmaxs[3]
   // CreateDataTimer(1.0, Timer_ShowCrossfireBoxEntity, pack, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
-  g_CrossfirePlayers_Ready = false;
+  g_Crossfire_PlayersReady = false;
   CreateTimer(0.2, Timer_StartCrossfire, GetClientSerial(client));
 }
 
 public Action Timer_StartCrossfire(Handle timer, int serial) {
-  for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
-    int player = g_CrossfirePlayers.Get(i);
+  for (int i = 0; i < g_Crossfire_Players.Length; i++) {
+    int player = g_Crossfire_Players.Get(i);
     if (IsPlayer(player) && !IsPlayerAlive(player)) {
       CS_RespawnPlayer(player);
     }
   }
   // Get Bots
   char nextSpawn[OPTION_ID_LENGTH];
-  GetCrossfireSpawnsNextId(g_CFireActiveId, "bot", nextSpawn, OPTION_ID_LENGTH);
+  GetCrossfireSpawnsNextId(g_Crossfire_ActiveId, "bot", nextSpawn, OPTION_ID_LENGTH);
   PrintToServer("[RETAKES-LOG]Cantidad de Bots: %s", nextSpawn);
   int botCount = StringToInt(nextSpawn);
   ArrayList enabledBots = new ArrayList(OPTION_ID_LENGTH);
@@ -1172,12 +1148,12 @@ public Action Timer_StartCrossfire(Handle timer, int serial) {
     // Random Spawns
     SortADTArray(enabledBots, Sort_Random, Sort_String);
     // Clamp if above max bots
-    if (botCount > g_MaxCrossfireBotsCvar.IntValue) {
+    if (botCount > g_Crossfire_MaxBotsCvar.IntValue) {
       // Take first max bots
-      for (int i = enabledBots.Length - 1; i >= g_MaxCrossfireBotsCvar.IntValue; i--) {
+      for (int i = enabledBots.Length - 1; i >= g_Crossfire_MaxBotsCvar.IntValue; i--) {
         enabledBots.Erase(i);
       }
-      botCount = g_MaxCrossfireBotsCvar.IntValue;
+      botCount = g_Crossfire_MaxBotsCvar.IntValue;
     }
   } else {
     PrintToServer("[RETAKES-LOG]Error: No Existen Suficientes Spawns de Bots.");
@@ -1198,7 +1174,7 @@ public Action Timer_StartCrossfire(Handle timer, int serial) {
   delete enabledBots;
 
   // Get Players
-  GetCrossfireSpawnsNextId(g_CFireActiveId, "player", nextSpawn, OPTION_ID_LENGTH);
+  GetCrossfireSpawnsNextId(g_Crossfire_ActiveId, "player", nextSpawn, OPTION_ID_LENGTH);
   int playerCount = StringToInt(nextSpawn);
   ArrayList enabledPlayers = new ArrayList(OPTION_ID_LENGTH);
   if (playerCount > 0) {
@@ -1210,12 +1186,12 @@ public Action Timer_StartCrossfire(Handle timer, int serial) {
     // Random Spawns
     SortADTArray(enabledPlayers, Sort_Random, Sort_String);
     // Clamp if above max players
-    if (playerCount >= g_MaxCrossfirePlayersCvar.IntValue) {
+    if (playerCount >= g_Crossfire_MaxPlayersCvar.IntValue) {
       // Take first max players
-      for (int i = enabledPlayers.Length - 1; i >= g_MaxCrossfirePlayersCvar.IntValue; i--) {
+      for (int i = enabledPlayers.Length - 1; i >= g_Crossfire_MaxPlayersCvar.IntValue; i--) {
         enabledPlayers.Erase(i);
       }
-      playerCount = g_MaxCrossfirePlayersCvar.IntValue;
+      playerCount = g_Crossfire_MaxPlayersCvar.IntValue;
     }
   } else {
     PrintToServer("[RETAKES-LOG]Error: No Existen Suficientes Spawns de Jugadores.");
@@ -1223,30 +1199,30 @@ public Action Timer_StartCrossfire(Handle timer, int serial) {
   }
 
   // More Players Than Available Spawns (I dont need the if but it reads better)
-  if (g_CrossfirePlayers.Length > enabledPlayers.Length) {
-    for (int i = g_CrossfirePlayers.Length; i > enabledPlayers.Length; i--) {
-      int player = g_CrossfirePlayers.Get(i);
+  if (g_Crossfire_Players.Length > enabledPlayers.Length) {
+    for (int i = g_Crossfire_Players.Length; i > enabledPlayers.Length; i--) {
+      int player = g_Crossfire_Players.Get(i);
       ChangeClientTeam(player, CS_TEAM_SPECTATOR);
-      g_CrossfirePlayers.Erase(i);
+      g_Crossfire_Players.Erase(i);
     }
   }
   // Players Setup
-  for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
+  for (int i = 0; i < g_Crossfire_Players.Length; i++) {
     char randomSpawnId[OPTION_ID_LENGTH];
     enabledPlayers.GetString(i, randomSpawnId, OPTION_ID_LENGTH);
     float origin[3], angles[3], vecmin[3], vecmax[3];
-    GetCrossfireSpawnVectorKV(g_CFireActiveId, "player", randomSpawnId, "origin", origin);
-    GetCrossfireSpawnVectorKV(g_CFireActiveId, "player", randomSpawnId, "angles", angles);
-    GetCrossfireSpawnVectorKV(g_CFireActiveId, "player", randomSpawnId, "vecmin", vecmin);
-    GetCrossfireSpawnVectorKV(g_CFireActiveId, "player", randomSpawnId, "vecmax", vecmax);
+    GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "player", randomSpawnId, "origin", origin);
+    GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "player", randomSpawnId, "angles", angles);
+    GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "player", randomSpawnId, "vecmin", vecmin);
+    GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "player", randomSpawnId, "vecmax", vecmax);
     PrintToServer("[RETAKES-LOG] Teleporting Client to [%f, %f, %f] with angles: [%f, %f]",
       origin[0], origin[1], origin[2], angles[0], angles[1]);
-    int player = g_CrossfirePlayers.Get(i);
-    g_CrossfirePlayers_Room[player] = CreateCrossFireRoomEntity(player, vecmin, vecmax);
+    int player = g_Crossfire_Players.Get(i);
+    g_Crossfire_Players_Room[player] = CreateCrossFireRoomEntity(player, vecmin, vecmax);
     ChangeClientTeam(player, CS_TEAM_CT);
     TeleportEntity(player, origin, angles, ZERO_VECTOR);
-    Client_GiveWeapon(player, g_CFMisc_PlayerWeapon[player]);
-    // int weaponIndex = Client_GiveWeapon(player, g_CFMisc_PlayerWeapon[player]);
+    Client_GiveWeapon(player, g_Crossfire_PlayerWeapon[player]);
+    // int weaponIndex = Client_GiveWeapon(player, g_Crossfire_PlayerWeapon[player]);
     // if (IsValidEntity(weaponIndex)) {
     //   SetEntPropFloat(weaponIndex, Prop_Send, "m_flNextPrimaryAttack", 9999.0);
     // }
@@ -1257,7 +1233,6 @@ public Action Timer_StartCrossfire(Handle timer, int serial) {
 
   // Success
   SetCvarIntSafe("bot_stop", 1);
-  SetCvarIntSafe("mp_forcecamera", 0);
   SetCvarIntSafe("mp_radar_showall", 0);
   SetCvarIntSafe("sm_glow_pmbots", 0);
   SetCvarIntSafe("sv_infinite_ammo", 1);
@@ -1270,26 +1245,26 @@ public Action Timer_StartCrossfire(Handle timer, int serial) {
   SetCvarIntSafe("sm_bot_collision", 1);
 
   // wait for setting in true
-  g_CFMisc_Countdown = 3;
-  g_CFMisc_CountdownHandle = CreateTimer(1.0, Crossfire_CountDown, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+  g_Crossfire_Countdown = 3;
+  g_Crossfire_CountdownHandle = CreateTimer(1.0, Crossfire_CountDown, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
   g_InCrossfireMode = true;
   return Plugin_Handled;
 }
 
 public Action Crossfire_CountDown(Handle timer, any data) {
-  g_CFMisc_Countdown--;
-  if(g_CFMisc_Countdown <= 0) {
-    for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
-      int player = g_CrossfirePlayers.Get(i);
+  g_Crossfire_Countdown--;
+  if(g_Crossfire_Countdown <= 0) {
+    for (int i = 0; i < g_Crossfire_Players.Length; i++) {
+      int player = g_Crossfire_Players.Get(i);
       if (IsPlayer(player)) {
         ClearSyncHud(player, HudSync);
         SetEntityMoveType(player, MOVETYPE_WALK);
         
         // char weaponName[128];
-        // if (StrEqual(g_CFMisc_PlayerWeapon[player], "weapon_usp_silencer")) {
+        // if (StrEqual(g_Crossfire_PlayerWeapon[player], "weapon_usp_silencer")) {
         //   strcopy(weaponName, sizeof(weaponName), "weapon_hkp2000");
         // } else {
-        //   strcopy(weaponName, sizeof(weaponName), g_CFMisc_PlayerWeapon[player]);
+        //   strcopy(weaponName, sizeof(weaponName), g_Crossfire_PlayerWeapon[player]);
         // }
         // int weaponIndex = Client_GetActiveWeapon(player); // Client_GetWeapon(player, weaponName);
         // if (IsValidEntity(weaponIndex)) {
@@ -1297,18 +1272,18 @@ public Action Crossfire_CountDown(Handle timer, any data) {
         // }
       }
     }
-    g_CrossfirePlayers_Ready = true;
-    if(g_CFMisc_CountdownHandle != INVALID_HANDLE) {
-      KillTimer(g_CFMisc_CountdownHandle);
-      g_CFMisc_CountdownHandle = INVALID_HANDLE;
+    g_Crossfire_PlayersReady = true;
+    if(g_Crossfire_CountdownHandle != INVALID_HANDLE) {
+      KillTimer(g_Crossfire_CountdownHandle);
+      g_Crossfire_CountdownHandle = INVALID_HANDLE;
     }
     return Plugin_Stop;
   }
-  for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
-    int player = g_CrossfirePlayers.Get(i);
+  for (int i = 0; i < g_Crossfire_Players.Length; i++) {
+    int player = g_Crossfire_Players.Get(i);
     if (IsPlayer(player)) {
       SetHudTextParams(-1.0, 0.45, 3.5, 64, 255, 64, 0, 1, 1.0, 0.1, 0.1);
-      ShowSyncHudText(player, HudSync, "%d", g_CFMisc_Countdown);
+      ShowSyncHudText(player, HudSync, "%d", g_Crossfire_Countdown);
     }
   }
   return Plugin_Continue;
@@ -1381,15 +1356,15 @@ public Action Timer_GetCrossfireBots(Handle timer, DataPack pack) {
   char name[MAX_NAME_LENGTH];
   GetClientName(bot, name, MAX_NAME_LENGTH);
   char crossfireName[OPTION_NAME_LENGTH];
-  GetCrossfireName(g_CFireActiveId, crossfireName, OPTION_NAME_LENGTH);
+  GetCrossfireName(g_Crossfire_ActiveId, crossfireName, OPTION_NAME_LENGTH);
   Format(name, MAX_NAME_LENGTH, "[%s] %s", name, crossfireName);
   SetClientName(bot, name);
-  g_IsCrossfireBot[bot] = true;
-  g_CrossfireBots.Push(bot);
+  g_Is_CrossfireBot[bot] = true;
+  g_Crossfire_Bots.Push(bot);
 
   // Weapons
   Client_RemoveAllWeapons(bot);
-  switch(g_CFOption_BotWeapons) {
+  switch(g_Crossfire_BotWeapons) {
     case 0: {
       GivePlayerItem(bot, "weapon_knife");
       SetEntData(bot, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), false);
@@ -1423,28 +1398,28 @@ public Action Timer_GetCrossfireBots(Handle timer, DataPack pack) {
   }
 
   // Setup Single Bot
-  g_CFBot_StartTime[bot] = g_CFOption_BotStartDelay;
-  g_CFBot_Time[bot] = 0;
-  g_CFireBotDucking[bot] = false;
-  g_CFBotStrafeHoldTime[bot] = 0;
-  g_CFBotStrafe[bot] = false;
-  g_CFBot_Seen[bot] = false;
-  g_CFBot_SeenTime[bot] = 0;
-  g_CFBot_SeenTotalTime[bot] = 0;
-  g_CFBot_Moving[bot] = false;
-  g_CFBotAllowedAttack[bot] = false;
-  if (g_CrossfireBots.Length <= 2) { // TODO FIX PEDO CACA
+  g_Crossfire_StartTime[bot] = g_Crossfire_BotStartDelay;
+  g_Crossfire_Time[bot] = 0;
+  g_Crossfire_Ducking[bot] = false;
+  g_Crossfire_StrafeHoldTime[bot] = 0;
+  g_Crossfire_Strafe[bot] = false;
+  g_Crossfire_Seen[bot] = false;
+  g_Crossfire_SeenTime[bot] = 0;
+  g_Crossfire_SeenTotalTime[bot] = 0;
+  g_Crossfire_Moving[bot] = false;
+  g_Crossfire_AllowedToAttack[bot] = false;
+  if (g_Crossfire_Bots.Length <= 2) { // TODO FIX PEDO CACA
     // 1st and 2nd will be able to move
     // PrintToChatAll("[%N]: Moving!", bot);
-    g_CFBot_Moving[bot] = true;
+    g_Crossfire_Moving[bot] = true;
   }
 
 
   float botAngles[3];
-  GetCrossfireSpawnVectorKV(g_CFireActiveId, "bot", spawnId, "origin", g_CFBotSpawnOrigin[bot]);
-  GetCrossfireSpawnVectorKV(g_CFireActiveId, "bot", spawnId, "angles", botAngles); // not needed
-  GetCrossfireSpawnVectorKV(g_CFireActiveId, "bot", spawnId, "maxorigin", g_CFBotMaxOrigin[bot]);
-  TeleportEntity(bot, g_CFBotSpawnOrigin[bot], botAngles, ZERO_VECTOR);
+  GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "bot", spawnId, "origin", g_CrossFire_SpawnOrigin[bot]);
+  GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "bot", spawnId, "angles", botAngles); // not needed
+  GetCrossfireSpawnVectorKV(g_Crossfire_ActiveId, "bot", spawnId, "maxorigin", g_CrossFire_MaxOrigin[bot]);
+  TeleportEntity(bot, g_CrossFire_SpawnOrigin[bot], botAngles, ZERO_VECTOR);
   // SetEntPropFloat(bot, Prop_Data, "m_flLaggedMovementValue", 0.0);
 
   return Plugin_Handled;
@@ -1452,23 +1427,23 @@ public Action Timer_GetCrossfireBots(Handle timer, DataPack pack) {
 
 public void EndSingleCrossfire(bool win) {
   char crossfireName[OPTION_NAME_LENGTH];
-  GetCrossfireName(g_CFireActiveId, crossfireName, OPTION_NAME_LENGTH);
-  for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
-    int player = g_CrossfirePlayers.Get(i);
+  GetCrossfireName(g_Crossfire_ActiveId, crossfireName, OPTION_NAME_LENGTH);
+  for (int i = 0; i < g_Crossfire_Players.Length; i++) {
+    int player = g_Crossfire_Players.Get(i);
     if (IsPlayer(player)) {
-      if (IsValidEntity(g_CrossfirePlayers_Room[player])) {
-        AcceptEntityInput(g_CrossfirePlayers_Room[player], "Kill");
-        g_CrossfirePlayers_Room[player] = -1;
+      if (IsValidEntity(g_Crossfire_Players_Room[player])) {
+        AcceptEntityInput(g_Crossfire_Players_Room[player], "Kill");
+        g_Crossfire_Players_Room[player] = -1;
       }
       EmitSoundToClient(player, (win) ? "ui/achievement_earned.wav" : "ui/armsrace_demoted.wav", _, _, SNDLEVEL_ROCKET);
       // PM_Message(player, "{ORANGE}Crossfire {PURPLE}%s {ORANGE} %s", crossfireName, (win) ? "Ganado" : "Perdido.");
     }
   }
-  int client = g_CrossfirePlayers.Get(0);
+  int client = g_Crossfire_Players.Get(0);
   if (IsPlayer(client)) {
-    int currentCrossfireIndex = g_CFireArenas.FindString(g_CFireActiveId);
+    int currentCrossfireIndex = g_Crossfire_Arenas.FindString(g_Crossfire_ActiveId);
     if (win) {
-      if (currentCrossfireIndex < g_CFireArenas.Length - 1) {
+      if (currentCrossfireIndex < g_Crossfire_Arenas.Length - 1) {
         // go to next crossfire
         currentCrossfireIndex++;
         StartSingleCrossfire(client, currentCrossfireIndex);
@@ -1480,7 +1455,7 @@ public void EndSingleCrossfire(bool win) {
     }
   }
   // Finished last arena
-  if (g_CFOption_EndlessMode) {
+  if (g_Crossfire_EndlessMode) {
     // Endless
     StartSingleCrossfire(client);
   } else {
@@ -1492,26 +1467,25 @@ public void EndSingleCrossfire(bool win) {
 
 public void StopCrossfiresMode() {
   ServerCommand("bot_kick");
-  for (int i = 0; i < g_CrossfirePlayers.Length; i++) {
-    int player = g_CrossfirePlayers.Get(i);
+  for (int i = 0; i < g_Crossfire_Players.Length; i++) {
+    int player = g_Crossfire_Players.Get(i);
     if (IsPlayer(player)) {
-      if (IsValidEntity(g_CrossfirePlayers_Room[player])) {
-        AcceptEntityInput(g_CrossfirePlayers_Room[player], "Kill");
-        g_CrossfirePlayers_Room[player] = -1;
+      if (IsValidEntity(g_Crossfire_Players_Room[player])) {
+        AcceptEntityInput(g_Crossfire_Players_Room[player], "Kill");
+        g_Crossfire_Players_Room[player] = -1;
       }
       PM_Message(player, "{GREEN}===============================");
       PM_Message(player, "{ORANGE}end");
       PM_Message(player, "{GREEN}===============================");
     }
   }
-  g_CrossfirePlayers.Clear();
-  g_CrossfireBots.Clear();
-  g_CFireArenas.Clear();
+  g_Crossfire_Players.Clear();
+  g_Crossfire_Bots.Clear();
+  g_Crossfire_Arenas.Clear();
   g_InCrossfireMode = false;
   
   SetCvarIntSafe("bot_stop", 0);
   SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
-  SetCvarIntSafe("mp_forcecamera", 2);
   SetCvarIntSafe("mp_radar_showall", 1);
   SetCvarIntSafe("sm_glow_pmbots", 1);
   SetCvarIntSafe("sv_grenade_trajectory", 1);
@@ -1525,13 +1499,7 @@ public void StopCrossfiresMode() {
 }
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
 /* Helpers */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
 /*******************************************************************/
 
 public int GetCrossfiresNextId() {
@@ -1551,7 +1519,7 @@ public int GetCrossfiresNextId() {
 }
 
 public void SetCrossfireName(const char[] id, const char[] newName) {
-  g_UpdatedCrossfireKv = true;
+  g_Crossfire_UpdatedKv = true;
   if (g_CrossfiresKv.JumpToKey(id, true)) {
     g_CrossfiresKv.SetString("name", newName);
     g_CrossfiresKv.GoBack();
@@ -1568,7 +1536,7 @@ public void GetCrossfireName(const char[] id, char[] buffer, int length) {
 
 public void DeleteCrossfire(const char[] id) {
   if (g_CrossfiresKv.JumpToKey(id)) {
-    g_UpdatedCrossfireKv = true;
+    g_Crossfire_UpdatedKv = true;
     g_CrossfiresKv.DeleteThis();
     g_CrossfiresKv.Rewind();
   }
@@ -1579,7 +1547,7 @@ public void DeleteCrossfireSpawn(const char[] crossfireid, const char[] spawnTyp
   if (g_CrossfiresKv.JumpToKey(crossfireid)) {
     if (g_CrossfiresKv.JumpToKey(spawnType)) {
       if (g_CrossfiresKv.JumpToKey(spawnid)) {
-        g_UpdatedCrossfireKv = true;
+        g_Crossfire_UpdatedKv = true;
         g_CrossfiresKv.DeleteThis();
       }
     }
@@ -1611,7 +1579,7 @@ public void GetCrossfireSpawnsNextId(const char[] crossfireid, const char[] spaw
 }
 
 public bool SetCrossfireSpawnVectorKV(const char[] crossfireid, const char[] spawnType, const char[] spawnid, const char[] key, const float value[3]) {
-  g_UpdatedCrossfireKv = true;
+  g_Crossfire_UpdatedKv = true;
   bool ret = false;
   if (g_CrossfiresKv.JumpToKey(crossfireid, true)) {
     if (g_CrossfiresKv.JumpToKey(spawnType, true)) {
@@ -1660,7 +1628,7 @@ public bool GetCrossfireSpawnStringKV(const char[] crossfireid, const char[] spa
 }
 
 public bool SetCrossfireSpawnStringKV(const char[] crossfireid, const char[] spawnType, const char[] spawnid, const char[] key, const char[] value) {
-  g_UpdatedCrossfireKv = true;
+  g_Crossfire_UpdatedKv = true;
   bool ret = false;
   if (g_CrossfiresKv.JumpToKey(crossfireid, true)) {
     if (g_CrossfiresKv.JumpToKey(spawnType, true)) {
@@ -1678,7 +1646,7 @@ public bool SetCrossfireSpawnStringKV(const char[] crossfireid, const char[] spa
 }
 
 public void MaybeWriteNewCrossfireData() {
-  if (g_UpdatedCrossfireKv) {
+  if (g_Crossfire_UpdatedKv) {
     g_CrossfiresKv.Rewind();
     BackupFiles("crossfires");
     char map[PLATFORM_MAX_PATH];
@@ -1689,7 +1657,7 @@ public void MaybeWriteNewCrossfireData() {
     if (!g_CrossfiresKv.ExportToFile(crossfireFile)) {
       PrintToServer("[MaybeWriteNewCrossfireData]Failed to write crossfires to %s", crossfireFile);
     }
-    g_UpdatedCrossfireKv = false;
+    g_Crossfire_UpdatedKv = false;
     UpdateHoloCFireEnts();
   }
 }
@@ -1730,5 +1698,5 @@ stock TE_SendBeamSquareToAll(
 }
 
 public bool IsCrossfireBot(int client) {
-  return client > 0 && g_IsCrossfireBot[client] && IsClientInGame(client) && IsFakeClient(client);
+  return client > 0 && g_Is_CrossfireBot[client] && IsClientInGame(client) && IsFakeClient(client);
 }

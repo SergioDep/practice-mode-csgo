@@ -20,13 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Commands */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+/**************************** Commands *****************************/
 /*******************************************************************/
 
 public Action Command_RetakesSetupMenu(int client, int args) {
@@ -52,13 +46,7 @@ public Action Command_RetakesEditorMenu(int client, int args) {
 }
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Menus */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+/****************************** Menus ******************************/
 /*******************************************************************/
 
 public void RetakesSetupMenu(int client) {
@@ -97,7 +85,7 @@ public void RetakesEditorMenu(int client) {
     PM_Message(client, "No tienes permisos de editor.");
     return;
   }
-  strcopy(g_SelectedRetakeId, OPTION_ID_LENGTH, "-1");
+  strcopy(g_Retake_SelectedId, OPTION_ID_LENGTH, "-1");
   UpdateHoloRetakeEntities();
   Menu menu = new Menu(RetakesEditorMenuHandler);
   menu.SetTitle("Editar Zonas de Retake: ");
@@ -124,13 +112,13 @@ public int RetakesEditorMenuHandler(Menu menu, MenuAction action, int client, in
     char buffer[OPTION_ID_LENGTH + 1];
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "add_new")) {
-      g_WaitForRetakeSave[client] = true;
+      g_Retake_WaitForSave[client] = true;
       PM_Message(client, "{ORANGE}Ingrese el nombre del retake a guardar. (\"{LIGHT_RED}!no{ORANGE}\" para cancelar)");
     } else if (StrEqual(buffer, "exit_edit")) {
       PM_Message(client, "{ORANGE}Modo Edición Desactivado.");
       RemoveHoloRetakeEntities();
     } else {
-      strcopy(g_SelectedRetakeId, OPTION_ID_LENGTH, buffer);
+      strcopy(g_Retake_SelectedId, OPTION_ID_LENGTH, buffer);
       SingleRetakeEditorMenu(client);
       UpdateHoloRetakeEntities();
     }
@@ -143,8 +131,8 @@ public int RetakesEditorMenuHandler(Menu menu, MenuAction action, int client, in
 stock void SingleRetakeEditorMenu(int client, int pos = 0) {
   Menu menu = new Menu(SingleRetakeEditorMenuHandler);
   char retakeName[OPTION_NAME_LENGTH];
-  GetRetakeName(g_SelectedRetakeId, retakeName, OPTION_NAME_LENGTH);
-  menu.SetTitle("Editor de Retake: %s (id %s)", retakeName, g_SelectedRetakeId);
+  GetRetakeName(g_Retake_SelectedId, retakeName, OPTION_NAME_LENGTH);
+  menu.SetTitle("Editor de Retake: %s (id %s)", retakeName, g_Retake_SelectedId);
   menu.AddItem("edit_enemies", "Editar Spawns de Bots");
   menu.AddItem("edit_players", "Editar Spawns de Jugadores");
   menu.AddItem("edit_bombs", "Editar Puntos de Plantar Bomba");
@@ -171,7 +159,7 @@ public int SingleRetakeEditorMenuHandler(Menu menu, MenuAction action, int clien
       RetakeGrenadesEditorMenu(client);
     } else if (StrEqual(buffer, "delete")) {
       char retakeName[OPTION_NAME_LENGTH];
-      GetRetakeName(g_SelectedRetakeId, retakeName, OPTION_NAME_LENGTH);
+      GetRetakeName(g_Retake_SelectedId, retakeName, OPTION_NAME_LENGTH);
       RetakeDeleteConfirmationMenu(client);
     }
   } else if (action == MenuAction_Cancel && item == MenuCancel_ExitBack) {
@@ -187,7 +175,7 @@ public void RetakeSpawnsEditorMenu(int client, const char[] spawnType){
 
   char spawn_id[OPTION_ID_LENGTH];
   char spawn_display[OPTION_NAME_LENGTH];
-  if (g_RetakesKv.JumpToKey(g_SelectedRetakeId)) {
+  if (g_RetakesKv.JumpToKey(g_Retake_SelectedId)) {
     if (g_RetakesKv.JumpToKey(spawnType)) {
       if (g_RetakesKv.GotoFirstSubKey()) {
         do {
@@ -216,7 +204,7 @@ public int RetakeSpawnsEditorMenuHandler(Menu menu, MenuAction action, int clien
     //Editar Spawns Tipo (Bot | Player | Bomb)
     if (StrEqual(buffer, "add_new")) {
       char nextSpawnId[OPTION_ID_LENGTH];
-      GetRetakeSpawnsNextId(g_SelectedRetakeId, SelectedRetakeInfo[3], nextSpawnId, OPTION_ID_LENGTH);
+      GetRetakeSpawnsNextId(g_Retake_SelectedId, SelectedRetakeInfo[3], nextSpawnId, OPTION_ID_LENGTH);
       SpawnEditorMenu(client, SelectedRetakeInfo[3], nextSpawnId);
     } else {
       SpawnEditorMenu(client, SelectedRetakeInfo[3], buffer, true);
@@ -236,8 +224,8 @@ stock void SpawnEditorMenu(int client, const char[] spawnType, char[] spawnId, b
 
   if (teleport) {
     float fOrigin[3], fAngles[3];
-    GetRetakeSpawnVectorKV(g_SelectedRetakeId, spawnType, spawnId, "origin", fOrigin);
-    GetRetakeSpawnVectorKV(g_SelectedRetakeId, spawnType, spawnId, "angles", fAngles);
+    GetRetakeSpawnVectorKV(g_Retake_SelectedId, spawnType, spawnId, "origin", fOrigin);
+    GetRetakeSpawnVectorKV(g_Retake_SelectedId, spawnType, spawnId, "angles", fAngles);
     if (!VecEqual(fOrigin, ZERO_VECTOR)) {
       TeleportEntity(client, fOrigin, fAngles, ZERO_VECTOR);
     }
@@ -264,11 +252,11 @@ public int SpawnEditorMenuHandler(Menu menu, MenuAction action, int client, int 
       float fAngles[3];
       GetClientAbsOrigin(client, fOrigin);
       GetClientEyeAngles(client, fAngles);
-      SetRetakeSpawnVectorKV(g_SelectedRetakeId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "origin", fOrigin);
-      SetRetakeSpawnVectorKV(g_SelectedRetakeId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "angles", fAngles);
+      SetRetakeSpawnVectorKV(g_Retake_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "origin", fOrigin);
+      SetRetakeSpawnVectorKV(g_Retake_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3], "angles", fAngles);
       // PM_Message(client, "{ORANGE}%s Spawn {GREEN}%s {ORANGE}actualizado.", SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
     } else if (StrEqual(buffer, "delete")) {
-      DeleteRetakeSpawn(g_SelectedRetakeId, SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
+      DeleteRetakeSpawn(g_Retake_SelectedId, SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
       PM_Message(client, "{ORANGE}%s Spawn {GREEN}%s {ORANGE}eliminado.", SelectedSpawnInfo[1], SelectedSpawnInfo[3]);
       RetakeSpawnsEditorMenu(client, SelectedSpawnInfo[1]);
       return 0;
@@ -287,7 +275,7 @@ public void RetakeGrenadesEditorMenu(int client){
 
   char spawn_id[OPTION_ID_LENGTH];
   char spawn_display[OPTION_NAME_LENGTH];
-  if (g_RetakesKv.JumpToKey(g_SelectedRetakeId)) {
+  if (g_RetakesKv.JumpToKey(g_Retake_SelectedId)) {
     if (g_RetakesKv.JumpToKey("grenade")) {
       if (g_RetakesKv.GotoFirstSubKey()) {
         do {
@@ -314,7 +302,7 @@ public int RetakeGrenadesEditorMenuHandler(Menu menu, MenuAction action, int cli
     menu.GetItem(item, buffer, sizeof(buffer));
     if (StrEqual(buffer, "add_new")) {
       char nextSpawnId[OPTION_ID_LENGTH];
-      GetRetakeSpawnsNextId(g_SelectedRetakeId, "grenade", nextSpawnId, OPTION_ID_LENGTH);
+      GetRetakeSpawnsNextId(g_Retake_SelectedId, "grenade", nextSpawnId, OPTION_ID_LENGTH);
       GrenadeSpawnEditorMenu(client, nextSpawnId);
     } else {
       GrenadeSpawnEditorMenu(client, buffer);
@@ -349,18 +337,16 @@ public int GrenadeSpawnEditorMenuHandler(Menu menu, MenuAction action, int clien
     ExplodeString(title, " ", SelectedSpawnInfo, sizeof(SelectedSpawnInfo), sizeof(SelectedSpawnInfo[]));
     // spawnid = SelectedSpawnInfo[2]
     if (StrEqual(buffer, "updatenade")) {
-      if (g_CSUtilsLoaded) {
-        if (IsGrenade(g_LastGrenadeType[client])) {
-          char grenadeTypeString[128];
-          GrenadeTypeString(g_LastGrenadeType[client], grenadeTypeString, sizeof(grenadeTypeString));
-          SetRetakeSpawnStringKV(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString);
-          SetRetakeSpawnVectorKV(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2], "origin", g_LastGrenadeOrigin[client]);
-          SetRetakeSpawnVectorKV(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2], "velocity", g_LastGrenadeVelocity[client]);
-          g_LastGrenadeType[client] = GrenadeType_None;
-          PM_Message(client, "{ORANGE}Spawn de Granada {GREEN}%s {ORANGE}actualizado.", SelectedSpawnInfo[2]);
-        } else {
-          PM_Message(client, "{ORANGE}Granada no Válida. Tira una Granada Primero");
-        }
+      if (g_Nade_LastType[client] != GrenadeType_None) {
+        char grenadeTypeString[128];
+        GrenadeTypeString(g_Nade_LastType[client], grenadeTypeString, sizeof(grenadeTypeString));
+        SetRetakeSpawnStringKV(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString);
+        SetRetakeSpawnVectorKV(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2], "origin", g_Nade_LastOrigin[client]);
+        SetRetakeSpawnVectorKV(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2], "velocity", g_Nade_LastVelocity[client]);
+        g_Nade_LastType[client] = GrenadeType_None;
+        PM_Message(client, "{ORANGE}Spawn de Granada {GREEN}%s {ORANGE}actualizado.", SelectedSpawnInfo[2]);
+      } else {
+        PM_Message(client, "{ORANGE}Granada no Válida. Tira una Granada Primero");
       }
     } else if (StrEqual(buffer, "updatetrigger")) {
       // edit last trigger
@@ -368,18 +354,18 @@ public int GrenadeSpawnEditorMenuHandler(Menu menu, MenuAction action, int clien
     } else if (StrEqual(buffer, "throw")) {
       float grenadeOrigin[3], grenadeVelocity[3];
       char grenadeTypeString[128];
-      GetRetakeSpawnStringKV(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString, sizeof(grenadeTypeString));
+      GetRetakeSpawnStringKV(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2], "type", grenadeTypeString, sizeof(grenadeTypeString));
       GrenadeType grenadeType = GrenadeTypeFromString(grenadeTypeString);
-      if (IsGrenade(grenadeType)) {
-        GetRetakeSpawnVectorKV(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2], "origin", grenadeOrigin);
-        GetRetakeSpawnVectorKV(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2], "velocity", grenadeVelocity);
-        CSU_ThrowGrenade(client, grenadeType, grenadeOrigin, grenadeVelocity);
+      if (grenadeType != GrenadeType_None) {
+        GetRetakeSpawnVectorKV(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2], "origin", grenadeOrigin);
+        GetRetakeSpawnVectorKV(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2], "velocity", grenadeVelocity);
+        PM_ThrowGrenade(client, grenadeType, grenadeOrigin, grenadeVelocity);
       } else {
         PM_Message(client, "{ORANGE}Granada no Válida. Tira una Granada Primero");
       }
     } else if (StrEqual(buffer, "delete")) {
       PM_Message(client, "{ORANGE}Spawn de Granada {GREEN}%s {ORANGE}eliminado.", SelectedSpawnInfo[2]);
-      DeleteRetakeSpawn(g_SelectedRetakeId, "grenade", SelectedSpawnInfo[2]);
+      DeleteRetakeSpawn(g_Retake_SelectedId, "grenade", SelectedSpawnInfo[2]);
       RetakeGrenadesEditorMenu(client);
       return 0;
     }
@@ -392,7 +378,7 @@ public int GrenadeSpawnEditorMenuHandler(Menu menu, MenuAction action, int clien
 
 public void RetakeDeleteConfirmationMenu(int client) {
   char retakeName[OPTION_NAME_LENGTH];
-  GetRetakeName(g_SelectedRetakeId, retakeName, sizeof(retakeName));
+  GetRetakeName(g_Retake_SelectedId, retakeName, sizeof(retakeName));
 
   Menu menu = new Menu(RetakeDeletionMenuHandler);
   menu.SetTitle("Confirma la eliminación de retake: %s", retakeName);
@@ -417,8 +403,8 @@ public int RetakeDeletionMenuHandler(Menu menu, MenuAction action, int client, i
 
     if (StrEqual(buffer, "yes")) {
       char retakeName[OPTION_NAME_LENGTH];
-      GetRetakeName(g_SelectedRetakeId, retakeName, sizeof(retakeName));
-      DeleteRetake(g_SelectedRetakeId);
+      GetRetakeName(g_Retake_SelectedId, retakeName, sizeof(retakeName));
+      DeleteRetake(g_Retake_SelectedId);
       PM_MessageToAll("Retake %s eliminado.", retakeName);
       RetakesEditorMenu(client);
     } else {
@@ -429,13 +415,7 @@ public int RetakeDeletionMenuHandler(Menu menu, MenuAction action, int client, i
 }
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Events, Forwards, Hooks */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+/********************* Events, Forwards, Hooks *********************/
 /*******************************************************************/
 
 public void Retakes_MapStart() {
@@ -475,33 +455,33 @@ public void Retakes_MapEnd() {
 }
 
 public void Retakes_ClientDisconnect(int client) {
-  g_RKBot_Time[client] = 0;
-  g_RetakeBotDirection[client] = 0;
-  g_RetakeBotDuck[client] = 0;
+  g_Retake_BotTime[client] = 0;
+  g_Retake_BotDirection[client] = 0;
+  g_Retake_BotDuck[client] = 0;
   // g_RetakeBotWalk[client] = 0;
-  g_RetakePlayers_Points[client] = 0;
-  g_WaitForRetakeSave[client] = false;
+  g_Retake_PlayersPoints[client] = 0;
+  g_Retake_WaitForSave[client] = false;
 }
 
 public void Retakes_PluginStart() {
-  g_HoloRetakeEntities = new ArrayList();
-  g_RetakeRetakes = new ArrayList();
-  g_RetakePlayers = new ArrayList();
-  g_RetakeBots = new ArrayList();
+  g_Retake_HoloEnts = new ArrayList();
+  g_Retake_Retakes = new ArrayList();
+  g_Retake_Players = new ArrayList();
+  g_Retake_Bots = new ArrayList();
 
-  bombTicking = FindSendPropInfo("CPlantedC4", "m_bBombTicking");
+  g_Retake_BombTicking = FindSendPropInfo("CPlantedC4", "m_bg_Retake_BombTicking");
 
-  g_MaxRetakeBotsCvar = CreateConVar("sm_retake_max_bots", "6",
+  g_Retake_MaxBotsCvar = CreateConVar("sm_retake_max_bots", "6",
                               "How many retake bots spawn at max.", 0, true, 1.0, true, 10.0);
-  g_MaxRetakePlayersCvar = CreateConVar("sm_retake_max_players", "2",
+  g_Retake_MaxPlayersCvar = CreateConVar("sm_retake_max_players", "2",
                               "How many retake players spawn at max.", 0, true, 1.0, true, 3.0);
-  g_RKBot_SpotMultCvar = CreateConVar("sm_retake_spot_mult", "1.1",
+  g_Retake_BotSpotMultCvar = CreateConVar("sm_retake_spot_mult", "1.1",
                               "Only for testing purposes.", 0, true, 1.0, true, 2.0);
-  g_RKBot_ReactTimeCvar = CreateConVar("sm_retake_react_time", "80",
+  g_Retake_BotReactTimeCvar = CreateConVar("sm_retake_react_time", "80",
                               "How much ticks until bot starts shooting.", 0, true, 30.0, true, 150.0);
-  g_RKBot_AttackTimeCvar = CreateConVar("sm_retake_attack_time", "30",
+  g_Retake_BotAttackTimeCvar = CreateConVar("sm_retake_attack_time", "30",
                               "How much ticks until bot stops shooting.", 0, true, 0.0, true, 100.0);
-  g_RKBot_MoveDistanceCvar = CreateConVar("sm_retake_move_distance", "60",
+  g_Retake_BotMoveDistanceCvar = CreateConVar("sm_retake_move_distance", "60",
                               "How much ticks will the bot move before shooting.", 0, true, 0.0, true, 150.0);
 
   HookEvent("bomb_planted", Event_BombPlant);
@@ -530,8 +510,8 @@ public Action RetakeBot_PlayerRunCmd(int client, int &buttons, float vel[3], flo
 
   float nearestDistance = -1.0;
   float distance;
-  for (int i = 0; i < g_RetakePlayers.Length; i++) {
-    int target = g_RetakePlayers.Get(i);
+  for (int i = 0; i < g_Retake_Players.Length; i++) {
+    int target = g_Retake_Players.Get(i);
     if (IsPlayer(target)) {
       if (!IsPlayerAlive(target)) {
         continue;
@@ -540,7 +520,7 @@ public Action RetakeBot_PlayerRunCmd(int client, int &buttons, float vel[3], flo
       if (distance > nearestDistance && nearestDistance > -1.0) {
         continue;
       }
-      if (!IsAbleToSee(client, target, g_RKBot_SpotMultCvar.FloatValue)) {
+      if (!IsAbleToSee(client, target, g_Retake_BotSpotMultCvar.FloatValue)) {
         if (distance < 500.0) {
           nearestNonVisibleTarget = -1; //target
         }
@@ -565,51 +545,51 @@ public Action RetakeBot_PlayerRunCmd(int client, int &buttons, float vel[3], flo
     GetVectorAngles(viewTarget, viewTarget);
     TeleportEntity(client, NULL_VECTOR, viewTarget, NULL_VECTOR);
     // Strafe movement perpendicular to player->bot vector
-    // bot will stop and attack every g_RKBot_ReactTimeCvar.IntValue frames
-    if (g_RKBot_Time[client] >= g_RKBot_ReactTimeCvar.IntValue &&
-        g_RKBot_Time[client] <= (g_RKBot_ReactTimeCvar.IntValue+g_RKBot_AttackTimeCvar.IntValue)) { // bot will attack for (2 + 1) frames
+    // bot will stop and attack every g_Retake_BotReactTimeCvar.IntValue frames
+    if (g_Retake_BotTime[client] >= g_Retake_BotReactTimeCvar.IntValue &&
+        g_Retake_BotTime[client] <= (g_Retake_BotReactTimeCvar.IntValue+g_Retake_BotAttackTimeCvar.IntValue)) { // bot will attack for (2 + 1) frames
       vel[1] = 0.0;
       if (nearestTarget == -1 && nearestNonVisibleTarget > 0) {
         // doesnt see anybody but has a close target
       }
       buttons |= IN_ATTACK;
       // buttons &= ~IN_SPEED;
-      if (g_RKBot_Time[client] == (g_RKBot_ReactTimeCvar.IntValue+g_RKBot_AttackTimeCvar.IntValue)) {
-        g_RetakeBotDuck[client] = GetRandomInt(0, 1);
-        g_RKBot_Time[client] = 0;
+      if (g_Retake_BotTime[client] == (g_Retake_BotReactTimeCvar.IntValue+g_Retake_BotAttackTimeCvar.IntValue)) {
+        g_Retake_BotDuck[client] = GetRandomInt(0, 1);
+        g_Retake_BotTime[client] = 0;
       }
-      else g_RKBot_Time[client]++;
+      else g_Retake_BotTime[client]++;
     } else {
       buttons &= ~IN_ATTACK;
       buttons &= ~IN_DUCK;
       // buttons &= ~IN_SPEED;
-      if (g_RKBot_Time[client] == g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue) { // the bot will be moving RKBOT_MOVEDISTANCE frames
-        g_RetakeBotDirection[client] = GetRandomInt(0, 1);
-        g_RetakeBotDuck[client] = GetRandomInt(0, 1);
+      if (g_Retake_BotTime[client] == g_Retake_BotReactTimeCvar.IntValue - g_Retake_BotMoveDistanceCvar.IntValue) { // the bot will be moving RKBOT_MOVEDISTANCE frames
+        g_Retake_BotDirection[client] = GetRandomInt(0, 1);
+        g_Retake_BotDuck[client] = GetRandomInt(0, 1);
         // g_RetakeBotWalk[client] = GetRandomInt(0, 1);
       } else {
-        if (g_RKBot_Time[client] > g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue) { // while the bot is moving
-          if (g_RetakeBotDirection[client] == 1) vel[1] = 250.0;
+        if (g_Retake_BotTime[client] > g_Retake_BotReactTimeCvar.IntValue - g_Retake_BotMoveDistanceCvar.IntValue) { // while the bot is moving
+          if (g_Retake_BotDirection[client] == 1) vel[1] = 250.0;
           else vel[1] = -250.0;
-          if (g_RetakeBotDuck[client] == 1) buttons |= IN_DUCK;
+          if (g_Retake_BotDuck[client] == 1) buttons |= IN_DUCK;
 
           // if (g_RetakeBotWalk[client]) buttons |= IN_SPEED;
-          if (g_RKBot_Time[client] == g_RKBot_ReactTimeCvar.IntValue - g_RKBot_MoveDistanceCvar.IntValue + 5) { // just after the bot started moving to check if IS STUCK
+          if (g_Retake_BotTime[client] == g_Retake_BotReactTimeCvar.IntValue - g_Retake_BotMoveDistanceCvar.IntValue + 5) { // just after the bot started moving to check if IS STUCK
             float fAbsVel[3];
             Entity_GetAbsVelocity(client, fAbsVel);
             if (GetVectorLength(fAbsVel) < 5.0) {
               // PrintToChatAll("block detected");
               // Jump to Attack Time ?
-              // g_RKBot_Time[client] = g_RKBot_ReactTimeCvar.IntValue;
-              // PrintToChatAll("direction changed from %d to %d", g_RetakeBotDirection[client], 1 - g_RetakeBotDirection[client]);
-              g_RetakeBotDirection[client] = 1 - g_RetakeBotDirection[client];
+              // g_Retake_BotTime[client] = g_Retake_BotReactTimeCvar.IntValue;
+              // PrintToChatAll("direction changed from %d to %d", g_Retake_BotDirection[client], 1 - g_Retake_BotDirection[client]);
+              g_Retake_BotDirection[client] = 1 - g_Retake_BotDirection[client];
             }
           }
         } else {
           // unknown status (bot is standing?)
         }
       }
-      g_RKBot_Time[client]++;
+      g_Retake_BotTime[client]++;
     }
   } else if (nearestNonVisibleTarget > 0) {
     float clientEyepos[3], viewTarget[3];
@@ -663,16 +643,16 @@ public Action Event_RetakeBot_Death(int victim, Event event, const char[] name, 
     return Plugin_Continue;
   }
   int index = -1;
-  if((index = g_RetakeBots.FindValue(victim)) != -1) {
+  if((index = g_Retake_Bots.FindValue(victim)) != -1) {
     int ragdoll = GetEntPropEnt(victim, Prop_Send, "m_hRagdoll");
     CreateTimer(0.5, Timer_RemoveRagdoll, EntIndexToEntRef(ragdoll), TIMER_FLAG_NO_MAPCHANGE);
-    g_RKBot_Time[index] = 0;
-    if (g_RetakePlayers.FindValue(killer) != -1) {
-      g_RetakePlayers_Points[killer] += 5; // 5 points per kill
+    g_Retake_BotTime[index] = 0;
+    if (g_Retake_Players.FindValue(killer) != -1) {
+      g_Retake_PlayersPoints[killer] += 5; // 5 points per kill
     }
-    g_RetakeBots.Erase(index);
+    g_Retake_Bots.Erase(index);
   }
-  // if (g_RetakeBots.Length == 0) {
+  // if (g_Retake_Bots.Length == 0) {
   //   // all bots are dead
   // }
   return Plugin_Continue;
@@ -680,12 +660,8 @@ public Action Event_RetakeBot_Death(int victim, Event event, const char[] name, 
 
 /*******************************************************************/
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/* Misc */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
+
+/****************************** Misc *******************************/
 /*******************************************************************/
 
 
@@ -697,19 +673,19 @@ public void UpdateHoloRetakeEntities() {
 
 public void RemoveHoloRetakeEntities() {
   int ent;
-  for (int i = g_HoloRetakeEntities.Length - 1; i >= 0; i--) {
-    ent = g_HoloRetakeEntities.Get(i);
+  for (int i = g_Retake_HoloEnts.Length - 1; i >= 0; i--) {
+    ent = g_Retake_HoloEnts.Get(i);
     if (IsValidEntity(ent)) {
       AcceptEntityInput(ent, "Kill");
     }
   }
-  g_HoloRetakeEntities.Clear();
+  g_Retake_HoloEnts.Clear();
 }
 
 public void CreateHoloRetakeEntities() {
-  if (!StrEqual(g_SelectedRetakeId, "-1")) {
+  if (!StrEqual(g_Retake_SelectedId, "-1")) {
     // Show Only Selected
-    if (g_RetakesKv.JumpToKey(g_SelectedRetakeId)) {
+    if (g_RetakesKv.JumpToKey(g_Retake_SelectedId)) {
       if (g_RetakesKv.GotoFirstSubKey()) {
           do {
             char spawnType[OPTION_ID_LENGTH];
@@ -759,7 +735,7 @@ public void CreateHoloRetakeEntity(const char[] spawnType, int retakeColor[4]) {
           g_RetakesKv.GetVector("vecmaxs", vecmaxs);
           ent = CreateRetakeBoxEntity(spawnid, origin, angles, vecmins, vecmaxs);
           if (ent > 0) {
-            g_HoloRetakeEntities.Push(ent);
+            g_Retake_HoloEnts.Push(ent);
           }
           g_RetakesKv.GoBack();
         }
@@ -768,7 +744,7 @@ public void CreateHoloRetakeEntity(const char[] spawnType, int retakeColor[4]) {
         g_RetakesKv.GetVector("angles", angles);
         ent = CreateRetakePlayerEntity(spawnType, spawnid, origin, angles, retakeColor);
         if (ent > 0) {
-          g_HoloRetakeEntities.Push(ent);
+          g_Retake_HoloEnts.Push(ent);
         }
       }
     } while (g_RetakesKv.GotoNextKey());
@@ -834,16 +810,16 @@ stock void InitRetakes(int client) {
     return;
   }
   // Get Retakes
-  g_RetakeRetakes.Clear();
+  g_Retake_Retakes.Clear();
   int retakeCount = GetRetakesNextId();
   if (retakeCount > 0) {
     char iStr[OPTION_ID_LENGTH];
     for (int i = 0; i < retakeCount; i++) {
       IntToString(i, iStr, OPTION_ID_LENGTH);
-      g_RetakeRetakes.PushString(iStr);
+      g_Retake_Retakes.PushString(iStr);
     }
     // Random Retakes
-    SortADTArray(g_RetakeRetakes, Sort_Random, Sort_String);
+    SortADTArray(g_Retake_Retakes, Sort_Random, Sort_String);
   } else {
     PM_Message(client, "{LIGHT_RED}Error: {ORANGE}No Existen Suficientes Zonas.");
     return;
@@ -853,15 +829,15 @@ stock void InitRetakes(int client) {
 }
 
 stock void StartSingleRetake(int client, int retakePos = 0) {
-  g_RetakeDeathPlayersCount = 0;
-  g_RetakeRetakes.GetString(retakePos, g_RetakePlayId, OPTION_ID_LENGTH);
+  g_Retake_DeathPlayersCount = 0;
+  g_Retake_Retakes.GetString(retakePos, g_Retake_PlayId, OPTION_ID_LENGTH);
   char retakeName[OPTION_NAME_LENGTH];
-  GetRetakeName(g_RetakePlayId, retakeName, OPTION_NAME_LENGTH);
+  GetRetakeName(g_Retake_PlayId, retakeName, OPTION_NAME_LENGTH);
   PM_Message(client, "{ORANGE}Empezando Retake: {PURPLE}%s", retakeName);
 
   // Get Bombs
   char nextSpawn[OPTION_ID_LENGTH];
-  GetRetakeSpawnsNextId(g_RetakePlayId, "bomb", nextSpawn, OPTION_ID_LENGTH);
+  GetRetakeSpawnsNextId(g_Retake_PlayId, "bomb", nextSpawn, OPTION_ID_LENGTH);
   int bombCount = StringToInt(nextSpawn);
   if (bombCount < 0) {
     PM_Message(client, "{LIGHT_RED}Error: {ORANGE}No Existen Suficientes Spawns de Bombas.");
@@ -871,34 +847,34 @@ stock void StartSingleRetake(int client, int retakePos = 0) {
   char randomSpawnId[OPTION_ID_LENGTH];
   IntToString(GetRandomInt(0, bombCount-1), randomSpawnId, OPTION_ID_LENGTH);
   float bombPosition[3];
-  GetRetakeSpawnVectorKV(g_RetakePlayId, "bomb", randomSpawnId, "origin", bombPosition);
+  GetRetakeSpawnVectorKV(g_Retake_PlayId, "bomb", randomSpawnId, "origin", bombPosition);
   PlantBomb(client, bombPosition);
 
   CreateTimer(0.2, Timer_StartRetake, GetClientSerial(client));
 }
 
 public Action Timer_StartRetake(Handle timer, int serial) {
-  g_RetakePlayers.Clear();
-  g_RetakeBots.Clear();
+  g_Retake_Players.Clear();
+  g_Retake_Bots.Clear();
 
   int client = GetClientFromSerial(serial);
-  g_RetakePlayers.Push(client);
+  g_Retake_Players.Push(client);
   // Choose N random clients
   for (int i = 0; i <= MaxClients; i++) {
     if (IsPlayer(i) && IsPlayerAlive(i) && GetClientTeam(i) > CS_TEAM_SPECTATOR) {
       if (i == client) continue; // Already In ArrayList
-      if (g_RetakePlayers.Length < g_MaxRetakePlayersCvar.IntValue) {
-        g_RetakePlayers.Push(i);
+      if (g_Retake_Players.Length < g_Retake_MaxPlayersCvar.IntValue) {
+        g_Retake_Players.Push(i);
       } else {
         ChangeClientTeam(i, CS_TEAM_SPECTATOR);
       }
     }
   }
-  // PM_Message(client, "{ORANGE}%d jugadores conectados.", g_RetakePlayers.Length);
+  // PM_Message(client, "{ORANGE}%d jugadores conectados.", g_Retake_Players.Length);
 
   // Get Bots
   char nextSpawn[OPTION_ID_LENGTH];
-  GetRetakeSpawnsNextId(g_RetakePlayId, "bot", nextSpawn, OPTION_ID_LENGTH);
+  GetRetakeSpawnsNextId(g_Retake_PlayId, "bot", nextSpawn, OPTION_ID_LENGTH);
   // PM_Message(client, "{ORANGE}Cantidad de Bots: %s", nextSpawn);
   int botCount = StringToInt(nextSpawn);
   ArrayList enabledBots = new ArrayList(OPTION_ID_LENGTH);
@@ -911,12 +887,12 @@ public Action Timer_StartRetake(Handle timer, int serial) {
     // Random Spawns
     SortADTArray(enabledBots, Sort_Random, Sort_String);
     // Clamp if above max bots
-    if (botCount > g_MaxRetakeBotsCvar.IntValue) {
+    if (botCount > g_Retake_MaxBotsCvar.IntValue) {
       // Take first max bots
-      for (int i = enabledBots.Length - 1; i >= g_MaxRetakeBotsCvar.IntValue; i--) {
+      for (int i = enabledBots.Length - 1; i >= g_Retake_MaxBotsCvar.IntValue; i--) {
         enabledBots.Erase(i);
       }
-      botCount = g_MaxRetakeBotsCvar.IntValue;
+      botCount = g_Retake_MaxBotsCvar.IntValue;
     }
   } else {
     PM_Message(client, "{LIGHT_RED}Error: {ORANGE}No Existen Suficientes Spawns de Bots.");
@@ -937,7 +913,7 @@ public Action Timer_StartRetake(Handle timer, int serial) {
   delete enabledBots;
 
   // Get Players
-  GetRetakeSpawnsNextId(g_RetakePlayId, "player", nextSpawn, OPTION_ID_LENGTH);
+  GetRetakeSpawnsNextId(g_Retake_PlayId, "player", nextSpawn, OPTION_ID_LENGTH);
   int playerCount = StringToInt(nextSpawn);
   ArrayList enabledPlayers = new ArrayList(OPTION_ID_LENGTH);
   if (playerCount > 0) {
@@ -949,13 +925,13 @@ public Action Timer_StartRetake(Handle timer, int serial) {
     // Random Spawns
     SortADTArray(enabledPlayers, Sort_Random, Sort_String);
     // Clamp if above max players
-    if (playerCount >= g_MaxRetakePlayersCvar.IntValue) {
+    if (playerCount >= g_Retake_MaxPlayersCvar.IntValue) {
       // Take first max players
-      for (int i = enabledPlayers.Length - 1; i >= g_MaxRetakePlayersCvar.IntValue; i--) {
+      for (int i = enabledPlayers.Length - 1; i >= g_Retake_MaxPlayersCvar.IntValue; i--) {
         PM_Message(client, "{ORANGE}borrando: %d", i);
         enabledPlayers.Erase(i);
       }
-      playerCount = g_MaxRetakePlayersCvar.IntValue;
+      playerCount = g_Retake_MaxPlayersCvar.IntValue;
     }
   } else {
     PM_Message(client, "{LIGHT_RED}Error: {ORANGE}No Existen Suficientes Spawns de Jugadores.");
@@ -963,13 +939,13 @@ public Action Timer_StartRetake(Handle timer, int serial) {
   }
 
   // Players Setup
-  for (int i = 0; i < g_RetakePlayers.Length; i++) {
+  for (int i = 0; i < g_Retake_Players.Length; i++) {
     char randomSpawnId[OPTION_ID_LENGTH];
     enabledPlayers.GetString(i, randomSpawnId, OPTION_ID_LENGTH);
     float origin[3], angles[3];
-    GetRetakeSpawnVectorKV(g_RetakePlayId, "player", randomSpawnId, "origin", origin);
-    GetRetakeSpawnVectorKV(g_RetakePlayId, "player", randomSpawnId, "angles", angles);
-    int player = g_RetakePlayers.Get(i);
+    GetRetakeSpawnVectorKV(g_Retake_PlayId, "player", randomSpawnId, "origin", origin);
+    GetRetakeSpawnVectorKV(g_Retake_PlayId, "player", randomSpawnId, "angles", angles);
+    int player = g_Retake_Players.Get(i);
     ChangeClientTeam(player, CS_TEAM_CT);
     SetEntityMoveType(player, MOVETYPE_WALK);
     TeleportEntity(player, origin, angles, ZERO_VECTOR);
@@ -978,7 +954,6 @@ public Action Timer_StartRetake(Handle timer, int serial) {
   delete enabledPlayers;
 
   // Success
-  SetCvarIntSafe("mp_forcecamera", 0);
   SetCvarIntSafe("mp_radar_showall", 0);
   SetCvarIntSafe("sm_glow_pmbots", 0);
   SetCvarIntSafe("mp_ignore_round_win_conditions", 0);
@@ -1008,23 +983,23 @@ public Action Timer_GetRetakeBots(Handle timer, DataPack pack) {
   GetClientName(bot, name, MAX_NAME_LENGTH);
   Format(name, MAX_NAME_LENGTH, "[RETAKE]%s", name);
   SetClientName(bot, name);
-  g_IsRetakeBot[bot] = true;
-  g_RetakeBots.Push(bot);
+  g_Is_RetakeBot[bot] = true;
+  g_Retake_Bots.Push(bot);
 
   // Weapons
   Client_RemoveAllWeapons(bot);
-  switch(g_RetakeDifficulty) {
-    case RetakeDiff_Easy: {
+  switch(g_Retake_Difficulty) {
+    case Retake_Diff_Easy: {
       GivePlayerItem(bot, "weapon_ak47");
       SetEntData(bot, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), false);
       Client_SetArmor(bot, 100);
     }
-    case RetakeDiff_Medium: {
+    case Retake_Diff_Medium: {
       GivePlayerItem(bot, "weapon_ak47");
       SetEntData(bot, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), true);
       Client_SetArmor(bot, 100);
     }
-    case RetakeDiff_Hard: {
+    case Retake_Diff_Hard: {
       GivePlayerItem(bot, "weapon_ak47");
       SetEntData(bot, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), true);
       Client_SetArmor(bot, 100);
@@ -1032,8 +1007,8 @@ public Action Timer_GetRetakeBots(Handle timer, DataPack pack) {
   }
 
   float botOrigin[3], botAngles[3];
-  GetRetakeSpawnVectorKV(g_RetakePlayId, "bot", spawnId, "origin", botOrigin);
-  GetRetakeSpawnVectorKV(g_RetakePlayId, "bot", spawnId, "angles", botAngles);
+  GetRetakeSpawnVectorKV(g_Retake_PlayId, "bot", spawnId, "origin", botOrigin);
+  GetRetakeSpawnVectorKV(g_Retake_PlayId, "bot", spawnId, "angles", botAngles);
   TeleportEntity(bot, botOrigin, botAngles, ZERO_VECTOR);
   // SetEntPropFloat(bot, Prop_Data, "m_flLaggedMovementValue", 0.0);
 
@@ -1042,11 +1017,11 @@ public Action Timer_GetRetakeBots(Handle timer, DataPack pack) {
 
 public void EndSingleRetake(bool win) {
   ServerCommand("bot_kick");
-  g_RetakeBots.Clear();
+  g_Retake_Bots.Clear();
   char retakeName[OPTION_NAME_LENGTH];
-  GetRetakeName(g_RetakePlayId, retakeName, OPTION_NAME_LENGTH);
-  for (int i = 0; i < g_RetakePlayers.Length; i++) {
-    int player = g_RetakePlayers.Get(i);
+  GetRetakeName(g_Retake_PlayId, retakeName, OPTION_NAME_LENGTH);
+  for (int i = 0; i < g_Retake_Players.Length; i++) {
+    int player = g_Retake_Players.Get(i);
     if (win) {
       EmitSoundToClient(player, "ui/achievement_earned.wav", _, _, SNDLEVEL_ROCKET);
       PM_Message(player, "{GREEN}===============================");
@@ -1054,8 +1029,8 @@ public void EndSingleRetake(bool win) {
       PM_Message(player, "{GREEN}===============================");
       if (i == 0) {
         // go to next retake
-        int currentRetakeIndex = g_RetakeRetakes.FindString(g_RetakePlayId);
-        if (currentRetakeIndex < g_RetakeRetakes.Length - 1) {
+        int currentRetakeIndex = g_Retake_Retakes.FindString(g_Retake_PlayId);
+        if (currentRetakeIndex < g_Retake_Retakes.Length - 1) {
           currentRetakeIndex++;
           StartSingleRetake(i, currentRetakeIndex);
         } else {
@@ -1069,25 +1044,24 @@ public void EndSingleRetake(bool win) {
       PM_Message(player, "{GREEN}===============================");
       if (i == 0) {
         // repeat round
-        int currentRetakeIndex = g_RetakeRetakes.FindString(g_RetakePlayId);
+        int currentRetakeIndex = g_Retake_Retakes.FindString(g_Retake_PlayId);
         StartSingleRetake(player, currentRetakeIndex);
       }
     }
   }
-  g_RetakeDeathPlayersCount = 0;
+  g_Retake_DeathPlayersCount = 0;
 }
 
 public void StopRetakesMode() {
   GameRules_SetProp("m_bBombPlanted", 0);
   ServerCommand("bot_kick");
   // ServerCommand("mp_restartgame 1"); // test
-  g_RetakePlayers.Clear();
-  g_RetakeBots.Clear();
-  g_RetakeRetakes.Clear();
+  g_Retake_Players.Clear();
+  g_Retake_Bots.Clear();
+  g_Retake_Retakes.Clear();
   g_InRetakeMode = false;
   
   SetConVarFloatSafe("mp_roundtime_defuse", 60.0);
-  SetCvarIntSafe("mp_forcecamera", 2);
   SetCvarIntSafe("mp_radar_showall", 1);
   SetCvarIntSafe("sm_glow_pmbots", 1);
   SetCvarIntSafe("mp_ignore_round_win_conditions", 1);
@@ -1099,17 +1073,11 @@ public void StopRetakesMode() {
   SetCvarIntSafe("sv_showimpacts", 1);
   SetCvarIntSafe("sm_holo_spawns", 1);
   SetCvarIntSafe("sm_bot_collision", 0);
-  g_RetakeDeathPlayersCount = 0;
+  g_Retake_DeathPlayersCount = 0;
 }
 
 /*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
 /* Helpers */
-/*******************************************************************/
-/*******************************************************************/
-/*******************************************************************/
 /*******************************************************************/
 
 public int GetRetakesNextId() {
@@ -1129,7 +1097,7 @@ public int GetRetakesNextId() {
 }
 
 public void SetRetakeName(const char[] id, const char[] newName) {
-  g_UpdatedRetakeKv = true;
+  g_Retake_UpdatedKv = true;
   if (g_RetakesKv.JumpToKey(id, true)) {
     g_RetakesKv.SetString("name", newName);
     g_RetakesKv.GoBack();
@@ -1146,7 +1114,7 @@ public void GetRetakeName(const char[] id, char[] buffer, int length) {
 
 public void DeleteRetake(const char[] id) {
   if (g_RetakesKv.JumpToKey(id)) {
-    g_UpdatedRetakeKv = true;
+    g_Retake_UpdatedKv = true;
     g_RetakesKv.DeleteThis();
     g_RetakesKv.Rewind();
   }
@@ -1157,7 +1125,7 @@ public void DeleteRetakeSpawn(const char[] retakeid, const char[] spawnType, con
   if (g_RetakesKv.JumpToKey(retakeid)) {
     if (g_RetakesKv.JumpToKey(spawnType)) {
       if (g_RetakesKv.JumpToKey(spawnid)) {
-        g_UpdatedRetakeKv = true;
+        g_Retake_UpdatedKv = true;
         g_RetakesKv.DeleteThis();
       }
     }
@@ -1189,7 +1157,7 @@ public void GetRetakeSpawnsNextId(const char[] retakeid, const char[] spawnType,
 }
 
 public bool SetRetakeSpawnVectorKV(const char[] retakeid, const char[] spawnType, const char[] spawnid, const char[] key, const float value[3]) {
-  g_UpdatedRetakeKv = true;
+  g_Retake_UpdatedKv = true;
   bool ret = false;
   if (g_RetakesKv.JumpToKey(retakeid, true)) {
     if (g_RetakesKv.JumpToKey(spawnType, true)) {
@@ -1238,7 +1206,7 @@ public bool GetRetakeSpawnStringKV(const char[] retakeid, const char[] spawnType
 }
 
 public bool SetRetakeSpawnStringKV(const char[] retakeid, const char[] spawnType, const char[] spawnid, const char[] key, const char[] value) {
-  g_UpdatedRetakeKv = true;
+  g_Retake_UpdatedKv = true;
   bool ret = false;
   if (g_RetakesKv.JumpToKey(retakeid, true)) {
     if (g_RetakesKv.JumpToKey(spawnType, true)) {
@@ -1256,7 +1224,7 @@ public bool SetRetakeSpawnStringKV(const char[] retakeid, const char[] spawnType
 }
 
 public void MaybeWriteNewRetakeData() {
-  if (g_UpdatedRetakeKv) {
+  if (g_Retake_UpdatedKv) {
     g_RetakesKv.Rewind();
     BackupFiles("retakes");
     char map[PLATFORM_MAX_PATH];
@@ -1267,7 +1235,7 @@ public void MaybeWriteNewRetakeData() {
     if (!g_RetakesKv.ExportToFile(retakeFile)) {
       PrintToServer("[RETAKES]Failed to write retakes to %s", retakeFile);
     }
-    g_UpdatedRetakeKv = false;
+    g_Retake_UpdatedKv = false;
     UpdateHoloRetakeEntities();
   }
 }
@@ -1277,14 +1245,14 @@ public bool IsRetakesEditor(int client) {
 }
 
 public bool IsRetakeBot(int client) {
-  return client > 0 && g_IsRetakeBot[client] && IsClientInGame(client) && IsFakeClient(client);
+  return client > 0 && g_Is_RetakeBot[client] && IsClientInGame(client) && IsFakeClient(client);
 }
 
 public void PlantBomb(int client, float bombPosition[3]) {
   int bombEntity = CreateEntityByName("planted_c4");
   // TODO: save bombEntity as global ent?
   GameRules_SetProp("m_bBombPlanted", 1);
-  SetEntData(bombEntity, bombTicking, 1, 1, true);
+  SetEntData(bombEntity, g_Retake_BombTicking, 1, 1, true);
   Event event = CreateEvent("bomb_planted");
   if (event != null) {
     event.SetInt("userid", GetClientUserId(client));

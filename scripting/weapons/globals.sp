@@ -70,9 +70,6 @@ bool g_bEnableStatTrak;
 ConVar g_Cvar_EnableSeed;
 bool g_bEnableSeed;
 
-ConVar g_Cvar_EnableWeaponOverwrite;
-bool g_bOverwriteEnabled;
-
 ConVar g_Cvar_GracePeriod;
 int g_iGracePeriod;
 
