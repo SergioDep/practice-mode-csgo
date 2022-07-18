@@ -935,7 +935,7 @@
     // g_Demo_CurrentRecordingStartTime[client];
     g_Demo_BotStopped[client] = false; // g_StopBotSignal
     g_Demo_PlayRoundTimer[client] = false;
-    g_DemoNadeData[client].Clear();
+    delete g_DemoNadeData[client];
   }
 
   public void Demos_PluginStart() {

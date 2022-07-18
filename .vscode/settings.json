@@ -1,6 +1,6 @@
 {
-    "sourcepawn.SourcemodHome": "C:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\include",
-    "sourcepawn.SpcompPath": "C:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\spcomp.exe",
+    "sourcepawn.SourcemodHome": "C:\\Users\\51979\\Documents\\Documentos Sergio\\GithubReps\\practice1.11\\scripting\\include",
+    "sourcepawn.SpcompPath": "C:\\Users\\51979\\Documents\\Documentos Sergio\\GithubReps\\practice1.11\\scripting\\spcomp.exe",
     "files.exclude": {
         "scripting/admin-flatfile/admin-flatfile.sp": true,
         "scripting/admin-flatfile/admin-groups.sp": true,
@@ -174,7 +174,7 @@
         "**/scripting/tests/": true
     },
     "sourcepawn.GithubName": "sergioDep",
-    "sourcepawn.MainPath": "c:\\Users\\51979\\Desktop\\honda-extranet-backend-main\\practice1.11\\scripting\\practicemode.sp",
+    "sourcepawn.MainPath": "c:\\Users\\51979\\Documents\\Documentos Sergio\\GithubReps\\practice1.11\\scripting\\practicemode.sp",
     "sourcepawn.MainPathCompilation": false,
     "sourcepawn.outputDirectoryPath": "C:\\GameServerManager\\servers\\1\\serverfiles\\csgo\\addons\\sourcemod\\plugins/"
 }

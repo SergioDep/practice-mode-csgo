@@ -87,25 +87,27 @@
   }
 
   public void OnGameFrame() {
-    for (int i = 0; i < g_SmokeList.Length; i++) {
-      int ref = g_SmokeList.Get(i);
-      int ent = EntRefToEntIndex(ref);
+    if (g_SmokeList != INVALID_HANDLE) {
+      for (int i = 0; i < g_SmokeList.Length; i++) {
+        int ref = g_SmokeList.Get(i);
+        int ent = EntRefToEntIndex(ref);
 
-      if (ent == INVALID_ENT_REFERENCE) {
-        g_SmokeList.Erase(i);
-        i--;
-        continue;
-      }
+        if (ent == INVALID_ENT_REFERENCE) {
+          g_SmokeList.Erase(i);
+          i--;
+          continue;
+        }
 
-      float vel[3];
-      GetEntPropVector(ent, Prop_Data, "m_vecVelocity", vel);
-      if (GetVectorLength(vel) <= 0.1) {
-        // SetEntProp(ent, Prop_Send, "m_nSmokeEffectTickBegin", GetGameTickCount() + 1);
-        // EmitSoundToAll(SMOKE_EMIT_SOUND, ent, 6, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL,
-        //                SNDPITCH_NORMAL);
-        // CreateTimer(15.0, KillNade, ref);
-        g_SmokeList.Erase(i);
-        i--;
+        float vel[3];
+        GetEntPropVector(ent, Prop_Data, "m_vecVelocity", vel);
+        if (GetVectorLength(vel) <= 0.1) {
+          // SetEntProp(ent, Prop_Send, "m_nSmokeEffectTickBegin", GetGameTickCount() + 1);
+          // EmitSoundToAll(SMOKE_EMIT_SOUND, ent, 6, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL,
+          //                SNDPITCH_NORMAL);
+          // CreateTimer(15.0, KillNade, ref);
+          g_SmokeList.Erase(i);
+          i--;
+        }
       }
     }
   }
