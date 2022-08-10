@@ -514,3 +514,86 @@
     any data
   );
 //
+
+/*
+
+// Translations
+char[] g_CurrentLanguage = "english";
+char g_ValidLanguages[][] = { "english", "spanish" };
+
+bool GetTranslatedString(int client, char[] buffer, int size, const char[] format, any:...) {
+  char[] langKey = g_CurrentLanguage;
+  if (langKey[0] == '\0') {
+    langKey = "english";
+  }
+
+  char langValue[128];
+  if (g_Translations.GetString(langKey, langValue, sizeof(langValue))) {
+    FormatEx(buffer, size, format, ...);
+    return true;
+  }
+  return false;
+}
+
+stringmap g_Translations = new StringMap();
+// english
+stringmap g_Translations_English = new StringMap();
+g_Translations_English.SetString("PRACTICE_MODE_DRY_RUN", "{ORANGE}Parameters: <money ${GREEN}%d{NORMAL}> <round time {GREEN}%d{NORMAL} min.>");
+g_Translations_English.SetString("Timer1", "{ORANGE}Timer will start when you move and will stop when you do.");
+g_Translations_English.SetString("Timer2", "{ORANGE}Write .timer2 to stop the timer.");
+g_Translations_English.SetString("SelectMap", "Select Players");
+g_Translations_English.SetString("KickPlayers", "Kick Players");
+g_Translations_English.SetString("KickPlayer", "Kick Player %N ?");
+g_Translations_English.SetString("SelectNo", "No");
+g_Translations_English.SetString("SelectYes", "Yes");
+g_Translations_English.SetString("Server_Settings", "Server Settings");
+g_Translations_English.SetString("ServerAccessPass", "Server Access: Password");
+g_Translations_English.SetString("ServerAccessNoPass", "Server Access: No password");
+g_Translations_English.SetString("ChangeMap", "Change Map");
+g_Translations_English.SetString("Option_ShowImpacts", "Show impacts");
+g_Translations_English.SetString("Option_InfiniteAmmo", "Infinite ammo");
+g_Translations_English.SetString("Option_BotsWallhack", "Bots wallhack");
+g_Translations_English.SetString("Option_GrenadeTrajectory", "Grenade trajectory");
+g_Translations_English.SetString("Option_ShowSpawns", "Show spawns");
+g_Translations_English.SetString("Option_AllowNoclip", "Noclip");
+g_Translations_English.SetString("Option_Collisions", "Bot Collisions");
+g_Translations_English.SetString("WriteNewPassword", "{ORANGE}Write new password");
+g_Translations_English.SetString("PracticeMenu", "Practice Menu");
+g_Translations_English.SetString("BotsMenu", "Bots Menu");
+g_Translations_English.SetString("NadesMenu", "Grenades Menu");
+g_Translations_English.SetString("TeleportingToCTSpawn", "{ORANGE}Teleporting to CT Spawn %d");
+g_Translations_English.SetString("TeleportingToTSpawn", "{ORANGE}Teleporting to T Spawn %d");
+g_Translations_English.SetString("BlindedPlayer", "{ORANGE}Flashed %s");
+g_Translations_English.SetString("FlashPrecision", "{ORANGE}Flash Precision of {Green}\"%s\"{ORANGE}: {GREEN}%.3f");
+g_Translations_English.SetString("FlashDuration", "{ORANGE}Flash Duration of {Green}\"%s\"{ORANGE}: {GREEN}%.3fs");
+g_Translations_English.SetString("AirTime", "{ORANGE}Airtime of {GREEN}\"%s\": {ORANGE}%.3f with {GREEN}\"%d\" bounces");
+g_Translations_English.SetString("BotDamageEvent", "{ORANGE}%d damage dealt to %s (HP: %d).");
+g_Translations_English.SetString("PasswordChangedTo", "{ORANGE}Password changed to {GREEN}\"%s\"{ORANGE}.");
+g_Translations_English.SetString("CreatedRetake", "{ORANGE}Created retake {GREEN}\"%s\"{ORANGE}with id {GREEN}\"%s\"{ORANGE}.");
+g_Translations_English.SetString("CreatedCrossfire", "{ORANGE}Created crossfire {GREEN}\"%s\"{ORANGE}with id {GREEN}\"%s\"{ORANGE}.");
+g_Translations_English.SetString("CreatedDemo", "{ORANGE}Created demo {GREEN}\"%s\"{ORANGE}with id {GREEN}\"%s\"{ORANGE}.");
+g_Translations_English.SetString("ActionCanceled", "{LIGTH_RED}Action canceled.");
+g_Translations_English.SetString("NameChangedTo", "{ORANGE}Name Changed to {GREEN}\"%s\"");
+g_Translations_English.SetString("AFK_KickReason", "Kicked for being AFK (%.2f min)");
+g_Translations_English.SetString("AFK_Warning", "{ORANGE}You will be kicked in %d seconds");
+g_Translations_English.SetString("Time", "Timer: %.2f");
+g_Translations_English.SetString("Time2", "Timer: %dm %.ds");
+g_Translations_English.SetString("BotsRemoved", "{ORANGE}Bots Removed");
+g_Translations_English.SetString("AddBot", "Add Bot");
+g_Translations_English.SetString("BotOptions", "Bot Options");
+g_Translations_English.SetString("SwitchBotTeam", "Switch Bot Team");
+g_Translations_English.SetString("DeleteBot", "Delete Bot");
+g_Translations_English.SetString("BotMenu"; "Bot Menu");
+g_Translations_English.SetString("BringBot", "Bring");
+g_Translations_English.SetString("StandUp", "Stand Up");
+g_Translations_English.SetString("Crouch", "Crouch");
+g_Translations_English.SetString("Boost", "Boost");
+g_Translations_English.SetString("Jump", "Jump");
+g_Translations_English.SetString("RunBoost", "Runboost");
+g_Translations_English.SetString("InvalidBot", "{ORANGE}Invalid Bot");
+g_Translations_English.SetString("TakenBot", "{ORANGE}Bot Already Taken");
+g_Translations_English.SetString("TooManyBots", "Too many bots (%d)");
+g_Translations_English.SetString("NoBotFound", "No bot found");
+
+
+*/

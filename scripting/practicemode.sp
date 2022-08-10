@@ -763,7 +763,7 @@ public int KickPlayerMenuHandler(Menu menu, MenuAction action, int client, int i
 
 stock void PracticeSetupMenu(int client, int pos = 0) {
   Menu menu = new Menu(PracticeSetupMenuHandler);
-  menu.SetTitle("%t", "Server_Settings");
+  menu.SetTitle("%t", "Server_Settings", client);
 
   char buffer[128];
   GetCvarStringSafe("sv_password", buffer, sizeof(buffer));

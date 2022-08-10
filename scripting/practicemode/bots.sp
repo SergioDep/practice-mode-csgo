@@ -33,7 +33,7 @@ public Action Command_RemoveAllBots(int client, int args) {
   KickAllBotsInServer();
   for (int i = 0; i <= MaxClients; i++) {
     if (IsPlayer(i)) {
-      PM_MessageToAll("%t", "BotsRemoved", i);
+      PM_Message(i, "%t", "BotsRemoved", i);
     }
   }
   return Plugin_Handled;
@@ -1184,9 +1184,9 @@ public Action DemoVersusBot_PlayerRunCmd(int client, int& buttons) {
 }
 
 public void LoadSDK() {
-  Handle hGameConfig = LoadGameConfigFile("practicemode.games");
+  Handle hGameConfig = LoadGameConfigFile("botstuff.games");
   if (hGameConfig == INVALID_HANDLE)
-    SetFailState("Failed to find practicemode.games game config.");
+    SetFailState("Failed to find botstuff.games game config.");
   
   if(!(g_Manico_TheBots = GameConfGetAddress(hGameConfig, "TheBots")))
     SetFailState("Failed to get TheBots address.");
@@ -1290,7 +1290,7 @@ public void LoadSDK() {
 }
 
 public void LoadDetours() {
-  GameData hGameData = new GameData("practicemode.games");   
+  GameData hGameData = new GameData("botstuff.games");   
   if (hGameData == null) {
     SetFailState("Failed to load practicemode gamedata.");
     return;

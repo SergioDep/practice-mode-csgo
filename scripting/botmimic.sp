@@ -63,9 +63,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 }
 
 public void OnPluginStart() {
-  Handle hGameConfig = LoadGameConfigFile("practicemode.games");
+  /* https://github.com/manicogaming */
+  Handle hGameConfig = LoadGameConfigFile("botstuff.games");
   if (hGameConfig == INVALID_HANDLE)
-    SetFailState("Failed to find practicemode.games game config.");
+    SetFailState("Failed to find botstuff.games game config.");
 
   if(!(g_pVersusModeTheBots = GameConfGetAddress(hGameConfig, "TheBots")))
 		SetFailState("Failed to get TheBots address.");

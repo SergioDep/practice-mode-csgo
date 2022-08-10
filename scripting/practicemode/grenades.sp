@@ -2,7 +2,7 @@
 /********************* Events, Forwards, Hooks *********************/
   public void NadePrediction_PluginStart() {
     if (g_Nade_Pred_Db == null) {
-      Database.Connect(SQLConnectPredictionsCallback, "prediction-test");
+      Database.Connect(SQLConnectPredictionsCallback, "predictions");
     }
 
     for (int i = 0; i <= MaxClients; i++) {

@@ -1476,6 +1476,10 @@
     g_Demo_Matches = new ArrayList(sizeof(S_Demo_Match));
 
     DirectoryListing demosFolderList = OpenDirectory(g_Demo_Matches_File);
+    if (demosFolderList == null) {
+      PrintToServer("[GetDemoMatches] Error opening demos folder");
+      return false;
+    }
     FileType fileType;
     char folderName[128];
     while (demosFolderList.GetNext(folderName, sizeof(folderName), fileType)) {
